@@ -313,6 +313,17 @@ const copywriter = {
       env
     );
   },
+  async leadConcept(product: string, audience: string, channel: string, env?: LlmEnv): Promise<string> {
+    return callLLM(
+      {
+        system: "Креативный директор NECTARIN. Один сильный концепт, кратко, на русском.",
+        prompt:
+          `Ведущая креативная идея для «${product}» / аудитория «${audience}» / канал «${channel}». ` +
+          `Дай одну ёмкую идею: суть, посыл, первый экран.`,
+      },
+      env
+    );
+  },
   async conceptTerritories(product: string, audience: string, channel: string, env?: LlmEnv): Promise<string[]> {
     const seeds = ["Контраст «было/стало»", "Инсайт аудитории + продукт-решение", "Демонстрация в нативном контексте канала"];
     return Promise.all(
@@ -617,22 +628,14 @@ export async function runPlan(
       const forecast = await analyst.forecastChannels(category, split, budget);
       const optimized = await optimizeBudget(category, budget);
 
-      // 7) Compliance gate.
+      // 7) Compliance gate + 9) lightweight ROI framing (deterministic, no LLM).
       const comp = await compliance.review(category);
-
-      // 8) Creative direction (1 lead concept) — real LLM if configured.
-      const leadChannel = forecast.channels[0]?.platform ?? "VK Ads";
-      const concepts = await copywriter.conceptTerritories(
-        brand ?? `категория ${category}`,
-        aud,
-        leadChannel,
-        env
-      );
-
-      // 9) Lightweight ROI framing from the forecast (consistent with roi_calculator method).
       const roi = quickRoi(category, budget, forecast.totals.blendedCpa);
 
-      // 10) Synthesizer: an executive summary that ties it all together (LLM or stub).
+      // The executive summary does NOT depend on the creative concept, so the two
+      // LLM calls run CONCURRENTLY (one round-trip instead of two). The flagship
+      // ships a single LEAD concept for speed; use creative_brief for 3 territories.
+      const leadChannel = forecast.channels[0]?.platform ?? "VK Ads";
       const strategyContext = {
         brand: brand ?? null,
         category,
@@ -647,7 +650,10 @@ export async function runPlan(
         compliance: { regulated: comp.regulated, gate: comp.gate },
         roi,
       };
-      const executiveSummary = await copywriter.executiveSummary(strategyContext, env);
+      const [executiveSummary, leadConcept] = await Promise.all([
+        copywriter.executiveSummary(strategyContext, env),
+        copywriter.leadConcept(brand ?? `категория ${category}`, aud, leadChannel, env),
+      ]);
 
       return synth(toolName, workers, {
         brand: brand ?? null,
@@ -667,7 +673,7 @@ export async function runPlan(
           totals: optimized.totals,
           note: "Сплит, максимизирующий конверсии при том же бюджете (см. budget_optimizer).",
         },
-        creativeConcepts: concepts.map((c, i) => ({ id: i + 1, idea: c })),
+        creativeConcepts: [{ id: 1, idea: leadConcept }],
         compliance: comp,
         roi,
         pipeline: workers,
