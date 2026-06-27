@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(25);
+    expect(json.toolCount).toBe(27);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(25);
+    expect(tools).toHaveLength(27);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -56,6 +56,8 @@ describe("tools/list", () => {
     expect(names).toContain("creative_score");
     expect(names).toContain("attribution_model");
     expect(names).toContain("bid_simulator");
+    expect(names).toContain("report_export");
+    expect(names).toContain("localize");
   });
 });
 
@@ -381,6 +383,48 @@ describe("tools/call — happy paths", () => {
       expect(sc.curve[i].winRatePct).toBeGreaterThanOrEqual(sc.curve[i - 1].winRatePct);
     }
   });
+
+  it("report_export builds slides + markdown from a strategy payload", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 30,
+      method: "tools/call",
+      params: {
+        name: "report_export",
+        arguments: {
+          title: "Стратегия 2026",
+          brand: "Acme",
+          strategy: {
+            executiveSummary: "Краткое резюме стратегии.",
+            mediaPlan: { forecast: { impressions: 1000000, clicks: 12000, conversions: 800, blendedCpa: 1500 } },
+            optimizedSplit: { allocation: [{ platform: "Yandex Direct", sharePct: 45, spend: 1800000 }] },
+            roi: { estAnnualValueRub: 50000000, estRoiX: 3.2 },
+            compliance: { regulated: true },
+          },
+        },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.slides.length).toBeGreaterThan(3);
+    expect(sc.slides[0].title).toBe("Стратегия 2026");
+    expect(typeof sc.markdown).toBe("string");
+    expect(sc.markdown).toContain("Executive Summary");
+    expect(typeof sc.onePager).toBe("string");
+  });
+
+  it("localize returns original text + note when no LLM key is set", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 31,
+      method: "tools/call",
+      params: { name: "localize", arguments: { text: "Откройте вклад сегодня", targetLang: "en" } },
+    });
+    const sc = json.result.structuredContent;
+    // Test env has no LLM key → graceful fallback to original.
+    expect(sc.usedLlm).toBe(false);
+    expect(sc.localized).toBe("Откройте вклад сегодня");
+    expect(sc.input.langName).toBe("английский");
+  });
 });
 
 describe("tools/call — error handling", () => {
@@ -452,7 +496,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(25);
+    expect(json.result.tools).toHaveLength(27);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -480,7 +524,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(25);
+    expect(json.result.tools).toHaveLength(27);
   });
 
   it("/version reports authMode shared-token when configured", async () => {

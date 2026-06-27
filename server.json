@@ -2,8 +2,8 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.alxvasilevvv/nectarin-intelligence-worker",
   "title": "NECTARIN Intelligence",
-  "description": "RU/CIS AI marketing intelligence agent — 25 MCP tools incl. one-call strategy orchestration, a conversion-maximizing budget optimizer, RU ad-law compliance review (ФЗ-38/ОРД), A/B test power analysis, unit-economics (LTV/CAC), full-funnel modeling, seasonality forecasting, creative scoring, multi-touch attribution and bid simulation: media planning, RU benchmarks, audience insights, competitor & GEO/AEO scans, ROI/value forecasting, creative briefs and lead/funnel helpers. Orchestrator-worker server on Cloudflare Workers.",
-  "version": "1.5.0",
+  "description": "RU/CIS AI marketing intelligence agent — 27 MCP tools incl. one-call strategy orchestration, a conversion-maximizing budget optimizer, RU ad-law compliance review (ФЗ-38/ОРД), A/B test power analysis, unit-economics (LTV/CAC), full-funnel modeling, seasonality forecasting, creative scoring, multi-touch attribution, bid simulation, deck export and CIS localization: media planning, RU benchmarks, audience insights, competitor & GEO/AEO scans, ROI/value forecasting, creative briefs and lead/funnel helpers. Orchestrator-worker server on Cloudflare Workers.",
+  "version": "1.6.0",
   "repository": {
     "url": "https://github.com/alxvasilevvv/nectarin-intelligence-worker",
     "source": "github"

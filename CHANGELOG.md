@@ -3,6 +3,23 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.6.0] — 2026-06-27
+
+Delivery & reach (Phase 3, part 2 — non-infra). Two composable tools that make
+output presentation-ready and CIS-multilingual. Backward-compatible.
+
+### Added
+- **`report_export`**: turns a strategy/analysis (e.g. `strategy_orchestrate`
+  output) into a presentation deck — ordered slides (title + bullets + speaker
+  notes), a full Markdown deck, and a condensed one-pager. Optional LLM polish of
+  the executive summary. Composable formatter.
+- **`localize`**: translate + culturally adapt marketing copy into RU/EN/KZ/UZ
+  for CIS markets (LLM-backed; graceful original-text fallback without a key).
+
+### Changed
+- `version` `1.5.0` → `1.6.0`; `GET /version` `toolCount` 25 → **27**.
+- Premium Analytics group is now **10** tools. Suite now **44 tests**.
+
 ## [1.5.0] — 2026-06-27
 
 Performance-marketing depth (Phase 3, part 1 — non-infra). Two self-contained

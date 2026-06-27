@@ -1093,6 +1093,229 @@ const bidSimulator: ToolDef = {
   },
 };
 
+// ═════════════════════════════════════════════════════════════════════════════
+// Tool 9: report_export — turn a strategy/analysis into a presentation deck
+// ═════════════════════════════════════════════════════════════════════════════
+
+interface Slide {
+  n: number;
+  title: string;
+  bullets: string[];
+  notes: string;
+}
+
+function asArray(v: unknown): any[] {
+  return Array.isArray(v) ? v : [];
+}
+
+/** Build deck slides defensively from a strategy_orchestrate-shaped payload. */
+function slidesFromStrategy(s: Record<string, any>, brand: string, title: string): Slide[] {
+  const slides: Slide[] = [];
+  let n = 1;
+  const push = (t: string, bullets: string[], notes = "") => {
+    if (bullets.length) slides.push({ n: n++, title: t, bullets, notes });
+  };
+
+  slides.push({ n: n++, title, bullets: [brand ? `Бренд: ${brand}` : "", "Стратегия медиа-микса RU/CIS", "Подготовлено NECTARIN Intelligence"].filter(Boolean), notes: "Титульный слайд." });
+
+  if (s.executiveSummary) push("Executive Summary", [String(s.executiveSummary)], "Главное для руководства за 30 секунд.");
+
+  if (s.benchmarks?.results) {
+    push(
+      "Бенчмарки рынка",
+      asArray(s.benchmarks.results).slice(0, 5).map((r: any) => `${r.platform ?? r.kpi ?? "—"}: ${JSON.stringify(r.range ?? r)}`),
+      "Опорные показатели категории."
+    );
+  }
+  if (s.audience?.segments) {
+    push("Аудитория и JTBD", [
+      ...asArray(s.audience.segments).slice(0, 3).map((x: any) => `${x.name} (${x.size}) — ${x.note}`),
+      ...asArray(s.audience.jtbd).slice(0, 3).map((j: string) => `JTBD: ${j}`),
+    ], "Кому и зачем.");
+  }
+  if (s.competitors?.competitors) {
+    push("Конкуренты", asArray(s.competitors.competitors).slice(0, 5).map((c: any) => `${c.name} — активность ${c.estimatedActivity}, каналы: ${(c.primaryChannels ?? []).join(", ")}`), "Конкурентное поле.");
+  }
+  if (s.mediaPlan) {
+    const f = s.mediaPlan.forecast ?? {};
+    push("Медиаплан и прогноз", [
+      f.impressions != null ? `Показы: ${ru(Number(f.impressions))}` : "",
+      f.clicks != null ? `Клики: ${ru(Number(f.clicks))}` : "",
+      f.conversions != null ? `Конверсии: ${ru(Number(f.conversions))}` : "",
+      f.blendedCpa != null ? `Сред. CPA: ${ru(Number(f.blendedCpa))} ₽` : "",
+    ].filter(Boolean), "Прогноз по медиаплану.");
+  }
+  if (s.optimizedSplit?.allocation) {
+    push("Оптимизированный сплит", asArray(s.optimizedSplit.allocation).map((a: any) => `${a.platform}: ${a.sharePct}% (${ru(Number(a.spend))} ₽)`), "Распределение бюджета для максимума конверсий.");
+  }
+  if (s.creativeConcepts) {
+    push("Креативные концепции", asArray(s.creativeConcepts).slice(0, 3).map((c: any, i: number) => `${i + 1}. ${typeof c === "string" ? c : c.title ?? c.concept ?? JSON.stringify(c)}`), "Идеи для тестирования.");
+  }
+  if (s.roi) {
+    push("ROI и ценность", [
+      s.roi.estAnnualValueRub != null ? `Оценка годовой ценности: ${ru(Number(s.roi.estAnnualValueRub))} ₽` : "",
+      s.roi.estRoiX != null ? `ROI: ${s.roi.estRoiX}×` : "",
+    ].filter(Boolean), "Экономическое обоснование.");
+  }
+  if (s.compliance) {
+    push("Комплаенс", [
+      s.compliance.regulated ? "⚠️ Регулируемая категория — обязательная юр-проверка ДО запуска." : "Стандартные требования к рекламе.",
+      "Маркировка ОРД/ЕРИР обязательна.",
+    ], "Юридические ограничения.");
+  }
+  if (s.pipeline) {
+    push("Дорожная карта", asArray(s.pipeline).slice(0, 8).map((p: any, i: number) => `${i + 1}. ${typeof p === "string" ? p : p.step ?? JSON.stringify(p)}`), "Следующие шаги.");
+  }
+
+  return slides;
+}
+
+const reportExport: ToolDef = {
+  name: "report_export",
+  description:
+    "Turn a strategy or analysis into a presentation-ready deck. Pass the `strategy` object (e.g. the structuredContent.data from strategy_orchestrate) and/or your own `sections`; get back ordered slides (title + bullets + speaker notes), a full Markdown deck (--- separated), and a condensed one-pager. Optional LLM polish of the executive summary. Deterministic formatter — compose it after strategy_orchestrate.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      title: { type: "string", description: "Deck title (default: «Маркетинговая стратегия»)" },
+      brand: { type: "string", description: "Brand name for the title slide" },
+      format: { type: "string", enum: ["deck", "onepager"], description: "Primary output emphasis (both are always returned)" },
+      strategy: { type: "object", description: "A strategy_orchestrate-shaped payload to render", additionalProperties: true },
+      sections: {
+        type: "array",
+        description: "Optional extra/manual slides",
+        items: {
+          type: "object",
+          properties: { heading: { type: "string" }, bullets: { type: "array", items: { type: "string" } } },
+          required: ["heading", "bullets"],
+          additionalProperties: false,
+        },
+      },
+    },
+    additionalProperties: false,
+  },
+  async handler(input, env) {
+    const title = String(input.title ?? "Маркетинговая стратегия");
+    const brand = String(input.brand ?? "");
+    const strategy = (input.strategy ?? null) as Record<string, any> | null;
+    const manual = asArray(input.sections);
+
+    if (!strategy && manual.length === 0) {
+      return { content: [{ type: "text", text: "Передайте `strategy` (например, data из strategy_orchestrate) и/или `sections`." }], isError: true };
+    }
+
+    let slides: Slide[] = strategy ? slidesFromStrategy(strategy, brand, title) : [{ n: 1, title, bullets: brand ? [`Бренд: ${brand}`] : ["Маркетинговая стратегия"], notes: "Титул." }];
+
+    // Append manual sections.
+    for (const sec of manual) {
+      slides.push({ n: slides.length + 1, title: String(sec.heading), bullets: asArray(sec.bullets).map(String), notes: "" });
+    }
+
+    // Optional LLM-polished executive summary on slide 2 (if a strategy summary exists).
+    const llmEnv = env as LlmEnv | undefined;
+    if (llmEnv?.LLM_API_KEY && strategy?.executiveSummary) {
+      const raw = await callLLM(
+        {
+          system: "Ты — стратег. Перепиши executive summary одним сильным абзацем (3–4 предложения) на русском, для C-level. Только текст.",
+          prompt: String(strategy.executiveSummary),
+        },
+        llmEnv
+      );
+      if (raw && !raw.includes("(LLM-stub:")) {
+        const idx = slides.findIndex((s) => s.title === "Executive Summary");
+        if (idx >= 0) slides[idx].bullets = [raw.trim()];
+      }
+    }
+
+    const markdown = slides
+      .map((s) => `## ${s.n}. ${s.title}\n\n${s.bullets.map((b) => `- ${b}`).join("\n")}${s.notes ? `\n\n> _Заметки: ${s.notes}_` : ""}`)
+      .join("\n\n---\n\n");
+
+    const onePager =
+      `# ${title}${brand ? ` — ${brand}` : ""}\n\n` +
+      slides.filter((s) => s.n > 1).map((s) => `**${s.title}.** ${s.bullets.slice(0, 2).join(" ")}`).join("\n\n");
+
+    const payload = {
+      tool: "report_export",
+      input: { title, brand: brand || null, format: input.format ?? "deck", slideCount: slides.length },
+      slides,
+      markdown,
+      onePager,
+      disclaimer: "Форматтер: качество слайдов зависит от переданных данных. Цифры — из исходной аналитики (синтетика, если не подключены реальные данные).",
+    };
+
+    const summary = `Презентация собрана: ${slides.length} слайдов${brand ? ` для «${brand}»` : ""}. Возвращены slides[], Markdown-дек и one-pager.`;
+    return toContent(summary, payload);
+  },
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Tool 10: localize — RU/CIS multilingual adaptation (RU/EN/KZ/UZ)
+// ═════════════════════════════════════════════════════════════════════════════
+
+const LANGS: Record<string, string> = {
+  ru: "русский",
+  en: "английский",
+  kz: "казахский",
+  uz: "узбекский",
+};
+
+const localize: ToolDef = {
+  name: "localize",
+  description:
+    "Localize marketing text for RU/CIS markets. Translates and culturally adapts copy into Russian, English, Kazakh or Uzbek while preserving marketing intent and tone. Requires an LLM key; without one it returns the original text with a clear note (never fails). Use it to ship one creative across CIS markets.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      text: { type: "string", description: "Source marketing text" },
+      targetLang: { type: "string", enum: ["ru", "en", "kz", "uz"], description: "Target language" },
+      tone: { type: "string", description: "Optional tone, e.g. «дружелюбный», «премиальный», «деловой»" },
+    },
+    required: ["text", "targetLang"],
+    additionalProperties: false,
+  },
+  async handler(input, env) {
+    const text = String(input.text ?? "");
+    const targetLang = String(input.targetLang);
+    const tone = input.tone ? String(input.tone) : "";
+    const langName = LANGS[targetLang] ?? targetLang;
+
+    const llmEnv = env as LlmEnv | undefined;
+    let localized = text;
+    let usedLlm = false;
+    if (llmEnv?.LLM_API_KEY) {
+      const raw = await callLLM(
+        {
+          system:
+            `Ты — переводчик-маркетолог. Адаптируй (не дословно) рекламный текст на ${langName} язык, ` +
+            `сохраняя смысл, силу и культурную уместность для рынка. ${tone ? `Тон: ${tone}. ` : ""}Верни только итоговый текст.`,
+          prompt: text,
+        },
+        llmEnv
+      );
+      if (raw && !raw.includes("(LLM-stub:")) {
+        localized = raw.trim();
+        usedLlm = true;
+      }
+    }
+
+    const payload = {
+      tool: "localize",
+      input: { targetLang, langName, tone: tone || null, chars: text.length },
+      localized,
+      usedLlm,
+      note: usedLlm
+        ? "Локализовано моделью; для регулируемых категорий проверьте через compliance_check на целевом языке."
+        : "LLM-ключ не настроен — возвращён исходный текст. Установите LLM_API_KEY для реальной локализации.",
+    };
+
+    const summary = usedLlm
+      ? `Текст локализован на ${langName}.`
+      : `LLM не настроен — вернул исходный текст (целевой язык: ${langName}).`;
+    return toContent(summary, payload);
+  },
+};
+
 // ── Export the group ──────────────────────────────────────────────────────────
 
 export const ANALYTICS_TOOLS: ToolDef[] = [
@@ -1104,4 +1327,6 @@ export const ANALYTICS_TOOLS: ToolDef[] = [
   creativeScore,
   attributionModel,
   bidSimulator,
+  reportExport,
+  localize,
 ];
