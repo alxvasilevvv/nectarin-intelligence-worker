@@ -79,7 +79,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.4.0";
+const SERVER_VERSION = "2.5.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -371,6 +371,57 @@ const PROMPTS = [
       `2) Если есть всплеск — сформулируй вероятные причины (промо/сезонность — сверься с seasonality_forecast).\n` +
       `3) cohort_ltv и unit_economics — оцени, как это бьёт по экономике (LTV:CAC, окупаемость).\n` +
       `4) Заверши конкретным действием (перераспределить бюджет через budget_optimizer / запустить тест / эскалация).`,
+  },
+  {
+    name: "launch_flight",
+    title: "Launch a flight (plan → tag → pace)",
+    description:
+      "Plan a flight, generate tracking, and set up pacing (media_plan → utm_builder → pacing_monitor + seasonality_forecast).",
+    arguments: [
+      { name: "category", description: `Industry category (${CATEGORIES.join(", ")})`, required: true },
+      { name: "budget", description: "Flight budget in RUB (number)", required: true },
+      { name: "goal", description: "awareness | consideration | performance | retention", required: true },
+      { name: "geo", description: "Geography", required: true },
+      { name: "landingUrl", description: "Landing page URL to tag (http/https)", required: false },
+      { name: "days", description: "Flight length in days (for pacing)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, медиа-менеджер запуска RU/CIS.\n` +
+      `Запусти флайт: категория «${a.category}», бюджет ${a.budget} ₽, цель «${a.goal}», гео «${a.geo}».\n\n` +
+      `Шаги:\n` +
+      `1) media_plan(category, budget, goal, geo) — сплит по каналам и прогноз.\n` +
+      `2) seasonality_forecast(category) — учти сезонность при распределении по неделям.\n` +
+      (a.landingUrl
+        ? `3) Для каждого канала собери ссылку utm_builder(url="${a.landingUrl}", source=<канал>, medium=cpc, campaign=<кампания>).\n`
+        : `3) Когда будет URL лендинга — собери utm_builder по каждому каналу (source/medium/campaign).\n`) +
+      `4) pacing_monitor — задай ориентир дневного расхода` +
+      (a.days ? ` на ${a.days} дней` : "") +
+      ` и план контроля темпа.\n` +
+      `5) Резюме: план, ссылки с UTM, дневной бюджет, что мониторить. Данные иллюстративные.`,
+  },
+  {
+    name: "performance_review",
+    title: "Performance review (diagnose → reallocate)",
+    description:
+      "Diagnose performance and reallocate budget (anomaly_detector → attribution_model → bid_simulator → budget_optimizer).",
+    arguments: [
+      { name: "category", description: `Industry category (${CATEGORIES.join(", ")})`, required: true },
+      { name: "budget", description: "Budget in RUB to reallocate (number)", required: true },
+      { name: "goal", description: "awareness | consideration | performance | retention", required: true },
+      { name: "metric", description: "Metric to inspect for anomalies, e.g. 'CPA'", required: false },
+      { name: "series", description: "Comma-separated metric values oldest→newest (optional)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, перформанс-директор RU/CIS.\n` +
+      `Проведи разбор эффективности и перераспредели бюджет: категория «${a.category}», бюджет ${a.budget} ₽, цель «${a.goal}».\n\n` +
+      `Шаги:\n` +
+      (a.series
+        ? `1) anomaly_detector(series=[${a.series}], metric="${a.metric ?? "CPA"}") — найди просадки/всплески.\n`
+        : `1) Если есть ряд метрики — anomaly_detector, чтобы найти просадки/всплески.\n`) +
+      `2) attribution_model — пойми, какие каналы недооценены last-touch (где реальная ценность).\n` +
+      `3) bid_simulator(category) — подбери биды под целевой CPA.\n` +
+      `4) budget_optimizer(category, budget, goal) — перераспредели в максимизирующий конверсии сплит.\n` +
+      `5) Резюме: что чинить, куда перелить бюджет, ожидаемый эффект. Данные иллюстративные.`,
   },
 ];
 

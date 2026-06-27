@@ -87,8 +87,9 @@ stays on JSON, so existing clients are unaffected.
 | `utm_builder` | Consistent, validated UTM tracking URLs (normalize, encode, warn, naming convention). |
 | `pacing_monitor` | Budget pacing vs. even spend curve: status, projection, recommended daily spend. |
 
-Built‑in **prompts**: `build_media_plan`, `full_strategy`, `competitor_teardown`,
-`sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`.
+Built‑in **prompts** (9): `build_media_plan`, `full_strategy`, `competitor_teardown`,
+`sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`,
+`launch_flight`, `performance_review`.
 **Resources:** `nectarin://methodology`, `nectarin://glossary`.
 
 ---

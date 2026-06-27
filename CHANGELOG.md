@@ -3,6 +3,20 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.5.0] — 2026-06-27
+
+Two orchestration prompts that turn the v2.4 operator/performance tools into
+one-click flows in the Claude Connectors UI. Additive, backward-compatible.
+
+### Added
+- **`launch_flight`** prompt: media_plan → seasonality_forecast → utm_builder →
+  pacing_monitor.
+- **`performance_review`** prompt: anomaly_detector → attribution_model →
+  bid_simulator → budget_optimizer.
+
+### Changed
+- `version` `2.4.0` → `2.5.0`. Prompts 7 → **9**. Tests **68** (prompts/list now 9).
+
 ## [2.4.0] — 2026-06-27
 
 Two practical day-to-day operator tools. Deterministic, no data/LLM needed.

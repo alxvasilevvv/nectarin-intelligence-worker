@@ -729,13 +729,15 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 7 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 9 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(7);
+    expect(json.result.prompts).toHaveLength(9);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
+    expect(names).toContain("launch_flight");
+    expect(names).toContain("performance_review");
   });
 
   it("prompts/get creative_lab interpolates args into a user message", async () => {
