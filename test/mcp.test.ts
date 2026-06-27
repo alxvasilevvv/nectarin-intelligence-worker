@@ -955,15 +955,29 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 9 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 10 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(9);
+    expect(json.result.prompts).toHaveLength(10);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
     expect(names).toContain("launch_flight");
     expect(names).toContain("performance_review");
+    expect(names).toContain("saturation_reallocation");
+  });
+
+  it("prompts/get saturation_reallocation embeds the channels and calls response_curve", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 66,
+      method: "prompts/get",
+      params: { name: "saturation_reallocation", arguments: { channels: "Yandex Direct:600000:900, VK Ads:600000:450", elasticity: "0.6" } },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("response_curve");
+    expect(text).toContain("Yandex Direct:600000:900");
+    expect(text).toContain("0.6");
   });
 
   it("prompts/get creative_lab interpolates args into a user message", async () => {

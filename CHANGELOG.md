@@ -3,6 +3,19 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.11.0] — 2026-06-28
+
+### Added
+- **`saturation_reallocation`** guided prompt (10 prompts total) — parses
+  `name:spend:conversions` channels, calls `response_curve`, explains the
+  marginal-CPA-equalized split + uplift, and optionally sanity-checks the
+  biggest mover with `pacing_monitor`. Makes the new saturation tool one-click
+  in Claude's prompt UI.
+
+### Changed
+- `version` `2.10.0` → `2.11.0`. Suite **86 tests** (prompt count, channel/
+  elasticity interpolation).
+
 ## [2.10.0] — 2026-06-28
 
 A genuinely premium analytical capability: marketing saturation modeling and

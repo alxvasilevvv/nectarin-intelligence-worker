@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.10.0";
+const SERVER_VERSION = "2.11.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -475,6 +475,33 @@ const PROMPTS = [
       `3) bid_simulator(category) — подбери биды под целевой CPA.\n` +
       `4) budget_optimizer(category, budget, goal) — перераспредели в максимизирующий конверсии сплит.\n` +
       `5) Резюме: что чинить, куда перелить бюджет, ожидаемый эффект. Данные иллюстративные.`,
+  },
+  {
+    name: "saturation_reallocation",
+    title: "Saturation-aware budget reallocation",
+    description:
+      "Reallocate budget across channels using diminishing-returns response curves (response_curve), then sanity-check pacing (pacing_monitor).",
+    arguments: [
+      {
+        name: "channels",
+        description:
+          "Channels with current spend & conversions, e.g. 'Yandex Direct:600000:900, VK Ads:600000:450' (name:spend:conversions)",
+        required: true,
+      },
+      { name: "totalBudget", description: "Total budget to allocate in RUB (optional; default = sum of current spend)", required: false },
+      { name: "elasticity", description: "Response elasticity b, 0<b≤1 (optional; default 0.7)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, performance-аналитик RU/CIS.\n` +
+      `Перераспредели бюджет по каналам с учётом убывающей отдачи.\n` +
+      `Каналы (name:spend:conversions): ${a.channels}\n` +
+      (a.totalBudget ? `Целевой бюджет: ${a.totalBudget} ₽.\n` : `Бюджет: реаллокация текущей суммы.\n`) +
+      `\nШаги:\n` +
+      `1) Распарси каналы в массив объектов {name, currentSpend, currentConversions}.\n` +
+      `2) Вызови response_curve(channels${a.totalBudget ? ", totalBudget" : ""}${a.elasticity ? ", elasticity=" + a.elasticity : ""}).\n` +
+      `3) Объясни рекомендованный сплит: где предельный CPA выровнен, какой канал недо/переинвестирован, ожидаемый uplift и улучшение blended CPA.\n` +
+      `4) (Опц.) Для канала с самой большой добавкой бюджета вызови pacing_monitor, чтобы проверить реалистичность дневного темпа.\n` +
+      `5) Дай чёткую рекомендацию и предупреждение: модель на одной точке калибровки — проверь эластичность b на истории. Данные иллюстративные.`,
   },
 ];
 

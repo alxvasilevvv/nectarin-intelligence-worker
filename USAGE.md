@@ -88,9 +88,9 @@ stays on JSON, so existing clients are unaffected.
 | `pacing_monitor` | Budget pacing vs. even spend curve: status, projection, recommended daily spend. |
 | `response_curve` | Channel saturation / diminishing‑returns modeling + conversion‑maximizing budget reallocation (marginal CPA, uplift vs. current). |
 
-Built‑in **prompts** (9): `build_media_plan`, `full_strategy`, `competitor_teardown`,
+Built‑in **prompts** (10): `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`,
-`launch_flight`, `performance_review`.
+`launch_flight`, `performance_review`, `saturation_reallocation`.
 **Resources:** `nectarin://methodology`, `nectarin://glossary`, `nectarin://catalog`
 (live JSON catalog of all tools + annotations + prompts). `tools/list` also
 returns a `title` and behavioral `annotations` (read-only / idempotent / open-world) per tool.
