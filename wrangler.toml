@@ -21,12 +21,14 @@ enabled = true
 OAUTH_ISSUER = ""        # e.g. "https://auth.unyly.com/"  (note trailing slash)
 OAUTH_AUDIENCE = ""      # e.g. "https://nectarin-intelligence.<subdomain>.workers.dev/mcp"
 OAUTH_JWKS_URL = ""      # JWKS endpoint; if blank it is derived from OAUTH_ISSUER + /.well-known/jwks.json
-DEV_BYPASS = "0"         # "1" = skip token check (dev). Production runs with the
-                         # MCP_SHARED_TOKEN secret below, which is enforced
-                         # regardless of this flag.
-# Endpoint protection without an external OAuth provider: a shared bearer token.
-# Set it as a SECRET (never in this file):  npx wrangler secret put MCP_SHARED_TOKEN
-# When present, /mcp requires `Authorization: Bearer <token>` (checked before OAuth).
+DEV_BYPASS = "1"         # "1" = authless (open). Required for Claude's Connectors
+                         # UI, which only supports OAuth or no-auth (NOT a static
+                         # bearer). Data is MOCK/synthetic, so authless is safe here.
+# OPTIONAL hardening (kept in code, currently OFF): set a shared bearer token as a
+# SECRET to require `Authorization: Bearer <token>` on /mcp (checked before OAuth):
+#   npx wrangler secret put MCP_SHARED_TOKEN
+# Note: works with Claude Code / Claude Desktop config / curl, but NOT the Claude
+# web/desktop "Connectors" UI (which has no static-token field). Use OAuth for that.
 
 # Rate limiting: requests/min per token (or per IP). Default 60 if unset.
 RATE_LIMIT_PER_MIN = "60"
