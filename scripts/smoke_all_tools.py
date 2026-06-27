@@ -34,11 +34,30 @@ def sample(schema):
     if "enum" in schema:
         return schema["enum"][0]
     if t == "number" or t == "integer":
+        is_int = t == "integer"
+        # Inclusive lower bound (honor exclusiveMinimum/minimum).
         if "exclusiveMinimum" in schema:
-            return schema["exclusiveMinimum"] + (1 if t == "integer" else 1000)
-        if "minimum" in schema:
-            return schema["minimum"]
-        return 1000
+            lo = schema["exclusiveMinimum"] + (1 if is_int else 0.01)
+        elif "minimum" in schema:
+            lo = schema["minimum"]
+        else:
+            lo = None
+        # Inclusive upper bound (honor exclusiveMaximum/maximum).
+        if "exclusiveMaximum" in schema:
+            hi = schema["exclusiveMaximum"] - (1 if is_int else 0.01)
+        elif "maximum" in schema:
+            hi = schema["maximum"]
+        else:
+            hi = None
+        if lo is not None and hi is not None:
+            val = (lo + hi) / 2
+        elif lo is not None:
+            val = lo
+        elif hi is not None:
+            val = hi / 2 if hi > 0 else hi
+        else:
+            val = 1000
+        return int(val) if is_int else val
     if t == "boolean":
         return True
     if t == "array":
@@ -59,6 +78,13 @@ def build_args(schema):
     return {k: sample(props[k]) for k in required if k in props}
 
 
+# Per-tool extra args for CONDITIONAL requirements the JSON Schema can't express
+# via plain `required` (e.g. "pass A, OR B+C"). Merged over the generic args.
+OVERRIDES = {
+    "unit_economics": {"cac": 3000},
+}
+
+
 def main():
     tools = rpc("tools/list", _id=2)["result"]["tools"]
     print(f"Tools discovered: {len(tools)}\n")
@@ -66,7 +92,7 @@ def main():
     fail = 0
     for i, tool in enumerate(tools, start=10):
         name = tool["name"]
-        args = build_args(tool.get("inputSchema", {}))
+        args = {**build_args(tool.get("inputSchema", {})), **OVERRIDES.get(name, {})}
         resp = rpc("tools/call", {"name": name, "arguments": args}, _id=i)
         if "error" in resp:
             fail += 1
