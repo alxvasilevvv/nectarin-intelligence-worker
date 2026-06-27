@@ -1,0 +1,17 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.alxvasilevvv/nectarin-intelligence-worker",
+  "title": "NECTARIN Intelligence",
+  "description": "RU/CIS AI marketing intelligence agent — 15 MCP tools: media planning, RU benchmarks, audience insights, competitor & GEO/AEO scans, ROI/value forecasting, creative briefs and lead/funnel helpers. Orchestrator-worker server on Cloudflare Workers.",
+  "version": "1.0.0",
+  "repository": {
+    "url": "https://github.com/alxvasilevvv/nectarin-intelligence-worker",
+    "source": "github"
+  },
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://nectarin-intelligence.alxvasilevv.workers.dev/mcp"
+    }
+  ]
+}
