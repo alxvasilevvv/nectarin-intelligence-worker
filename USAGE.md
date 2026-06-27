@@ -1,7 +1,7 @@
 # NECTARIN Intelligence — Usage & Claude Prompt
 
 Premium AI marketing agent for the **RU/CIS** market, served as a remote **MCP**
-server on Cloudflare Workers. **30 tools** across four groups, a model‑agnostic
+server on Cloudflare Workers. **32 tools** across four groups, a model‑agnostic
 LLM narrative seam (with KV response cache), real‑data layering via KV, and an
 opt‑in SSE transport.
 
@@ -37,7 +37,7 @@ stays on JSON, so existing clients are unaffected.
 
 ---
 
-## 2. Tool catalogue (30)
+## 2. Tool catalogue (32)
 
 ### Intelligence (11)
 | Tool | What it does |
@@ -78,12 +78,14 @@ stays on JSON, so existing clients are unaffected.
 | `report_export` | Strategy → slides / Markdown deck / one‑pager. |
 | `localize` | LLM translation + cultural adaptation (RU/EN/KZ/UZ). |
 
-### Premium (3) — generate · monitor · project
+### Premium (5) — generate · monitor · project · operate
 | Tool | What it does |
 |---|---|
 | `creative_variants` | Generate + score N ready‑to‑test ad variants (LLM, KV‑cached; template fallback), ranked best‑first. |
 | `anomaly_detector` | Robust median/MAD anomaly detection over a metric time series for always‑on monitoring. |
 | `cohort_ltv` | Retention‑curve cohort LTV/NPV + LTV:CAC + payback. |
+| `utm_builder` | Consistent, validated UTM tracking URLs (normalize, encode, warn, naming convention). |
+| `pacing_monitor` | Budget pacing vs. even spend curve: status, projection, recommended daily spend. |
 
 Built‑in **prompts**: `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`.
@@ -112,6 +114,9 @@ to produce a deck, `compliance_check` if regulated, `book_consultation` to close
 
 **Always-on monitoring & retention:**
 `anomaly_detector` (daily CPA/CTR/spend) → `cohort_ltv` + `unit_economics` to size the impact.
+
+**Launch & run a flight:**
+`utm_builder` (tag every link) → `pacing_monitor` (watch spend) → `budget_optimizer` (reallocate) → `anomaly_detector` (catch surprises).
 
 **Sell NECTARIN:**
 `roi_calculator` → `value_forecast` → `lead_qualify` → `request_nectarin_proposal`

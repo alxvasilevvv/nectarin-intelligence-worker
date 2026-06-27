@@ -84,6 +84,7 @@ def build_args(schema):
 OVERRIDES = {
     "unit_economics": {"cac": 3000},
     "cohort_ltv": {"monthlyChurnPct": 10, "periods": 12},
+    "utm_builder": {"url": "https://example.com/landing"},
 }
 
 

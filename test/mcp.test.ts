@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(30);
+    expect(json.toolCount).toBe(32);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(30);
+    expect(tools).toHaveLength(32);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -61,6 +61,8 @@ describe("tools/list", () => {
     expect(names).toContain("creative_variants");
     expect(names).toContain("anomaly_detector");
     expect(names).toContain("cohort_ltv");
+    expect(names).toContain("utm_builder");
+    expect(names).toContain("pacing_monitor");
   });
 });
 
@@ -497,6 +499,53 @@ describe("premium tools (v2.1)", () => {
     expect(json.result.isError).toBe(true);
     expect(JSON.stringify(json.result)).toContain("retentionCurve");
   });
+
+  it("utm_builder builds an encoded, normalized tracking URL", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 55,
+      method: "tools/call",
+      params: { name: "utm_builder", arguments: { url: "https://shop.example/landing?ref=x", source: "VK Ads", medium: "CPC", campaign: "Spring Sale 2026" } },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.url).toContain("utm_source=vk_ads");
+    expect(sc.url).toContain("utm_campaign=spring_sale_2026");
+    expect(sc.url).toContain("ref=x"); // preserves existing query
+    expect(sc.warnings.length).toBeGreaterThan(0); // flagged uppercase/spaces
+  });
+
+  it("utm_builder rejects a non-http url", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 56,
+      method: "tools/call",
+      params: { name: "utm_builder", arguments: { url: "ftp://x", source: "a", medium: "b", campaign: "c" } },
+    });
+    expect(json.result.isError).toBe(true);
+  });
+
+  it("pacing_monitor flags overspend and recommends a daily cap", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 57,
+      method: "tools/call",
+      params: { name: "pacing_monitor", arguments: { totalBudget: 300000, daysTotal: 30, daysElapsed: 10, spendToDate: 200000 } },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.status).toBe("over");
+    expect(sc.pace).toBeGreaterThan(1);
+    expect(sc.recommendedDailySpend).toBeGreaterThan(0);
+  });
+
+  it("pacing_monitor reports on-track within the band", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 58,
+      method: "tools/call",
+      params: { name: "pacing_monitor", arguments: { totalBudget: 300000, daysTotal: 30, daysElapsed: 10, spendToDate: 100000 } },
+    });
+    expect(json.result.structuredContent.status).toBe("on-track");
+  });
 });
 
 describe("infrastructure: KV data + SSE", () => {
@@ -559,7 +608,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(30);
+    expect(parsed.result.tools.length).toBe(32);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -642,7 +691,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(30);
+    expect(json.result.tools).toHaveLength(32);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -670,7 +719,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(30);
+    expect(json.result.tools).toHaveLength(32);
   });
 
   it("/version reports authMode shared-token when configured", async () => {

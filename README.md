@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-30-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-32-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the listing once the review is approved
 > (`https://unyly.org/ru/mcp/nectarin-intelligence`). Until then, add it manually as a
@@ -102,7 +102,7 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
 
 ---
 
-## Tools (30 total)
+## Tools (32 total)
 
 ### Intelligence group (inform + orchestrate)
 | Tool | What it does |
@@ -150,12 +150,14 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 | `report_export` | Turns a strategy/analysis into a deck — slides (title+bullets+notes), full Markdown deck and a one-pager. Composable after `strategy_orchestrate`. |
 | `localize` | Translate + culturally adapt copy into RU/EN/KZ/UZ for CIS markets (LLM-backed, graceful fallback). |
 
-### Premium group (v2.1 — generate, monitor, project)
+### Premium group (v2.1+ — generate, monitor, project, operate)
 | Tool | What it does |
 |---|---|
 | `creative_variants` | Generate **and** score N ready-to-test ad variants (LLM-backed + KV-cached; deterministic template fallback). Each variant gets the `creative_score` heuristic + a compliance flag, ranked best-first. Pairs with `ab_test_planner`. |
 | `anomaly_detector` | Robust median/MAD z-score anomaly detection over a metric time series (CPA/CTR/spend…) for always-on monitoring; flags per-point severity/direction and whether the latest point is anomalous. Std fallback for low-variance series. |
 | `cohort_ltv` | Retention-curve cohort LTV/NPV projection (explicit curve OR churn%+periods), per-period survivors/revenue, LTV:CAC, payback period. Complements `unit_economics`. |
+| `utm_builder` | Build a consistent, validated UTM tracking URL — normalizes tokens (lower/snake/kebab/preserve), URL-encodes, preserves existing query, warns on uppercase/spaces/non-ASCII, suggests a naming convention. |
+| `pacing_monitor` | Budget pacing vs. an even spend curve: expected spend, pace ratio, status (under/on-track/over), projected end spend, recommended daily spend to land on budget. |
 
 > **Funnel logic & safety.** All Growth figures are synthetic/illustrative and
 > anchored to the same mock RU/CIS benchmarks (`src/data.ts`) — internally
@@ -236,7 +238,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 30 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 3 Premium);
+`tools/list` returns all 32 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 5 Premium);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -279,7 +281,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (30 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (32 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit

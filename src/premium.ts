@@ -394,4 +394,163 @@ const cohortLtv: ToolDef = {
   },
 };
 
-export const PREMIUM_TOOLS: ToolDef[] = [creativeVariants, anomalyDetector, cohortLtv];
+// ═════════════════════════════════════════════════════════════════════════════
+// Tool 4: utm_builder — consistent, validated UTM tracking links
+// ═════════════════════════════════════════════════════════════════════════════
+
+/** Normalize a UTM token per a casing convention; flag issues. */
+function normalizeToken(raw: string, mode: string): { value: string; warnings: string[] } {
+  const warnings: string[] = [];
+  let v = raw.trim();
+  if (v !== raw) warnings.push("обрезаны пробелы по краям");
+  if (/[A-ZА-Я]/.test(v) && mode !== "preserve") warnings.push("приведено к нижнему регистру для консистентности");
+  if (/[^\x00-\x7F]/.test(v)) warnings.push("есть не-ASCII символы (кириллица) — лучше латиница для UTM");
+  if (mode !== "preserve") v = v.toLowerCase();
+  // spaces → separator
+  if (mode === "snake") v = v.replace(/\s+/g, "_");
+  else if (mode === "kebab") v = v.replace(/\s+/g, "-");
+  else v = v.replace(/\s+/g, "_"); // lower default → snake spaces
+  return { value: v, warnings };
+}
+
+const utmBuilder: ToolDef = {
+  name: "utm_builder",
+  description:
+    "Build a consistent, validated UTM tracking URL. Normalizes source/medium/campaign/term/content to a chosen casing convention (lower/snake/kebab/preserve), URL-encodes safely, preserves any existing query params, and warns about common mistakes (uppercase, spaces, non-ASCII/Cyrillic, missing required fields). Also returns a campaign naming-convention suggestion. Deterministic; no network call.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      url: { type: "string", description: "Destination URL (http/https)" },
+      source: { type: "string", description: "utm_source (e.g. vk, yandex, telegram)" },
+      medium: { type: "string", description: "utm_medium (e.g. cpc, banner, social, email)" },
+      campaign: { type: "string", description: "utm_campaign (e.g. spring_sale_2026)" },
+      term: { type: "string", description: "Optional utm_term (keyword)" },
+      content: { type: "string", description: "Optional utm_content (creative/variant id)" },
+      casing: { type: "string", enum: ["lower", "snake", "kebab", "preserve"], description: "Token casing convention (default lower)" },
+    },
+    required: ["url", "source", "medium", "campaign"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const casing = ["lower", "snake", "kebab", "preserve"].includes(input.casing) ? input.casing : "lower";
+    const rawUrl = String(input.url ?? "").trim();
+    if (!/^https?:\/\//i.test(rawUrl)) throw new Error("url must start with http:// or https://");
+
+    let parsed: URL;
+    try {
+      parsed = new URL(rawUrl);
+    } catch {
+      throw new Error("url is not a valid URL.");
+    }
+
+    const warnings: string[] = [];
+    const fields: Array<[string, string | undefined]> = [
+      ["utm_source", input.source],
+      ["utm_medium", input.medium],
+      ["utm_campaign", input.campaign],
+      ["utm_term", input.term],
+      ["utm_content", input.content],
+    ];
+    const params: Record<string, string> = {};
+    for (const [key, val] of fields) {
+      if (val == null || String(val).trim() === "") continue;
+      const { value, warnings: w } = normalizeToken(String(val), casing);
+      params[key] = value;
+      for (const msg of w) warnings.push(`${key}: ${msg}`);
+      parsed.searchParams.set(key, value);
+    }
+
+    const finalUrl = parsed.toString();
+    const namingSuggestion = `${params.utm_source ?? "<source>"}_${params.utm_medium ?? "<medium>"}_${params.utm_campaign ?? "<campaign>"}`;
+
+    const payload = {
+      tool: "utm_builder",
+      input: { url: rawUrl, casing },
+      params,
+      url: finalUrl,
+      namingSuggestion,
+      warnings,
+      tips: [
+        "Держите единый словарь source/medium (vk/cpc, telegram/social…) во всех кампаниях.",
+        "utm_content — для A/B вариантов креатива (свяжите с creative_variants).",
+        "Только латиница, нижний регистр, разделитель «_» — так данные не двоятся в аналитике.",
+      ],
+      disclaimer: "Ссылка собрана локально; реальный трекинг зависит от вашей системы аналитики.",
+    };
+    const summary =
+      `UTM-ссылка собрана: ${Object.keys(params).length} параметров` +
+      (warnings.length ? `, предупреждений ${warnings.length}.` : ", без предупреждений.");
+    return toContent(summary, payload);
+  },
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Tool 5: pacing_monitor — budget pacing vs. an even spend curve
+// ═════════════════════════════════════════════════════════════════════════════
+
+const pacingMonitor: ToolDef = {
+  name: "pacing_monitor",
+  description:
+    "Monitor budget pacing against an even spend curve. Given total budget, total/elapsed days and spend-to-date, it computes expected spend, pace ratio, status (under/on-track/over), projected end-of-period spend, remaining budget/days and the recommended daily spend to land exactly on budget. Deterministic; figures illustrative.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      totalBudget: { type: "number", exclusiveMinimum: 0, description: "Total budget for the period (₽)" },
+      daysTotal: { type: "integer", exclusiveMinimum: 0, description: "Total days in the flight" },
+      daysElapsed: { type: "integer", minimum: 0, description: "Days elapsed so far" },
+      spendToDate: { type: "number", minimum: 0, description: "Actual spend so far (₽)" },
+      onTrackBandPct: { type: "number", minimum: 1, maximum: 50, description: "± band considered on-track (default 10%)" },
+    },
+    required: ["totalBudget", "daysTotal", "daysElapsed", "spendToDate"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const totalBudget = Number(input.totalBudget);
+    const daysTotal = Math.round(Number(input.daysTotal));
+    const daysElapsed = clamp(Math.round(Number(input.daysElapsed)), 0, daysTotal);
+    const spendToDate = Math.max(0, Number(input.spendToDate));
+    const band = clamp(Number(input.onTrackBandPct ?? 10), 1, 50) / 100;
+
+    const expectedSpend = totalBudget * (daysElapsed / daysTotal);
+    const pace = expectedSpend > 0 ? spendToDate / expectedSpend : daysElapsed === 0 ? 0 : Infinity;
+    const status =
+      daysElapsed === 0 ? "not-started" : pace > 1 + band ? "over" : pace < 1 - band ? "under" : "on-track";
+
+    const remainingBudget = round(totalBudget - spendToDate, 2);
+    const remainingDays = daysTotal - daysElapsed;
+    const projectedEndSpend = daysElapsed > 0 ? round((spendToDate / daysElapsed) * daysTotal, 2) : 0;
+    const recommendedDailySpend = remainingDays > 0 ? round(Math.max(0, remainingBudget) / remainingDays, 2) : 0;
+    const currentDailyAvg = daysElapsed > 0 ? round(spendToDate / daysElapsed, 2) : 0;
+
+    const action =
+      status === "over"
+        ? `Перерасход: при текущем темпе закончите бюджет раньше (≈${ru(projectedEndSpend)} ₽ прогноз). Снизьте дневной до ~${ru(recommendedDailySpend)} ₽.`
+        : status === "under"
+        ? `Недорасход: останется ~${ru(round(totalBudget - projectedEndSpend, 2))} ₽. Поднимите дневной до ~${ru(recommendedDailySpend)} ₽ или перелейте в эффективные каналы (budget_optimizer).`
+        : status === "on-track"
+        ? `В графике. Держите дневной ~${ru(recommendedDailySpend)} ₽ до конца флайта.`
+        : "Флайт ещё не начался — план дневного расхода ниже.";
+
+    const payload = {
+      tool: "pacing_monitor",
+      input: { totalBudget, daysTotal, daysElapsed, spendToDate, onTrackBandPct: round(band * 100, 1) },
+      expectedSpend: round(expectedSpend, 2),
+      pace: Number.isFinite(pace) ? round(pace, 3) : null,
+      status,
+      currentDailyAvg,
+      recommendedDailySpend,
+      projectedEndSpend,
+      remainingBudget,
+      remainingDays,
+      action,
+      disclaimer: "Линейная (ровная) модель пейсинга; для сезонных флайтов сверьтесь с seasonality_forecast.",
+    };
+    const summary =
+      `Пейсинг: статус «${status}»` +
+      (Number.isFinite(pace) ? ` (темп ${round(pace, 2)}× от ожидаемого)` : "") +
+      `. Рекоменд. дневной ~${ru(recommendedDailySpend)} ₽, прогноз к концу ~${ru(projectedEndSpend)} ₽.`;
+    return toContent(summary, payload);
+  },
+};
+
+export const PREMIUM_TOOLS: ToolDef[] = [creativeVariants, anomalyDetector, cohortLtv, utmBuilder, pacingMonitor];

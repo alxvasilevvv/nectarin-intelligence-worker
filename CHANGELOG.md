@@ -3,6 +3,24 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.4.0] — 2026-06-27
+
+Two practical day-to-day operator tools. Deterministic, no data/LLM needed.
+Backward-compatible.
+
+### Added
+- **`utm_builder`**: build a consistent, validated UTM tracking URL — normalizes
+  tokens to a casing convention (lower/snake/kebab/preserve), URL-encodes,
+  preserves existing query params, warns on uppercase/spaces/non-ASCII, and
+  suggests a campaign naming convention.
+- **`pacing_monitor`**: budget pacing vs. an even spend curve — expected spend,
+  pace ratio, status (under/on-track/over), projected end spend, remaining
+  budget/days and the recommended daily spend to land exactly on budget.
+
+### Changed
+- `version` `2.3.0` → `2.4.0`; `toolCount` 30 → **32** (Premium group now 5).
+  Suite **68 tests**. Full prod smoke certified 32/32.
+
 ## [2.3.0] — 2026-06-27
 
 Production hardening: globally-coordinated rate limiting. Backward-compatible.
