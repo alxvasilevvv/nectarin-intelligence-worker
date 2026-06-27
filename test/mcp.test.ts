@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(32);
+    expect(json.toolCount).toBe(33);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(32);
+    expect(tools).toHaveLength(33);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -70,6 +70,7 @@ describe("tools/list", () => {
     expect(names).toContain("cohort_ltv");
     expect(names).toContain("utm_builder");
     expect(names).toContain("pacing_monitor");
+    expect(names).toContain("response_curve");
   });
 
   it("annotations: pure tools are read-only/idempotent; LLM & funnel tools are flagged", async () => {
@@ -164,8 +165,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(32);
-    expect(catalog.tools).toHaveLength(32);
+    expect(catalog.counts.tools).toBe(33);
+    expect(catalog.tools).toHaveLength(33);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -721,6 +722,56 @@ describe("premium tools (v2.1)", () => {
     });
     expect(json.result.structuredContent.status).toBe("on-track");
   });
+
+  it("response_curve reallocates toward the more efficient channel (diminishing returns)", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 59,
+      method: "tools/call",
+      params: {
+        name: "response_curve",
+        arguments: {
+          // Channel A is ~2× more cost-efficient (more conversions per RUB).
+          channels: [
+            { name: "A", currentSpend: 100000, currentConversions: 200 },
+            { name: "B", currentSpend: 100000, currentConversions: 100 },
+          ],
+          elasticity: 0.6,
+        },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.isReallocation).toBe(true);
+    expect(sc.totalBudget).toBe(200000);
+    const a = sc.channels.find((c: any) => c.name === "A");
+    const b = sc.channels.find((c: any) => c.name === "B");
+    // The efficient channel should get more budget than the weaker one.
+    expect(a.recommendedSpend).toBeGreaterThan(b.recommendedSpend);
+    // Reallocation at equal total should not reduce projected conversions.
+    expect(sc.totals.projectedConversions).toBeGreaterThanOrEqual(sc.totals.currentConversions);
+    // At the optimum, marginal CPA is equalized across funded channels.
+    expect(Math.abs(a.marginalCPA - b.marginalCPA)).toBeLessThanOrEqual(1);
+  });
+
+  it("response_curve splits evenly and warns when no channel has conversions", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 60,
+      method: "tools/call",
+      params: {
+        name: "response_curve",
+        arguments: {
+          channels: [
+            { name: "A", currentSpend: 50000, currentConversions: 0 },
+            { name: "B", currentSpend: 50000, currentConversions: 0 },
+          ],
+        },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.channels[0].recommendedSpend).toBe(sc.channels[1].recommendedSpend);
+    expect(sc.warnings.length).toBeGreaterThan(0);
+  });
 });
 
 describe("infrastructure: KV data + SSE", () => {
@@ -783,7 +834,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(32);
+    expect(parsed.result.tools.length).toBe(33);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -866,7 +917,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(32);
+    expect(json.result.tools).toHaveLength(33);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -894,7 +945,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(32);
+    expect(json.result.tools).toHaveLength(33);
   });
 
   it("/version reports authMode shared-token when configured", async () => {

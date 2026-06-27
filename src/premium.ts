@@ -553,4 +553,159 @@ const pacingMonitor: ToolDef = {
   },
 };
 
-export const PREMIUM_TOOLS: ToolDef[] = [creativeVariants, anomalyDetector, cohortLtv, utmBuilder, pacingMonitor];
+/**
+ * response_curve — marketing saturation / diminishing-returns analysis and
+ * budget reallocation across channels. Uses a constant-elasticity response model
+ * conversions(spend) = a · spend^b (0<b<1 ⇒ diminishing returns), calibrated per
+ * channel from the operator's OWN current spend/conversions (no fabricated data).
+ *
+ * With a shared elasticity b, maximizing total conversions under a fixed total
+ * budget has a closed form: optimal spend share ∝ a_i^{1/(1-b)}. We return the
+ * recommended split, projected conversions, per-channel marginal CPA, and the
+ * uplift vs. the current allocation — the "efficient frontier" point.
+ */
+const responseCurve: ToolDef = {
+  name: "response_curve",
+  description:
+    "Channel saturation / diminishing-returns modeling + budget reallocation. Fits a constant-elasticity response curve (conversions = a·spend^b, 0<b<1) to YOUR current per-channel spend & conversions, then computes the conversion-maximizing split for a target total budget (closed-form: share ∝ a^(1/(1-b))). Returns recommended spend per channel, projected conversions, marginal CPA, blended-CPA improvement and uplift vs. current. Model-based decision support (not real benchmarks).",
+  inputSchema: {
+    type: "object",
+    properties: {
+      channels: {
+        type: "array",
+        minItems: 2,
+        description: "Channels with their CURRENT spend and conversions",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string", description: "Channel name" },
+            currentSpend: { type: "number", exclusiveMinimum: 0, description: "Current spend (RUB)" },
+            currentConversions: { type: "number", minimum: 0, description: "Current conversions" },
+          },
+          required: ["name", "currentSpend", "currentConversions"],
+          additionalProperties: false,
+        },
+      },
+      elasticity: {
+        type: "number",
+        exclusiveMinimum: 0,
+        maximum: 1,
+        description: "Response elasticity b (0<b≤1). Lower = stronger diminishing returns. Default 0.7.",
+      },
+      totalBudget: {
+        type: "number",
+        exclusiveMinimum: 0,
+        description: "Total budget to allocate (RUB). Default = sum of current spends (pure reallocation).",
+      },
+    },
+    required: ["channels"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const channels = (input.channels ?? []) as Array<{
+      name: string;
+      currentSpend: number;
+      currentConversions: number;
+    }>;
+    const warnings: string[] = [];
+
+    // Elasticity: clamp into (0,1). b→1 (linear) breaks the closed form, so cap.
+    let b = typeof input.elasticity === "number" ? input.elasticity : 0.7;
+    if (b >= 1) {
+      b = 0.95;
+      warnings.push("elasticity≥1 (no diminishing returns) — capped to 0.95 for a finite optimum.");
+    }
+    if (b <= 0) b = 0.7;
+
+    const currentTotalSpend = channels.reduce((s, c) => s + c.currentSpend, 0);
+    const totalBudget =
+      typeof input.totalBudget === "number" && input.totalBudget > 0 ? input.totalBudget : currentTotalSpend;
+
+    // Calibrate a_i from the current point: a = conv / spend^b.
+    const calib = channels.map((c) => {
+      const a = c.currentConversions > 0 ? c.currentConversions / Math.pow(c.currentSpend, b) : 0;
+      return { ...c, a };
+    });
+
+    // Optimal share ∝ a^{1/(1-b)}. If no channel has signal, split evenly.
+    const exponent = 1 / (1 - b);
+    const rawWeights = calib.map((c) => (c.a > 0 ? Math.pow(c.a, exponent) : 0));
+    const weightSum = rawWeights.reduce((s, w) => s + w, 0);
+    if (weightSum <= 0) {
+      warnings.push("No channel has conversions > 0 — cannot infer efficiency; splitting the budget evenly.");
+    }
+
+    const rows = calib.map((c, i) => {
+      const recommendedSpend =
+        weightSum > 0 ? totalBudget * (rawWeights[i] / weightSum) : totalBudget / calib.length;
+      const projectedConversions = c.a > 0 ? c.a * Math.pow(recommendedSpend, b) : 0;
+      // Marginal conversions per RUB = a·b·spend^{b-1}; marginal CPA = its reciprocal.
+      const marginal = c.a > 0 && recommendedSpend > 0 ? c.a * b * Math.pow(recommendedSpend, b - 1) : 0;
+      const marginalCPA = marginal > 0 ? round(1 / marginal) : null;
+      const currentCPA = c.currentConversions > 0 ? round(c.currentSpend / c.currentConversions) : null;
+      const spendDeltaPct =
+        c.currentSpend > 0 ? round(((recommendedSpend - c.currentSpend) / c.currentSpend) * 100, 1) : null;
+      return {
+        name: c.name,
+        currentSpend: round(c.currentSpend),
+        currentConversions: round(c.currentConversions, 1),
+        currentCPA,
+        recommendedSpend: round(recommendedSpend),
+        spendDeltaPct,
+        projectedConversions: round(projectedConversions, 1),
+        marginalCPA,
+      };
+    });
+    rows.sort((x, y) => y.recommendedSpend - x.recommendedSpend);
+
+    const currentTotalConv = channels.reduce((s, c) => s + c.currentConversions, 0);
+    const projectedTotalConv = rows.reduce((s, r) => s + r.projectedConversions, 0);
+    const blendedCurrentCPA = currentTotalConv > 0 ? round(currentTotalSpend / currentTotalConv) : null;
+    const blendedProjectedCPA = projectedTotalConv > 0 ? round(totalBudget / projectedTotalConv) : null;
+    const upliftConversions = round(projectedTotalConv - currentTotalConv, 1);
+    const upliftPct = currentTotalConv > 0 ? round((upliftConversions / currentTotalConv) * 100, 1) : null;
+    const cpaImprovementPct =
+      blendedCurrentCPA && blendedProjectedCPA
+        ? round(((blendedCurrentCPA - blendedProjectedCPA) / blendedCurrentCPA) * 100, 1)
+        : null;
+
+    const payload = {
+      model: "constant-elasticity (conversions = a·spend^b)",
+      elasticity: b,
+      totalBudget: round(totalBudget),
+      isReallocation: !(typeof input.totalBudget === "number" && input.totalBudget > 0),
+      channels: rows,
+      totals: {
+        currentSpend: round(currentTotalSpend),
+        currentConversions: round(currentTotalConv, 1),
+        projectedConversions: round(projectedTotalConv, 1),
+        blendedCurrentCPA,
+        blendedProjectedCPA,
+        upliftConversions,
+        upliftPct,
+        cpaImprovementPct,
+      },
+      methodology:
+        "Per-channel a calibrated from current spend/conversions; optimal share ∝ a^(1/(1-b)) under a fixed total budget. Marginal CPA = 1/(a·b·spend^(b-1)). At the optimum, marginal CPA is equalized across funded channels.",
+      warnings,
+      disclaimer:
+        "Model-based decision support, not real benchmarks. A single calibration point assumes the elasticity b; validate b against historical spend/response before acting.",
+    };
+
+    const summary =
+      `Кривые отдачи (b=${b}) по ${rows.length} каналам, бюджет ${ru(round(totalBudget))} ₽: ` +
+      `прогноз ${ru(round(projectedTotalConv, 1))} конв.` +
+      (upliftPct != null ? ` (${upliftPct >= 0 ? "+" : ""}${upliftPct}% к текущим)` : "") +
+      (cpaImprovementPct != null ? `, blended CPA ${cpaImprovementPct >= 0 ? "−" : "+"}${Math.abs(cpaImprovementPct)}%.` : ".");
+    return toContent(summary, payload);
+  },
+};
+
+export const PREMIUM_TOOLS: ToolDef[] = [
+  creativeVariants,
+  anomalyDetector,
+  cohortLtv,
+  utmBuilder,
+  pacingMonitor,
+  responseCurve,
+];

@@ -3,6 +3,25 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.10.0] — 2026-06-28
+
+A genuinely premium analytical capability: marketing saturation modeling and
+budget reallocation across channels (33rd tool).
+
+### Added
+- **`response_curve`** — channel saturation / diminishing-returns analysis. Fits
+  a constant-elasticity response model `conversions = a·spend^b` (0<b<1) to the
+  operator's OWN current per-channel spend/conversions (no fabricated data), then
+  computes the conversion-maximizing split for a target budget via the closed
+  form `share ∝ a^(1/(1-b))`. Returns recommended spend, projected conversions,
+  per-channel marginal CPA (equalized at the optimum), blended-CPA improvement and
+  uplift vs. current. Handles linear (b≥1, capped) and no-signal (even split) cases
+  with explicit warnings. Fully deterministic.
+
+### Changed
+- Tool count **32 → 33**; `version` `2.9.0` → `2.10.0`. Suite **85 tests**
+  (efficient-channel reallocation, marginal-CPA equalization, even-split fallback).
+
 ## [2.9.0] — 2026-06-28
 
 Argument autocompletion so MCP clients can suggest valid enum values as the user

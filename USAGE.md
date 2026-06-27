@@ -37,7 +37,7 @@ stays on JSON, so existing clients are unaffected.
 
 ---
 
-## 2. Tool catalogue (32)
+## 2. Tool catalogue (33)
 
 ### Intelligence (11)
 | Tool | What it does |
@@ -78,7 +78,7 @@ stays on JSON, so existing clients are unaffected.
 | `report_export` | Strategy → slides / Markdown deck / one‑pager. |
 | `localize` | LLM translation + cultural adaptation (RU/EN/KZ/UZ). |
 
-### Premium (5) — generate · monitor · project · operate
+### Premium (6) — generate · monitor · project · operate
 | Tool | What it does |
 |---|---|
 | `creative_variants` | Generate + score N ready‑to‑test ad variants (LLM, KV‑cached; template fallback), ranked best‑first. |
@@ -86,6 +86,7 @@ stays on JSON, so existing clients are unaffected.
 | `cohort_ltv` | Retention‑curve cohort LTV/NPV + LTV:CAC + payback. |
 | `utm_builder` | Consistent, validated UTM tracking URLs (normalize, encode, warn, naming convention). |
 | `pacing_monitor` | Budget pacing vs. even spend curve: status, projection, recommended daily spend. |
+| `response_curve` | Channel saturation / diminishing‑returns modeling + conversion‑maximizing budget reallocation (marginal CPA, uplift vs. current). |
 
 Built‑in **prompts** (9): `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`,
