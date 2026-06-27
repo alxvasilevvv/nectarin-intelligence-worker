@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-17-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-20-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the listing once the review is approved
 > (`https://unyly.org/ru/mcp/nectarin-intelligence`). Until then, add it manually as a
@@ -31,15 +31,20 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
   and dependency-free). Implements `initialize`, `tools/list`, `tools/call`,
   `prompts/list`, `prompts/get`, `resources/list`, `resources/read`, `ping`, and
   the `notifications/*` no-ops, with proper JSON-RPC results/errors.
-- **`src/tools.ts`** — the tool registry. It composes two groups: the 11
+- **`src/tools.ts`** — the tool registry. It composes three groups: the 11
   **Intelligence** tools (incl. the flagship `strategy_orchestrate` and the
-  `budget_optimizer`) and the 6 **Growth & Automation** tools (see the table
-  below), each with a JSON-Schema `inputSchema` + async handler.
+  `budget_optimizer`), the 6 **Growth & Automation** tools, and the 3 **Premium
+  Analytics** tools (see the tables below), each with a JSON-Schema `inputSchema`
+  + async handler.
 - **`src/growth.ts`** — the 6 **Growth & Automation** tools (the funnel layer):
   `roi_calculator`, `lead_qualify`, `request_nectarin_proposal`,
   `book_consultation`, `automation_recipe`, `value_forecast`. Deterministic,
   synthetic logic anchored to the same mock benchmarks; **no PII is sent and no
   real network call is made** (proposal/booking are clearly-marked stubs).
+- **`src/analytics.ts`** — the 3 **Premium Analytics** tools: `compliance_check`
+  (RU ad-law copy review, ФЗ-38/ОРД, optional LLM rewrite), `ab_test_planner`
+  (real two-proportion power analysis with inverse-normal z + Bonferroni), and
+  `unit_economics` (LTV/CAC/payback/ROAS + verdict). Deterministic and auditable.
 - **`src/orchestrator.ts`** — the planner → workers (dataRetriever, analyst,
   strategist, copywriter, compliance) → synthesizer pipeline. `media_plan` math is
   real: `impressions = spend / CPM × 1000`, `clicks = impressions × CTR`,
@@ -80,7 +85,7 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
 
 ---
 
-## Tools (17 total)
+## Tools (20 total)
 
 ### Intelligence group (inform + orchestrate)
 | Tool | What it does |
@@ -110,6 +115,16 @@ managed services**, and frame NECTARIN as automation, not just advice.
 | `request_nectarin_proposal` | Structured RFP/brief + **clearly-stubbed** submission reference. **Sends nothing** (no CRM/webhook/email); privacy note included. | Proposal |
 | `book_consultation` | Scheduling CTA with a booking URL from `NECTARIN_BOOKING_URL` + a "what to prepare" checklist. | Proposal → close |
 | `automation_recipe` | Concrete multi-agent workflow (steps, internal tools, cadence, est. time saved) NECTARIN runs as a managed service. | Managed services |
+
+### Premium Analytics group (operate at a senior level)
+These make the agent a senior operator: a RU ad-law reviewer, an experimentation
+lead, and a unit-economics analyst. All math is deterministic and auditable.
+
+| Tool | What it does |
+|---|---|
+| `compliance_check` | RU ad-law review of copy → 0-100 score + flagged risks (severity, **ФЗ-38** article, fix): superlatives/ФАС, comparative claims, finance (ПСК, guaranteed returns), pharma warning, alcohol/tobacco/gambling, **ОРД/ЕРИР** marking. Optional LLM rewrite. Not legal advice. |
+| `ab_test_planner` | Two-proportion **power analysis**: sample size/variant, total, duration; exact z via inverse-normal (Acklam) + Bonferroni for multi-variant; guardrails. |
+| `unit_economics` | LTV / LTV:CAC / payback / ROAS / contribution; CAC from spend÷customers, lifespan from churn; health verdict + levers. |
 
 > **Funnel logic & safety.** All Growth figures are synthetic/illustrative and
 > anchored to the same mock RU/CIS benchmarks (`src/data.ts`) — internally
@@ -190,7 +205,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 17 tools (11 Intelligence + 6 Growth & Automation);
+`tools/list` returns all 20 tools (11 Intelligence + 6 Growth & Automation + 3 Premium Analytics);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -233,7 +248,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (17 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (20 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit

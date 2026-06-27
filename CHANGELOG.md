@@ -3,6 +3,38 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.2.0] — 2026-06-27
+
+Premium analytics upgrade — NECTARIN goes from informing/converting to operating
+at a senior level: a RU ad-law reviewer, a rigorous experimentation lead, and a
+unit-economics analyst. New `src/analytics.ts` group, all deterministic (with an
+optional LLM rewrite for compliance). Backward-compatible.
+
+### Added
+- **`compliance_check`**: RU advertising-law review of ad copy. Returns a 0-100
+  compliance score, flagged risks with severity + the relevant **ФЗ-38** article +
+  a concrete fix. Covers superlatives/ФАС risk, comparative claims, finance (ПСК,
+  guaranteed returns — ст. 28), pharma (mandatory warning — ст. 24),
+  alcohol/tobacco/gambling hard-blocks, and **ОРД/ЕРИР** marking. With `LLM_API_KEY`
+  set it adds extra nuance + a compliant rewrite. Decision-support, not legal advice.
+- **`ab_test_planner`**: real two-proportion **power analysis** — sample size per
+  variant, total, estimated duration, with exact z-scores via the inverse-normal
+  (Acklam) and a **Bonferroni** correction for multi-variant tests. Includes
+  guardrails (no peeking, ≥14-day runtime, SRM watch).
+- **`unit_economics`**: LTV / LTV:CAC / payback (months) / ROAS / contribution per
+  customer, with CAC derivable from spend÷customers and lifespan from churn, a
+  health verdict (≥3:1, payback <12mo) and concrete levers.
+- Tests: `compliance_check` (rule firing incl. Cyrillic word-boundary regression),
+  `ab_test_planner` (sample size/duration), `unit_economics` (derivation + verdict)
+  — suite now **34 tests**.
+
+### Changed
+- `version` `1.1.0` → `1.2.0`; `GET /version` `toolCount` 17 → **20**.
+
+### Fixed
+- Compliance regex no longer relies on `\b`/`\w` for Cyrillic (ASCII-only in JS
+  regex), which previously let RU violations pass undetected.
+
 ## [1.1.0] — 2026-06-27
 
 Orchestration & intelligence upgrade. Two new tools and a real (optional) LLM,

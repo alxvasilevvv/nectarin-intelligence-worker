@@ -23,18 +23,18 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(17);
+    expect(json.toolCount).toBe(20);
     expect(json.commit).toBeDefined();
   });
 });
 
 describe("tools/list", () => {
-  it("returns exactly 17 tools, each with a JSON-Schema inputSchema", async () => {
+  it("returns exactly 20 tools, each with a JSON-Schema inputSchema", async () => {
     const { status, json } = await rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" });
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(17);
+    expect(tools).toHaveLength(20);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -48,6 +48,9 @@ describe("tools/list", () => {
     expect(names).toContain("lead_qualify");
     expect(names).toContain("budget_optimizer");
     expect(names).toContain("strategy_orchestrate");
+    expect(names).toContain("compliance_check");
+    expect(names).toContain("ab_test_planner");
+    expect(names).toContain("unit_economics");
   });
 });
 
@@ -161,6 +164,87 @@ describe("tools/call — happy paths", () => {
     expect(d.roi.estAnnualValueRub).toBeGreaterThan(0);
     expect(d.pipeline.length).toBeGreaterThan(0);
   });
+
+  it("compliance_check flags superlatives and pharma warning + scores", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 18,
+      method: "tools/call",
+      params: {
+        name: "compliance_check",
+        arguments: { copy: "Лучший препарат — излечивает за 1 день!", category: "pharma" },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.complianceScore).toBeLessThan(80);
+    expect(sc.riskLevel).toBe("high");
+    expect(sc.counts.high).toBeGreaterThan(0);
+    const areas = sc.findings.map((f: any) => f.area).join(" | ");
+    expect(areas).toMatch(/Превосходн|противопоказан|фарма/i);
+    // ОРД marking reminder is always present.
+    expect(areas).toMatch(/ОРД/);
+  });
+
+  it("compliance_check catches superlative + guaranteed return (finance)", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 21,
+      method: "tools/call",
+      params: {
+        name: "compliance_check",
+        arguments: { copy: "Лучший вклад! Гарантированная доходность 30%", category: "finance" },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.counts.high).toBeGreaterThanOrEqual(2);
+    expect(sc.complianceScore).toBeLessThan(60);
+    const areas = sc.findings.map((f: any) => f.area).join(" | ");
+    expect(areas).toMatch(/Превосходн/);
+    expect(areas).toMatch(/доходност/i);
+  });
+
+  it("ab_test_planner computes sample size and duration", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 19,
+      method: "tools/call",
+      params: {
+        name: "ab_test_planner",
+        arguments: { baselineRatePct: 5, mdeRelPct: 10, dailyVisitorsPerVariant: 2000 },
+      },
+    });
+    const r = json.result.structuredContent.result;
+    expect(r.sampleSizePerVariant).toBeGreaterThan(0);
+    expect(r.totalSampleSize).toBe(r.sampleSizePerVariant * 2);
+    expect(r.estDurationDays).toBeGreaterThan(0);
+    expect(r.recommendedMinRuntimeDays).toBeGreaterThanOrEqual(14);
+  });
+
+  it("unit_economics derives CAC, LTV:CAC and a verdict", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 20,
+      method: "tools/call",
+      params: {
+        name: "unit_economics",
+        arguments: {
+          aov: 5000,
+          grossMarginPct: 40,
+          monthlySpend: 1_000_000,
+          newCustomers: 500,
+          purchasesPerYear: 3,
+          lifespanYears: 2,
+        },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.derived.cac).toBe(2000);
+    expect(sc.metrics.ltv).toBe(12000);
+    expect(sc.metrics.ltvToCac).toBe(6);
+    expect(sc.metrics.paybackMonths).toBeGreaterThan(0);
+    expect(typeof sc.verdict).toBe("string");
+    expect(sc.healthy).toBe(true);
+  });
 });
 
 describe("tools/call — error handling", () => {
@@ -232,7 +316,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(17);
+    expect(json.result.tools).toHaveLength(20);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -260,7 +344,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(17);
+    expect(json.result.tools).toHaveLength(20);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
