@@ -5,7 +5,8 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { callLLM, getLlmCacheStats } from "../src/orchestrator.js";
 import { LayeredKvDataSource } from "../src/data.js";
-import { KvRateLimiter } from "../src/ratelimit.js";
+import { KvRateLimiter, DurableObjectRateLimiter, MemoryRateLimiter } from "../src/ratelimit.js";
+import { RateLimiterDO } from "../src/index.js";
 
 /** In-memory KV double honoring the "text" | "json" type hint. */
 function fakeKv(initial: Record<string, unknown> = {}) {
@@ -145,5 +146,61 @@ describe("KvRateLimiter", () => {
     const rl = new KvRateLimiter(fakeKv() as any);
     const r = await rl.check("sub:user-3", 0);
     expect(r.allowed).toBe(true);
+  });
+});
+
+describe("DurableObjectRateLimiter + RateLimiterDO", () => {
+  /** Fake DO namespace: one RateLimiterDO instance per id name (strong + exact). */
+  function fakeNs() {
+    const instances = new Map<string, RateLimiterDO>();
+    return {
+      idFromName(name: string) {
+        return name;
+      },
+      get(id: unknown) {
+        const key = String(id);
+        if (!instances.has(key)) instances.set(key, new RateLimiterDO());
+        const inst = instances.get(key)!;
+        return {
+          fetch: (_input: any, init?: any) =>
+            inst.fetch(new Request("https://do/check", { method: "POST", body: init?.body })),
+        };
+      },
+    };
+  }
+
+  it("enforces an exact limit even across rapid calls (strong consistency)", async () => {
+    const rl = new DurableObjectRateLimiter(fakeNs() as any, new MemoryRateLimiter());
+    const k = "sub:do-user";
+    // First 5 allowed (full bucket), 6th blocked — counted exactly by the DO.
+    const results = [] as boolean[];
+    for (let i = 0; i < 6; i++) results.push((await rl.check(k, 5)).allowed);
+    expect(results.slice(0, 5).every(Boolean)).toBe(true);
+    expect(results[5]).toBe(false);
+  });
+
+  it("fails OPEN to the fallback limiter when the DO throws", async () => {
+    const throwingNs = {
+      idFromName: (n: string) => n,
+      get: () => ({
+        fetch: async () => {
+          throw new Error("DO down");
+        },
+      }),
+    };
+    const rl = new DurableObjectRateLimiter(throwingNs as any, new MemoryRateLimiter());
+    const r = await rl.check("sub:do-user-2", 1000);
+    expect(r.allowed).toBe(true);
+  });
+
+  it("RateLimiterDO blocks after the bucket drains", async () => {
+    const do_ = new RateLimiterDO();
+    const call = async () =>
+      JSON.parse(await (await do_.fetch(new Request("https://do/check", { method: "POST", body: JSON.stringify({ limitPerMin: 2 }) }))).text());
+    expect((await call()).allowed).toBe(true);
+    expect((await call()).allowed).toBe(true);
+    const third = await call();
+    expect(third.allowed).toBe(false);
+    expect(third.retryAfterSec).toBeGreaterThan(0);
   });
 });

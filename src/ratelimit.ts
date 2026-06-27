@@ -203,3 +203,43 @@ export class KvRateLimiter implements RateLimiter {
     }
   }
 }
+
+// ── Durable Object limiter (strongly consistent — hard global limits) ─────────
+
+/** Minimal subset of a DO stub/namespace so we stay free of CF type deps. */
+export interface DurableStubLike {
+  fetch(input: Request | string, init?: RequestInit): Promise<Response>;
+}
+export interface DurableNamespaceLike {
+  idFromName(name: string): unknown;
+  get(id: unknown): DurableStubLike;
+}
+
+/**
+ * Durable-Object-backed limiter — STRONGLY consistent. One DO instance per key
+ * owns a token bucket, so even a parallel burst is counted exactly (unlike KV's
+ * eventually-consistent window). FAIL-OPEN: any DO error falls back to the
+ * injected limiter (KV or memory), so a DO hiccup never hard-locks the endpoint.
+ */
+export class DurableObjectRateLimiter implements RateLimiter {
+  constructor(private ns: DurableNamespaceLike, private fallback: RateLimiter) {}
+
+  async check(key: string, limitPerMin: number): Promise<RateLimitResult> {
+    if (!Number.isFinite(limitPerMin) || limitPerMin <= 0) {
+      return { allowed: true, limit: 0, remaining: Number.POSITIVE_INFINITY, retryAfterSec: 0 };
+    }
+    try {
+      const id = this.ns.idFromName(key);
+      const stub = this.ns.get(id);
+      const res = await stub.fetch("https://do/check", {
+        method: "POST",
+        body: JSON.stringify({ limitPerMin }),
+      });
+      if (!res.ok) throw new Error(`DO ${res.status}`);
+      return (await res.json()) as RateLimitResult;
+    } catch {
+      // FAIL-OPEN: degrade to the fallback limiter (never hard-lock on DO error).
+      return this.fallback.check(key, limitPerMin);
+    }
+  }
+}

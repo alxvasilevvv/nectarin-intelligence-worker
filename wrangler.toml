@@ -69,6 +69,18 @@ NECTARIN_CRM_WEBHOOK_URL = ""
 binding = "NECTARIN_KV"
 id = "5b16a4d53bc5424396d0b9f39a2423c3"
 
+# ── Durable Object: strongly-consistent global rate limiter ─────────────────
+# One DO instance per key owns a token bucket → exact counts even under a
+# parallel burst (KV is only eventually consistent). The Worker prefers this
+# over KV/memory and falls back to them fail-open on any DO error.
+[[durable_objects.bindings]]
+name = "RATE_LIMITER"
+class_name = "RateLimiterDO"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["RateLimiterDO"]
+
 # ── Future D1 binding (per-tenant relational data) ──────────────────────────
 #   npx wrangler d1 create nectarin-intelligence
 # [[d1_databases]]

@@ -3,6 +3,25 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.6.0] — 2026-06-27
+
+Hard, strongly-consistent global rate limiting via a Durable Object — the gap
+KV (eventually consistent) could not close. Backward-compatible, fail-open.
+
+### Added
+- **`RateLimiterDO`** Durable Object (one instance per key owns a token bucket →
+  exact counts even under a parallel burst) + **`DurableObjectRateLimiter`**
+  worker-side wrapper. Bound via `[[durable_objects.bindings]]` + `[[migrations]]`
+  (SQLite class, free-plan compatible).
+- Limiter precedence is now **DO → KV → memory**, each **fail-open** to the next.
+  Verified on prod: a 120-request parallel burst at 60/min returned
+  ~64×200 / ~56×429 (KV admitted all 120 before). `/health` + `/version` report
+  the active backend.
+
+### Changed
+- `version` `2.5.0` → `2.6.0`. Suite **71 tests** (DO limit enforcement, fail-open,
+  DO token-bucket drain).
+
 ## [2.5.0] — 2026-06-27
 
 Two orchestration prompts that turn the v2.4 operator/performance tools into

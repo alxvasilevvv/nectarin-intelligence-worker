@@ -335,12 +335,17 @@ error degrades gracefully back to the stub — a tool call never fails because o
    PKCE, issuance/rotation, per-tenant scopes); this Worker only validates.
 
 ### Rate limits
-- When `NECTARIN_KV` is bound (it is in this deploy), the server uses a
-  **global, cross-isolate `KvRateLimiter`** (fixed-window, `RATE_LIMIT_PER_MIN`),
-  installed automatically in `fetch()`. It is **fail-open**: any KV error degrades
-  to a local token bucket, so a KV hiccup never hard-locks the public connector.
-- Without a KV binding it falls back to a per-isolate **in-memory token-bucket**.
-- The active backend is reported by `/health` and `/version` (`rateLimiter`).
+Backend precedence (auto-selected in `fetch()`, reported by `/health` & `/version`):
+- **Durable Object** (`RATE_LIMITER`, bound in this deploy) — *strongly
+  consistent*: one DO instance per key owns a token bucket, so even a parallel
+  burst is counted exactly. Verified on prod: a 120-request burst at 60/min
+  returned ~64×200 / ~56×429.
+- **KV** (`NECTARIN_KV`) — global, cross-isolate fixed-window (eventually
+  consistent; can over-admit under a burst). Used if no DO.
+- **Memory** — per-isolate token bucket. Used if neither binding is present.
+- Everything is **fail-open**: a DO/KV error degrades to the next layer (down to
+  memory), so an infra hiccup never hard-locks the public connector.
+- `RATE_LIMIT_PER_MIN` sets the ceiling (default 60).
 - Over-limit → JSON-RPC `-32029` + HTTP 429 with `Retry-After`/`X-RateLimit-*`.
 
 ### Swapping the data source (mock → real)

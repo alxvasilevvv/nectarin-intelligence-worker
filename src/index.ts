@@ -29,7 +29,14 @@
 import { ALL_TOOLS, TOOLS_BY_NAME } from "./tools.js";
 import { CATEGORIES, setDataSource, LayeredKvDataSource, MockDataSource } from "./data.js";
 import { authenticate, unauthorizedResponse, authMode } from "./auth.js";
-import { enforceRateLimit, setRateLimiter, KvRateLimiter, MemoryRateLimiter } from "./ratelimit.js";
+import {
+  enforceRateLimit,
+  setRateLimiter,
+  KvRateLimiter,
+  MemoryRateLimiter,
+  DurableObjectRateLimiter,
+  type DurableNamespaceLike,
+} from "./ratelimit.js";
 import { validateInput, formatErrors } from "./validate.js";
 import { getLlmCacheStats, type KvLike } from "./orchestrator.js";
 
@@ -75,11 +82,17 @@ export interface Env {
    *     over the bundled synthetic data (benchmarks:<category>, playbook:<industry>, suppliers).
    */
   NECTARIN_KV?: KvLike;
+  /**
+   * Optional Durable Object namespace for STRONGLY-consistent global rate limits.
+   * When bound, it is preferred over the KV/memory limiter (with fail-open
+   * fallback to them). See `RateLimiterDO` below and wrangler.toml.
+   */
+  RATE_LIMITER?: DurableNamespaceLike;
   // Future binding: NECTARIN_DB?: D1Database (per-tenant relational data).
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.5.0";
+const SERVER_VERSION = "2.6.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -600,12 +613,15 @@ function logRequest(entry: { method: string; tool?: string; ms: number; status: 
  */
 let installedFor: unknown = Symbol("uninstalled");
 function ensureDataSource(env: Env): void {
-  const target: unknown = env.NECTARIN_KV ?? "mock";
+  // Identity covers both bindings so tests that swap envs reinstall correctly.
+  const target: unknown = `${env.RATE_LIMITER ? "do" : ""}|${env.NECTARIN_KV ? "kv" : "mock"}`;
   if (installedFor === target) return;
   // Data source: KV-layered real/override data over mock, or pure mock.
   setDataSource(env.NECTARIN_KV ? new LayeredKvDataSource(env.NECTARIN_KV) : new MockDataSource());
-  // Rate limiter: global KV-backed (fail-open) when bound, else per-isolate memory.
-  setRateLimiter(env.NECTARIN_KV ? new KvRateLimiter(env.NECTARIN_KV) : new MemoryRateLimiter());
+  // Rate limiter precedence: Durable Object (strong) → KV (global, fail-open) →
+  // memory (per-isolate). DO falls back to the KV/memory limiter on any error.
+  const baseLimiter = env.NECTARIN_KV ? new KvRateLimiter(env.NECTARIN_KV) : new MemoryRateLimiter();
+  setRateLimiter(env.RATE_LIMITER ? new DurableObjectRateLimiter(env.RATE_LIMITER, baseLimiter) : baseLimiter);
   installedFor = target;
 }
 
@@ -633,7 +649,7 @@ export default {
         tools: ALL_TOOLS.length,
         kv: env.NECTARIN_KV ? "bound" : "unbound",
         dataSource: env.NECTARIN_KV ? "kv-layered" : "mock",
-        rateLimiter: env.NECTARIN_KV ? "kv-global(fail-open)" : "memory",
+        rateLimiter: rateLimiterBackend(env),
         llmCache: getLlmCacheStats(),
       });
     }
@@ -648,7 +664,7 @@ export default {
         commit: (env.GIT_COMMIT && env.GIT_COMMIT.trim()) || "dev",
         authMode: authMode(env),
         kv: env.NECTARIN_KV ? "bound" : "unbound",
-        rateLimiter: env.NECTARIN_KV ? "kv-global(fail-open)" : "memory",
+        rateLimiter: rateLimiterBackend(env),
         llmCache: getLlmCacheStats(),
       });
     }
@@ -792,4 +808,57 @@ function isValidRpc(v: unknown): v is JsonRpcRequest {
     (v as any).jsonrpc === "2.0" &&
     typeof (v as any).method === "string"
   );
+}
+
+/** Human-readable label for the active rate-limit backend (observability). */
+function rateLimiterBackend(env: Env): string {
+  if (env.RATE_LIMITER) return "durable-object(strong, fail-open)";
+  if (env.NECTARIN_KV) return "kv-global(fail-open)";
+  return "memory";
+}
+
+/**
+ * Durable Object: one instance per rate-limit key owns a single token bucket.
+ * Because a DO is single-threaded and globally unique per id, the count is
+ * exact even under a parallel burst — the strong-consistency guarantee KV lacks.
+ * State is in-memory (resets if the DO is evicted, which is fine for limiting).
+ *
+ * Bound via wrangler.toml ([[durable_objects.bindings]] + [[migrations]]).
+ */
+export class RateLimiterDO {
+  private tokens: number | null = null;
+  private updated = 0;
+  // Cloudflare constructs this with (state, env); we don't need either here.
+  constructor(_state?: unknown, _env?: unknown) {}
+
+  async fetch(request: Request): Promise<Response> {
+    let limitPerMin = 60;
+    try {
+      const body = (await request.json()) as { limitPerMin?: number };
+      if (Number.isFinite(body?.limitPerMin)) limitPerMin = Number(body.limitPerMin);
+    } catch {
+      /* default */
+    }
+    const capacity = limitPerMin;
+    const refillPerMs = limitPerMin / 60_000;
+    const now = Date.now();
+    if (this.tokens === null) {
+      this.tokens = capacity;
+      this.updated = now;
+    } else {
+      const elapsed = Math.max(0, now - this.updated);
+      this.tokens = Math.min(capacity, this.tokens + elapsed * refillPerMs);
+      this.updated = now;
+    }
+    let result;
+    if (this.tokens >= 1) {
+      this.tokens -= 1;
+      result = { allowed: true, limit: capacity, remaining: Math.floor(this.tokens), retryAfterSec: 0 };
+    } else {
+      const deficit = 1 - this.tokens;
+      const retryAfterSec = Math.max(1, Math.ceil(deficit / refillPerMs / 1000));
+      result = { allowed: false, limit: capacity, remaining: 0, retryAfterSec };
+    }
+    return new Response(JSON.stringify(result), { headers: { "content-type": "application/json" } });
+  }
 }
