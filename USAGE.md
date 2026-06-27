@@ -37,7 +37,7 @@ stays on JSON, so existing clients are unaffected.
 
 ---
 
-## 2. Tool catalogue (33)
+## 2. Tool catalogue (34)
 
 ### Intelligence (11)
 | Tool | What it does |
@@ -87,6 +87,11 @@ stays on JSON, so existing clients are unaffected.
 | `utm_builder` | Consistent, validated UTM tracking URLs (normalize, encode, warn, naming convention). |
 | `pacing_monitor` | Budget pacing vs. even spend curve: status, projection, recommended daily spend. |
 | `response_curve` | Channel saturation / diminishing‑returns modeling + conversion‑maximizing budget reallocation (marginal CPA, uplift vs. current). |
+
+### MMM (1) — marketing mix modeling
+| Tool | What it does |
+|---|---|
+| `mmm_optimize` | MMM‑lite: fits adstock (carryover) + saturation per channel from spend/conversions **time series**, then computes the conversion‑maximizing steady‑state budget split (Lagrange bisection, marginal CPA equalized) with fit R²/confidence. |
 
 Built‑in **prompts** (10): `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`,

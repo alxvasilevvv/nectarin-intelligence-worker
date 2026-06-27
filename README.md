@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-33-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-34-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the listing once the review is approved
 > (`https://unyly.org/ru/mcp/nectarin-intelligence`). Until then, add it manually as a
@@ -103,7 +103,7 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
 
 ---
 
-## Tools (33 total)
+## Tools (34 total)
 
 ### Intelligence group (inform + orchestrate)
 | Tool | What it does |
@@ -160,6 +160,11 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 | `utm_builder` | Build a consistent, validated UTM tracking URL — normalizes tokens (lower/snake/kebab/preserve), URL-encodes, preserves existing query, warns on uppercase/spaces/non-ASCII, suggests a naming convention. |
 | `pacing_monitor` | Budget pacing vs. an even spend curve: expected spend, pace ratio, status (under/on-track/over), projected end spend, recommended daily spend to land on budget. |
 | `response_curve` | Channel saturation / diminishing-returns modeling. Fits `conversions = a·spend^b` to your current per-channel spend & conversions, then computes the conversion-maximizing budget split (closed form `share ∝ a^(1/(1-b))`) + projected conversions, per-channel marginal CPA, blended-CPA improvement and uplift vs. current. |
+
+### MMM group (v2.12+ — marketing mix modeling)
+| Tool | What it does |
+|---|---|
+| `mmm_optimize` | **Marketing Mix Model (MMM-lite).** From each channel's spend & conversions **time series**, fits **adstock/carryover** (geometric decay λ, grid-searched by R²) and **saturation** (`conversions = a·adstock(spend)^b`, 0<b≤1), then computes the conversion-maximizing **steady-state** budget split via exact Lagrange bisection (marginal CPA equalized). Returns decay, carryover half-life, elasticity, fit R²/confidence, recommended spend, projected conversions, marginal CPA and uplift. |
 
 > **Funnel logic & safety.** All Growth figures are synthetic/illustrative and
 > anchored to the same mock RU/CIS benchmarks (`src/data.ts`) — internally
@@ -240,7 +245,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 33 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 6 Premium);
+`tools/list` returns all 34 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 6 Premium + 1 MMM);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -283,7 +288,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (33 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (34 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit

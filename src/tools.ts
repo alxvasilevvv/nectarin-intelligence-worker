@@ -17,6 +17,7 @@ import { CATEGORIES, KPIS, PLATFORMS, DATA_META } from "./data.js";
 import { GROWTH_TOOLS } from "./growth.js";
 import { ANALYTICS_TOOLS } from "./analytics.js";
 import { PREMIUM_TOOLS } from "./premium.js";
+import { MMM_TOOLS } from "./mmm.js";
 import type { Env } from "./index.js";
 
 export interface JsonSchema {
@@ -381,7 +382,13 @@ const INTELLIGENCE_TOOLS: ToolDef[] = [
 ];
 
 // Full registry = Intelligence + Growth & Automation + Premium Analytics + Premium tools.
-export const ALL_TOOLS: ToolDef[] = [...INTELLIGENCE_TOOLS, ...GROWTH_TOOLS, ...ANALYTICS_TOOLS, ...PREMIUM_TOOLS];
+export const ALL_TOOLS: ToolDef[] = [
+  ...INTELLIGENCE_TOOLS,
+  ...GROWTH_TOOLS,
+  ...ANALYTICS_TOOLS,
+  ...PREMIUM_TOOLS,
+  ...MMM_TOOLS,
+];
 
 export const TOOLS_BY_NAME: Record<string, ToolDef> = Object.fromEntries(
   ALL_TOOLS.map((t) => [t.name, t])
@@ -415,7 +422,7 @@ const ANNOTATION_OVERRIDES: Record<string, ToolAnnotations> = {
 
 const ACRONYMS = new Set([
   "ru", "cis", "roi", "ltv", "cac", "cpa", "cpm", "ctr", "vtr", "utm",
-  "ab", "aeo", "geo", "kpi", "npv", "fz", "ord",
+  "ab", "aeo", "geo", "kpi", "npv", "fz", "ord", "mmm",
 ]);
 
 /** snake_case → "Title Case" with marketing acronyms upper-cased (display name). */

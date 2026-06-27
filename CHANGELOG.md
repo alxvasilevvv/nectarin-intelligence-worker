@@ -3,6 +3,25 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.12.0] — 2026-06-28
+
+The senior-marketer headline capability: a real Marketing Mix Model (34th tool).
+
+### Added
+- **`mmm_optimize`** — MMM-lite. From each channel's spend & conversions TIME
+  SERIES it fits **adstock/carryover** (geometric decay λ, grid-searched by
+  log-log fit R²) and **saturation** (`conversions = a·adstock(spend)^b`, least
+  squares, 0<b≤1), then computes the conversion-maximizing **steady-state**
+  budget split across channels via exact **Lagrange bisection** (marginal CPA
+  equalized across funded channels). Returns per-channel decay, carryover
+  half-life, saturation elasticity, fit R²/confidence, recommended spend,
+  projected steady-state conversions, marginal CPA, and uplift vs. current.
+  Uses the operator's REAL series; deterministic; honest low-confidence flags.
+
+### Changed
+- Tool count **33 → 34**; `version` `2.11.0` → `2.12.0`. Suite **88 tests**
+  (adstock+saturation fit, ROI-aware reallocation, mismatched-series error).
+
 ## [2.11.0] — 2026-06-28
 
 ### Added
