@@ -172,6 +172,13 @@ npx wrangler kv key put --binding NECTARIN_KV "playbook:finance" "$(cat finance.
 npx wrangler kv key put --binding NECTARIN_KV "suppliers"        "$(cat suppliers.json)"
 ```
 
+**Per-tenant data** — scope overrides to one client with `tenant:<id>:` keys and
+send the `X-Tenant-Id` header. Resolution is tenant → global → mock, request-scoped:
+```bash
+npx wrangler kv key put --remote --binding NECTARIN_KV "tenant:acme:benchmarks:retail" "$(cat acme-retail.json)"
+# then call with:  -H 'X-Tenant-Id: acme'
+```
+
 **Enable real narrative** (already set in this deploy via DeepSeek):
 ```bash
 npx wrangler secret put LLM_API_KEY

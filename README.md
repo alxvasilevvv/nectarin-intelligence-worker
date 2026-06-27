@@ -348,6 +348,17 @@ Backend precedence (auto-selected in `fetch()`, reported by `/health` & `/versio
 - `RATE_LIMIT_PER_MIN` sets the ceiling (default 60).
 - Over-limit → JSON-RPC `-32029` + HTTP 429 with `Retry-After`/`X-RateLimit-*`.
 
+### Per-tenant data (`X-Tenant-Id`)
+With KV bound, each request may carry an `X-Tenant-Id` header (alphanumerics /
+`._-`, ≤64 chars). The Worker then resolves benchmark/playbook/supplier lookups
+in the order **tenant override → global override → bundled mock**, where the
+tenant layer reads `tenant:<id>:benchmarks:<category>` (etc.) from KV. This is
+request-scoped via `AsyncLocalStorage` — concurrent requests never share or race
+each other's data source, and no tool code changes. An absent/invalid header (or
+no KV) transparently falls back to the shared data. Reported by `/health` &
+`/version` (`perTenant`). To populate a tenant:
+`npx wrangler kv key put --remote --namespace-id <id> "tenant:acme:benchmarks:retail" '<json>'`.
+
 ### Swapping the data source (mock → real)
 1. Provide the datasets in **`DATA_SCHEMA.md`** (`benchmarks`, `playbooks`,
    `suppliers`) via KV, D1, or an internal HTTP API.

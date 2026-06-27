@@ -66,6 +66,63 @@ describe("tools/list", () => {
   });
 });
 
+describe("per-tenant data routing (X-Tenant-Id header)", () => {
+  function fakeKv(initial: Record<string, unknown> = {}) {
+    const store = new Map<string, unknown>(Object.entries(initial));
+    return {
+      async get(key: string, type?: "text" | "json") {
+        const v = store.get(key);
+        if (v == null) return null;
+        if (type === "json") return typeof v === "string" ? JSON.parse(v) : v;
+        return typeof v === "string" ? v : JSON.stringify(v);
+      },
+      async put(key: string, value: string) {
+        store.set(key, value);
+      },
+    };
+  }
+  const tenantOverride = {
+    "tenant:e2e:benchmarks:retail": {
+      "VK Ads": {
+        CPM: { p25: 1, p50: 2, p75: 3 },
+        CTR: { p25: 1, p50: 1, p75: 1 },
+        CPA: { p25: 54321, p50: 54321, p75: 54321 },
+        VTR: { p25: 1, p50: 1, p75: 1 },
+      },
+    },
+  };
+
+  it("serves a tenant's KV override only when the X-Tenant-Id header is present", async () => {
+    const env = devEnv({ NECTARIN_KV: fakeKv(tenantOverride) as any });
+    const call = (headers: Record<string, string>) =>
+      rpc(
+        {
+          jsonrpc: "2.0",
+          id: 99,
+          method: "tools/call",
+          params: { name: "ru_benchmarks", arguments: { category: "retail", kpi: "CPA" } },
+        },
+        env,
+        headers
+      );
+
+    // With the tenant header → the override (distinctive CPA 54321) is returned.
+    const withTenant = await call({ "X-Tenant-Id": "e2e" });
+    const tenantRows = withTenant.json.result.structuredContent.data.results;
+    expect(tenantRows.some((r: any) => r.range.p50 === 54321)).toBe(true);
+
+    // Without the header → shared/global data, which does NOT carry the override.
+    const noTenant = await call({});
+    const baseRows = noTenant.json.result.structuredContent.data.results;
+    expect(baseRows.some((r: any) => r.range.p50 === 54321)).toBe(false);
+
+    // An invalid tenant id is rejected → behaves like no tenant (no override).
+    const badTenant = await call({ "X-Tenant-Id": "bad id!" });
+    const badRows = badTenant.json.result.structuredContent.data.results;
+    expect(badRows.some((r: any) => r.range.p50 === 54321)).toBe(false);
+  });
+});
+
 describe("tools/call — happy paths", () => {
   it("ru_benchmarks returns benchmark rows", async () => {
     const { json } = await rpc({

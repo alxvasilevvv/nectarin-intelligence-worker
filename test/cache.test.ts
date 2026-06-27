@@ -4,7 +4,12 @@
  */
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { callLLM, getLlmCacheStats } from "../src/orchestrator.js";
-import { LayeredKvDataSource } from "../src/data.js";
+import {
+  LayeredKvDataSource,
+  MockDataSource,
+  runWithDataSource,
+  getCategoryBenchmarks,
+} from "../src/data.js";
 import { KvRateLimiter, DurableObjectRateLimiter, MemoryRateLimiter } from "../src/ratelimit.js";
 import { RateLimiterDO } from "../src/index.js";
 
@@ -106,6 +111,57 @@ describe("LayeredKvDataSource", () => {
     const ds = new LayeredKvDataSource(throwingKv as any);
     const bm = await ds.getCategoryBenchmarks("retail");
     expect(bm).toBeDefined(); // fell back to mock despite KV errors
+  });
+});
+
+describe("per-tenant data (LayeredKvDataSource keyPrefix + AsyncLocalStorage)", () => {
+  const bm = (cpa: number) => ({
+    "VK Ads": {
+      CPM: { p25: 1, p50: 2, p75: 3 },
+      CTR: { p25: 1, p50: 1, p75: 1 },
+      CPA: { p25: cpa, p50: cpa, p75: cpa },
+      VTR: { p25: 1, p50: 1, p75: 1 },
+    },
+  });
+
+  it("resolves tenant → global → mock in that order", async () => {
+    const kv = fakeKv({
+      "tenant:acme:benchmarks:retail": bm(11),
+      "benchmarks:retail": bm(22),
+      "benchmarks:finance": bm(33), // global-only override
+    });
+    const globalLayered = new LayeredKvDataSource(kv as any);
+    const acme = new LayeredKvDataSource(kv as any, globalLayered, "tenant:acme:");
+
+    // 1. tenant override wins
+    expect((await acme.getMetric("retail", "VK Ads", "CPA"))?.p50).toBe(11);
+    // 2. no tenant key → falls through to the global override
+    expect((await acme.getMetric("finance", "VK Ads", "CPA"))?.p50).toBe(33);
+    // 3. no tenant/global key → falls through to the bundled mock
+    const mockBm = await acme.getCategoryBenchmarks("ecom");
+    expect(mockBm).toBeDefined();
+    expect(Object.keys(mockBm ?? {}).length).toBeGreaterThan(0);
+  });
+
+  it("a different tenant does NOT see another tenant's override", async () => {
+    const kv = fakeKv({ "tenant:acme:benchmarks:retail": bm(11), "benchmarks:retail": bm(22) });
+    const globalLayered = new LayeredKvDataSource(kv as any);
+    const other = new LayeredKvDataSource(kv as any, globalLayered, "tenant:other:");
+    // other tenant has no override → sees the global value, not acme's.
+    expect((await other.getMetric("retail", "VK Ads", "CPA"))?.p50).toBe(22);
+  });
+
+  it("module accessors honor the request-scoped data source via runWithDataSource", async () => {
+    const kv = fakeKv({ "tenant:acme:benchmarks:retail": bm(99) });
+    const tenantDs = new LayeredKvDataSource(kv as any, new MockDataSource(), "tenant:acme:");
+
+    // Inside the ALS context the accessor (async, awaits internally) sees the tenant DS.
+    const inside = await runWithDataSource(tenantDs, () => getCategoryBenchmarks("retail"));
+    expect(inside?.["VK Ads"].CPA.p50).toBe(99);
+
+    // Outside the context it falls back to the process-global default (mock).
+    const outside = await getCategoryBenchmarks("retail");
+    expect(outside?.["VK Ads"]?.CPA.p50).not.toBe(99);
   });
 });
 

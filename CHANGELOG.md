@@ -3,6 +3,30 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.7.0] — 2026-06-27
+
+Per-tenant data without touching a single tool. Each request can carry its own
+tenant context, resolved safely under concurrency.
+
+### Added
+- **Per-tenant data layering via `X-Tenant-Id`.** With KV bound, lookups resolve
+  **tenant override → global override → bundled mock**. The tenant layer reads
+  `tenant:<id>:*` KV keys; `LayeredKvDataSource` gained an optional `keyPrefix`
+  and chains to the global layered source as its fallback.
+- **Request-scoped data source via `AsyncLocalStorage`** (`runWithDataSource`,
+  `node:async_hooks` under `nodejs_compat`). Concurrent requests never share or
+  race a process-global source; the module data accessors transparently read the
+  active request context, so **no tool/orchestrator code changed**.
+- Tenant id validation (`^[A-Za-z0-9._-]{1,64}$`); invalid/absent header or no KV
+  ⇒ transparent fallback to the shared data. `/health` + `/version` now report
+  `perTenant`.
+
+### Changed
+- `version` `2.6.0` → `2.7.0`. Suite **75 tests** (per-tenant resolution order,
+  tenant isolation, ALS-scoped accessors, end-to-end header routing).
+- Verified on prod: same `ru_benchmarks` call returns the tenant's KV override
+  (CPA 77777) with `X-Tenant-Id`, and the shared mock (CPA 560) without it.
+
 ## [2.6.0] — 2026-06-27
 
 Hard, strongly-consistent global rate limiting via a Durable Object — the gap

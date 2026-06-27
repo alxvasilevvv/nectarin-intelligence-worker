@@ -17,6 +17,8 @@
  * to go live.
  */
 
+import { AsyncLocalStorage } from "node:async_hooks";
+
 // ── Types ────────────────────────────────────────────────────────────────
 
 export type Kpi = "CPM" | "CTR" | "CPA" | "VTR";
@@ -320,11 +322,23 @@ export interface KvLike {
  * KV just overrides the categories you've populated. Safe + idempotent to install.
  */
 export class LayeredKvDataSource implements DataSource {
-  constructor(private kv: KvLike, private fallback: DataSource = new MockDataSource()) {}
+  /**
+   * @param kv        KV namespace.
+   * @param fallback  Source used when a key is absent/errors (default mock).
+   * @param keyPrefix Optional prefix for keys — used for PER-TENANT scoping, e.g.
+   *                  `tenant:acme:`. With a tenant prefix and a global
+   *                  `LayeredKvDataSource` as the fallback, lookups resolve in the
+   *                  order: tenant override → global override → bundled mock.
+   */
+  constructor(
+    private kv: KvLike,
+    private fallback: DataSource = new MockDataSource(),
+    private keyPrefix = ""
+  ) {}
 
   private async kvGet<T>(key: string): Promise<T | undefined> {
     try {
-      const v = (await this.kv.get(key, "json")) as T | null;
+      const v = (await this.kv.get(`${this.keyPrefix}${key}`, "json")) as T | null;
       return v ?? undefined;
     } catch {
       return undefined;
@@ -355,13 +369,28 @@ export class LayeredKvDataSource implements DataSource {
 // Active data source (swap with setDataSource()). Defaults to mock.
 let activeDataSource: DataSource = new MockDataSource();
 
-/** Install a different DataSource (KV/HTTP/D1) — the ONE wiring change to go live. */
+/**
+ * Per-request data source override (PER-TENANT). Uses AsyncLocalStorage so each
+ * concurrent request can resolve its OWN tenant-scoped data source WITHOUT
+ * mutating the process-global `activeDataSource` (which would race under the
+ * Workers runtime, where one isolate serves many concurrent requests). When no
+ * request context is set, accessors fall back to `activeDataSource`.
+ */
+const dataSourceContext = new AsyncLocalStorage<DataSource>();
+
+/** Run `fn` with a request-scoped data source (e.g. a tenant-specific source). */
+export function runWithDataSource<T>(ds: DataSource, fn: () => T): T {
+  return dataSourceContext.run(ds, fn);
+}
+
+/** Install the process-global default DataSource — the wiring change to go live. */
 export function setDataSource(ds: DataSource): void {
   activeDataSource = ds;
 }
 
+/** The data source for the current request: ALS context wins, else the global. */
 export function getDataSource(): DataSource {
-  return activeDataSource;
+  return dataSourceContext.getStore() ?? activeDataSource;
 }
 
 // ── Module-level accessors (shape-identical to the Node version) ────────────
@@ -371,20 +400,20 @@ export function getDataSource(): DataSource {
 
 /** Returns the metric range for a category × platform × KPI, or undefined. */
 export async function getMetric(category: string, platform: string, kpi: Kpi): Promise<MetricRange | undefined> {
-  return activeDataSource.getMetric(category, platform, kpi);
+  return getDataSource().getMetric(category, platform, kpi);
 }
 
 /** All platform metrics for a category (used by media planning). */
 export async function getCategoryBenchmarks(category: string): Promise<Record<string, PlatformMetrics> | undefined> {
-  return activeDataSource.getCategoryBenchmarks(category);
+  return getDataSource().getCategoryBenchmarks(category);
 }
 
 export async function getPlaybook(industry: string): Promise<Playbook | undefined> {
-  return activeDataSource.getPlaybook(industry);
+  return getDataSource().getPlaybook(industry);
 }
 
 export async function getSuppliers(): Promise<Supplier[]> {
-  return activeDataSource.getSuppliers();
+  return getDataSource().getSuppliers();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

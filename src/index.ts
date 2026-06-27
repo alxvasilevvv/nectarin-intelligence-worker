@@ -27,7 +27,14 @@
  */
 
 import { ALL_TOOLS, TOOLS_BY_NAME } from "./tools.js";
-import { CATEGORIES, setDataSource, LayeredKvDataSource, MockDataSource } from "./data.js";
+import {
+  CATEGORIES,
+  setDataSource,
+  LayeredKvDataSource,
+  MockDataSource,
+  runWithDataSource,
+  type DataSource,
+} from "./data.js";
 import { authenticate, unauthorizedResponse, authMode } from "./auth.js";
 import {
   enforceRateLimit,
@@ -92,7 +99,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.6.0";
+const SERVER_VERSION = "2.7.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -612,17 +619,41 @@ function logRequest(entry: { method: string; tool?: string; ms: number; status: 
  * under concurrency with a stable binding.
  */
 let installedFor: unknown = Symbol("uninstalled");
+// The installed process-global source — reused as the FALLBACK for per-tenant
+// sources so tenant lookups resolve: tenant override → global override → mock.
+let globalDataSource: DataSource = new MockDataSource();
 function ensureDataSource(env: Env): void {
   // Identity covers both bindings so tests that swap envs reinstall correctly.
   const target: unknown = `${env.RATE_LIMITER ? "do" : ""}|${env.NECTARIN_KV ? "kv" : "mock"}`;
   if (installedFor === target) return;
   // Data source: KV-layered real/override data over mock, or pure mock.
-  setDataSource(env.NECTARIN_KV ? new LayeredKvDataSource(env.NECTARIN_KV) : new MockDataSource());
+  globalDataSource = env.NECTARIN_KV ? new LayeredKvDataSource(env.NECTARIN_KV) : new MockDataSource();
+  setDataSource(globalDataSource);
   // Rate limiter precedence: Durable Object (strong) → KV (global, fail-open) →
   // memory (per-isolate). DO falls back to the KV/memory limiter on any error.
   const baseLimiter = env.NECTARIN_KV ? new KvRateLimiter(env.NECTARIN_KV) : new MemoryRateLimiter();
   setRateLimiter(env.RATE_LIMITER ? new DurableObjectRateLimiter(env.RATE_LIMITER, baseLimiter) : baseLimiter);
   installedFor = target;
+}
+
+// Tenant id: alphanumerics, dash, underscore, dot; capped length. Anything else
+// is rejected (returns undefined ⇒ falls back to the global/shared data).
+const TENANT_RE = /^[A-Za-z0-9._-]{1,64}$/;
+
+/**
+ * Resolve a request-scoped, tenant-specific data source from the `X-Tenant-Id`
+ * header. Requires KV (no KV ⇒ no per-tenant overrides possible). The tenant
+ * source layers `tenant:<id>:*` KV keys OVER the global source (which itself
+ * layers global override KV keys over the bundled mock). Returns undefined when
+ * there is no valid tenant or no KV — the caller then uses the shared default.
+ */
+function resolveTenantDataSource(request: Request, env: Env): DataSource | undefined {
+  if (!env.NECTARIN_KV) return undefined;
+  const raw = request.headers.get("X-Tenant-Id");
+  if (!raw) return undefined;
+  const id = raw.trim();
+  if (!TENANT_RE.test(id)) return undefined;
+  return new LayeredKvDataSource(env.NECTARIN_KV, globalDataSource, `tenant:${id}:`);
 }
 
 export default {
@@ -649,6 +680,7 @@ export default {
         tools: ALL_TOOLS.length,
         kv: env.NECTARIN_KV ? "bound" : "unbound",
         dataSource: env.NECTARIN_KV ? "kv-layered" : "mock",
+        perTenant: env.NECTARIN_KV ? "header:X-Tenant-Id (tenant→global→mock)" : "disabled(no-kv)",
         rateLimiter: rateLimiterBackend(env),
         llmCache: getLlmCacheStats(),
       });
@@ -664,6 +696,7 @@ export default {
         commit: (env.GIT_COMMIT && env.GIT_COMMIT.trim()) || "dev",
         authMode: authMode(env),
         kv: env.NECTARIN_KV ? "bound" : "unbound",
+        perTenant: env.NECTARIN_KV ? "header:X-Tenant-Id (tenant→global→mock)" : "disabled(no-kv)",
         rateLimiter: rateLimiterBackend(env),
         llmCache: getLlmCacheStats(),
       });
@@ -740,6 +773,13 @@ export default {
         return rpcError(null, PARSE_ERROR, "Invalid JSON.");
       }
 
+      // Per-tenant data source (request-scoped via AsyncLocalStorage). When a
+      // valid X-Tenant-Id + KV are present, tool data resolves tenant → global →
+      // mock; otherwise withTenant is a passthrough using the shared default.
+      const tenantDs = resolveTenantDataSource(request, env);
+      const withTenant = <T>(fn: () => Promise<T>): Promise<T> =>
+        tenantDs ? runWithDataSource(tenantDs, fn) : fn();
+
       // Batch request support.
       if (Array.isArray(payload)) {
         const responses: any[] = [];
@@ -749,7 +789,7 @@ export default {
             continue;
           }
           try {
-            const res = await handleRpc(item as JsonRpcRequest, env);
+            const res = await withTenant(() => handleRpc(item as JsonRpcRequest, env));
             if (res) responses.push(await res.json());
           } catch (err) {
             console.error(JSON.stringify({ level: "error", scope: "mcp", message: safeMessage(err) }));
@@ -775,7 +815,7 @@ export default {
       const method = (payload as JsonRpcRequest).method;
       const sse = wantsSse(url, request);
       try {
-        const res = await handleRpc(payload as JsonRpcRequest, env, meta);
+        const res = await withTenant(() => handleRpc(payload as JsonRpcRequest, env, meta));
         // Notification → no response body.
         if (!res) {
           logRequest({ method, tool: meta.tool, ms: Date.now() - started, status: 202 });
