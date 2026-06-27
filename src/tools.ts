@@ -13,7 +13,7 @@
  */
 
 import { runPlan } from "./orchestrator.js";
-import { CATEGORIES, KPIS, PLATFORMS } from "./data.js";
+import { CATEGORIES, KPIS, PLATFORMS, DATA_META } from "./data.js";
 import { GROWTH_TOOLS } from "./growth.js";
 import { ANALYTICS_TOOLS } from "./analytics.js";
 import type { Env } from "./index.js";
@@ -85,8 +85,9 @@ const ruBenchmarks: ToolDef = {
   async handler(input) {
     const result = await runPlan("ru_benchmarks", input);
     const d = result.data as any;
+    const enriched = { ...result, provenance: DATA_META.provenance };
     const summary = `Бенчмарки ${d.kpi} в категории «${d.category}» (RU/CIS, ${d.currency}) по ${d.results.length} площадкам.`;
-    return toContent(summary, result);
+    return toContent(summary, enriched);
   },
 };
 

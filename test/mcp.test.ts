@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(20);
+    expect(json.toolCount).toBe(23);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(20);
+    expect(tools).toHaveLength(23);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -51,6 +51,9 @@ describe("tools/list", () => {
     expect(names).toContain("compliance_check");
     expect(names).toContain("ab_test_planner");
     expect(names).toContain("unit_economics");
+    expect(names).toContain("funnel_model");
+    expect(names).toContain("seasonality_forecast");
+    expect(names).toContain("creative_score");
   });
 });
 
@@ -245,6 +248,56 @@ describe("tools/call — happy paths", () => {
     expect(typeof sc.verdict).toBe("string");
     expect(sc.healthy).toBe(true);
   });
+
+  it("funnel_model returns ordered scenarios and a biggest leak", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 22,
+      method: "tools/call",
+      params: { name: "funnel_model", arguments: { budget: 5_000_000, category: "retail", aov: 4000 } },
+    });
+    const sc = json.result.structuredContent;
+    const { conservative, base, optimistic } = sc.scenarios;
+    expect(base.sales).toBeGreaterThan(0);
+    // optimistic >= base >= conservative on sales.
+    expect(optimistic.sales).toBeGreaterThanOrEqual(base.sales);
+    expect(base.sales).toBeGreaterThanOrEqual(conservative.sales);
+    expect(base.roas).toBeGreaterThan(0);
+    expect(typeof sc.biggestLeak.stage).toBe("string");
+    expect(sc.provenance).toBeDefined();
+  });
+
+  it("seasonality_forecast splits an annual budget across 12 months", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 23,
+      method: "tools/call",
+      params: { name: "seasonality_forecast", arguments: { category: "finance", annualBudget: 12_000_000 } },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.months).toHaveLength(12);
+    const total = sc.months.reduce((a: number, m: any) => a + m.budget, 0);
+    expect(Math.abs(total - 12_000_000)).toBeLessThan(12_000); // rounding tolerance
+    expect(sc.peak.index).toBeGreaterThanOrEqual(sc.trough.index);
+  });
+
+  it("creative_score scores and flags compliance risk", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 24,
+      method: "tools/call",
+      params: {
+        name: "creative_score",
+        arguments: { headline: "Лучший вклад в банке", body: "Откройте вклад", category: "finance" },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.score).toBeGreaterThanOrEqual(0);
+    expect(sc.score).toBeLessThanOrEqual(100);
+    expect(["A", "B", "C", "D"]).toContain(sc.grade);
+    expect(sc.complianceFlag).toBe(true);
+    expect(Array.isArray(sc.checks)).toBe(true);
+  });
 });
 
 describe("tools/call — error handling", () => {
@@ -316,7 +369,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(20);
+    expect(json.result.tools).toHaveLength(23);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -344,7 +397,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(20);
+    expect(json.result.tools).toHaveLength(23);
   });
 
   it("/version reports authMode shared-token when configured", async () => {

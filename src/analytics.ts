@@ -13,7 +13,16 @@
  * output is decision-support, NOT legal advice.
  */
 
-import { CATEGORIES, PLATFORMS } from "./data.js";
+import {
+  CATEGORIES,
+  PLATFORMS,
+  DATA_META,
+  MONTHS_RU,
+  getCategoryBenchmarks,
+  getMetric,
+  getSeasonalityIndex,
+  type Kpi,
+} from "./data.js";
 import { callLLM, type LlmEnv } from "./orchestrator.js";
 import type { ToolDef, ToolResult } from "./tools.js";
 
@@ -558,6 +567,304 @@ const unitEconomics: ToolDef = {
   },
 };
 
+// ═════════════════════════════════════════════════════════════════════════════
+// Tool 4: funnel_model — full-funnel projection with P10/P50/P90 scenarios
+// ═════════════════════════════════════════════════════════════════════════════
+
+// Default post-click funnel rates by category (click→lead, lead→qualified,
+// qualified→sale). Conservative, illustrative; all overridable via input.
+const FUNNEL_RATES: Record<string, { lead: number; qualify: number; close: number }> = {
+  realty: { lead: 0.06, qualify: 0.45, close: 0.12 },
+  pharma: { lead: 0.08, qualify: 0.6, close: 0.3 },
+  fmcg: { lead: 0.05, qualify: 0.7, close: 0.45 },
+  retail: { lead: 0.07, qualify: 0.65, close: 0.4 },
+  auto: { lead: 0.05, qualify: 0.4, close: 0.1 },
+  finance: { lead: 0.06, qualify: 0.5, close: 0.2 },
+};
+const DEFAULT_FUNNEL_RATES = { lead: 0.06, qualify: 0.55, close: 0.3 };
+
+/** Blended median (or p25/p75) of a KPI across all platforms for a category. */
+async function blendedKpi(category: string, kpi: Kpi, band: "p25" | "p50" | "p75"): Promise<number | null> {
+  const bm = await getCategoryBenchmarks(category);
+  if (!bm) return null;
+  const vals: number[] = [];
+  for (const platform of Object.keys(bm)) {
+    const r = await getMetric(category, platform, kpi);
+    if (r) vals.push(r[band]);
+  }
+  if (vals.length === 0) return null;
+  return vals.reduce((a, b) => a + b, 0) / vals.length;
+}
+
+const funnelModel: ToolDef = {
+  name: "funnel_model",
+  description:
+    "Model the FULL marketing funnel for a budget, end to end: impressions → reach → clicks → leads → qualified → sales → revenue, with conservative/base/optimistic (P10/P50/P90-style) scenarios derived from the benchmark spread (p75/p50/p25 CPM·CTR). Reports stage counts, drop-off at each step, CAC, ROAS and revenue when an AOV is given. Identifies the biggest leak. Deterministic; illustrative, not a guarantee.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      budget: { type: "number", exclusiveMinimum: 0, description: "Total budget, RUB" },
+      category: { type: "string", enum: CATEGORIES, description: "Industry category" },
+      aov: { type: "number", exclusiveMinimum: 0, description: "Average order value, RUB (enables revenue/ROAS)" },
+      leadRatePct: { type: "number", exclusiveMinimum: 0, maximum: 100, description: "Override click→lead %, else category default" },
+      qualifyRatePct: { type: "number", exclusiveMinimum: 0, maximum: 100, description: "Override lead→qualified %" },
+      closeRatePct: { type: "number", exclusiveMinimum: 0, maximum: 100, description: "Override qualified→sale %" },
+    },
+    required: ["budget", "category"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const budget = Number(input.budget);
+    const category = String(input.category);
+    const aov = input.aov ? Number(input.aov) : null;
+    const def = FUNNEL_RATES[category] ?? DEFAULT_FUNNEL_RATES;
+    const leadRate = input.leadRatePct ? Number(input.leadRatePct) / 100 : def.lead;
+    const qualRate = input.qualifyRatePct ? Number(input.qualifyRatePct) / 100 : def.qualify;
+    const closeRate = input.closeRatePct ? Number(input.closeRatePct) / 100 : def.close;
+
+    // Scenario bands: optimistic uses cheap CPM + high CTR (p25 CPM, p75 CTR);
+    // conservative the reverse; base = medians.
+    type Scenario = "conservative" | "base" | "optimistic";
+    const bands: Record<Scenario, { cpm: "p25" | "p50" | "p75"; ctr: "p25" | "p50" | "p75" }> = {
+      conservative: { cpm: "p75", ctr: "p25" },
+      base: { cpm: "p50", ctr: "p50" },
+      optimistic: { cpm: "p25", ctr: "p75" },
+    };
+
+    async function build(s: Scenario) {
+      const cpm = (await blendedKpi(category, "CPM", bands[s].cpm)) ?? 300;
+      const ctrPct = (await blendedKpi(category, "CTR", bands[s].ctr)) ?? 0.8;
+      const impressions = Math.round((budget / cpm) * 1000);
+      const reach = Math.round(impressions * 0.62); // ~1.6 avg frequency
+      const clicks = Math.round(impressions * (ctrPct / 100));
+      const leads = Math.round(clicks * leadRate);
+      const qualified = Math.round(leads * qualRate);
+      const sales = Math.round(qualified * closeRate);
+      const revenue = aov ? Math.round(sales * aov) : null;
+      const cac = sales > 0 ? round(budget / sales) : null;
+      const roas = revenue ? round(revenue / budget, 2) : null;
+      return { scenario: s, cpm: round(cpm), ctrPct: round(ctrPct, 2), impressions, reach, clicks, leads, qualified, sales, revenue, cac, roas };
+    }
+
+    const [conservative, base, optimistic] = await Promise.all([build("conservative"), build("base"), build("optimistic")]);
+
+    // Biggest leak: stage with the largest relative drop in the base scenario.
+    const stages = [
+      { from: "clicks", to: "leads", a: base.clicks, b: base.leads },
+      { from: "leads", to: "qualified", a: base.leads, b: base.qualified },
+      { from: "qualified", to: "sales", a: base.qualified, b: base.sales },
+    ];
+    let biggestLeak = stages[0];
+    let worstKeep = 1;
+    for (const st of stages) {
+      const keep = st.a > 0 ? st.b / st.a : 1;
+      if (keep < worstKeep) {
+        worstKeep = keep;
+        biggestLeak = st;
+      }
+    }
+
+    const payload = {
+      tool: "funnel_model",
+      input: { budget, category, aov },
+      assumptions: {
+        clickToLeadPct: round(leadRate * 100, 1),
+        leadToQualifiedPct: round(qualRate * 100, 1),
+        qualifiedToSalePct: round(closeRate * 100, 1),
+        avgFrequency: 1.6,
+        ratesSource: input.leadRatePct || input.qualifyRatePct || input.closeRatePct ? "user-overridden" : "category default",
+      },
+      scenarios: { conservative, base, optimistic },
+      biggestLeak: {
+        stage: `${biggestLeak.from} → ${biggestLeak.to}`,
+        keepRatePct: round(worstKeep * 100, 1),
+        note: "Наибольшая относительная потеря — приоритет для оптимизации (оффер/лендинг/скрипты продаж).",
+      },
+      method:
+        "impressions = budget/CPM×1000; reach ≈ impressions×0.62 (freq≈1.6); clicks = impressions×CTR; " +
+        "leads = clicks×leadRate; qualified = leads×qualifyRate; sales = qualified×closeRate; " +
+        "CAC = budget/sales; ROAS = sales×AOV/budget. Сценарии — из разброса бенчмарков (p25/p50/p75).",
+      provenance: DATA_META.provenance,
+      disclaimer: "Иллюстративная модель воронки на синтетических бенчмарках; не гарантия результата.",
+    };
+
+    const summary =
+      `Воронка (${category}, бюджет ${ru(budget)} ₽): база ${ru(base.sales)} продаж ` +
+      `(диапазон ${ru(conservative.sales)}–${ru(optimistic.sales)}), CAC ~${base.cac ?? "n/a"} ₽` +
+      (base.roas ? `, ROAS ${base.roas}×` : "") +
+      `. Узкое место: ${biggestLeak.from}→${biggestLeak.to} (${round(worstKeep * 100, 1)}%).`;
+    return toContent(summary, payload);
+  },
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Tool 5: seasonality_forecast — when to spend (monthly demand index)
+// ═════════════════════════════════════════════════════════════════════════════
+
+const seasonalityForecast: ToolDef = {
+  name: "seasonality_forecast",
+  description:
+    "When to spend. Returns a 12-month demand/competition index for a RU/CIS category (mean ≈ 1.0), the peak and trough months, a recommended budget weighting across months, and a flighting recommendation (lean in before peaks, protect efficiency in troughs). Optionally splits a provided annual budget by month. Deterministic.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      category: { type: "string", enum: CATEGORIES, description: "Industry category" },
+      annualBudget: { type: "number", exclusiveMinimum: 0, description: "Optional annual budget, RUB, to split by month" },
+    },
+    required: ["category"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const category = String(input.category);
+    const idx = getSeasonalityIndex(category);
+    if (!idx) {
+      return { content: [{ type: "text", text: `Нет сезонных данных для категории «${category}».` }], isError: true };
+    }
+    const annualBudget = input.annualBudget ? Number(input.annualBudget) : null;
+    const sum = idx.reduce((a, b) => a + b, 0);
+
+    const months = idx.map((v, i) => ({
+      month: MONTHS_RU[i],
+      index: round(v, 2),
+      budgetWeightPct: round((v / sum) * 100, 1),
+      budget: annualBudget ? Math.round((v / sum) * annualBudget) : null,
+    }));
+
+    const peak = months.reduce((a, b) => (b.index > a.index ? b : a));
+    const trough = months.reduce((a, b) => (b.index < a.index ? b : a));
+
+    const payload = {
+      tool: "seasonality_forecast",
+      input: { category, annualBudget },
+      months,
+      peak: { month: peak.month, index: peak.index },
+      trough: { month: trough.month, index: trough.index },
+      recommendation: [
+        `Пик спроса: ${peak.month} (индекс ${peak.index}). Заходить в аукцион за 2–4 недели до пика, чтобы обучить кампании.`,
+        `Спад: ${trough.month} (индекс ${trough.index}). Снижать охватный бюджет, держать перформанс/ретаргетинг на эффективность.`,
+        annualBudget
+          ? `Годовой бюджет ${ru(annualBudget)} ₽ распределён по месяцам пропорционально индексу спроса.`
+          : "Передайте annualBudget, чтобы получить помесячную разбивку.",
+      ],
+      method: "budgetWeight(month) = index(month) / Σ index. Индекс — относительный спрос/конкуренция (1.0 = средний).",
+      disclaimer: "Сезонные индексы синтетические/иллюстративные для RU/CIS; калибруйте на своих данных.",
+    };
+
+    const summary =
+      `Сезонность «${category}»: пик — ${peak.month} (${peak.index}), спад — ${trough.month} (${trough.index}). ` +
+      (annualBudget ? `Бюджет ${ru(annualBudget)} ₽ разнесён по месяцам.` : "Передайте annualBudget для разбивки.");
+    return toContent(summary, payload);
+  },
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Tool 6: creative_score — score an ad creative on marketing best-practices
+// ═════════════════════════════════════════════════════════════════════════════
+
+interface CreativeCheck {
+  criterion: string;
+  pass: boolean;
+  weight: number;
+  note: string;
+}
+
+const creativeScore: ToolDef = {
+  name: "creative_score",
+  description:
+    "Score an ad creative (headline + body, optional CTA) on performance best-practices: clear value proposition, specificity/numbers, a strong CTA, length discipline, urgency/relevance, and a benefit (not feature) focus. Returns a 0-100 score, per-criterion pass/fail with fixes, and a quick compliance risk flag (delegates depth to compliance_check). With an LLM key it adds two improved variants. Deterministic core.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      headline: { type: "string", description: "Ad headline / title" },
+      body: { type: "string", description: "Ad body text" },
+      cta: { type: "string", description: "Optional call-to-action text" },
+      category: { type: "string", enum: CATEGORIES, description: "Optional category" },
+      platform: { type: "string", enum: PLATFORMS, description: "Optional platform" },
+    },
+    required: ["headline", "body"],
+    additionalProperties: false,
+  },
+  async handler(input, env) {
+    const headline = String(input.headline ?? "");
+    const body = String(input.body ?? "");
+    const cta = input.cta ? String(input.cta) : "";
+    const full = `${headline} ${body} ${cta}`.trim();
+
+    const hasNumbers = /\d/.test(full);
+    const hasCta = cta.length > 0 || /(узнай|закаж|купи|оформи|получи|перейд|регистрир|подключ|скачай|запиш|оставь заявку|звони)/i.test(full);
+    const headlineOk = headline.length >= 8 && headline.length <= 60;
+    const bodyOk = body.length >= 20 && body.length <= 300;
+    const hasBenefit = /(сэконом|выгод|быстр|удобн|бесплатн|гаранти|защит|увеличь|сниз|без|за \d|всего|скидк|подар)/i.test(full);
+    const hasUrgencyOrRelevance = /(сегодня|сейчас|до \d|успей|ограничен|новинк|сезон|акци|только)/i.test(full);
+    const notAllCaps = !(headline === headline.toUpperCase() && /[А-ЯA-Z]{6,}/.test(headline));
+
+    const checks: CreativeCheck[] = [
+      { criterion: "Заголовок 8–60 символов", pass: headlineOk, weight: 18, note: headlineOk ? "ОК" : "Сделайте заголовок короче и конкретнее (8–60 символов)." },
+      { criterion: "Тело 20–300 символов", pass: bodyOk, weight: 12, note: bodyOk ? "ОК" : "Оптимальная длина тела — 20–300 символов." },
+      { criterion: "Есть конкретика/цифры", pass: hasNumbers, weight: 18, note: hasNumbers ? "ОК" : "Добавьте конкретику: цену, %, срок, количество." },
+      { criterion: "Чёткий CTA", pass: hasCta, weight: 20, note: hasCta ? "ОК" : "Добавьте явный призыв к действию (Оформите, Получите…)." },
+      { criterion: "Фокус на выгоде клиента", pass: hasBenefit, weight: 16, note: hasBenefit ? "ОК" : "Сместите акцент с характеристик на выгоду для клиента." },
+      { criterion: "Уместность/своевременность", pass: hasUrgencyOrRelevance, weight: 8, note: hasUrgencyOrRelevance ? "ОК" : "Добавьте релевантность моменту (сезон/новинка/срок)." },
+      { criterion: "Без CAPS-крика в заголовке", pass: notAllCaps, weight: 8, note: notAllCaps ? "ОК" : "Не пишите заголовок капсом — снижает доверие и охваты." },
+    ];
+
+    const score = checks.reduce((a, c) => a + (c.pass ? c.weight : 0), 0);
+    const grade = score >= 85 ? "A" : score >= 70 ? "B" : score >= 50 ? "C" : "D";
+
+    // Quick compliance heuristic flag (deep review = compliance_check).
+    const complianceFlag = /(лучш|№\s?1|самый|100\s?%|гаранти|излечива)/i.test(full);
+
+    // Optional LLM variants. Graceful fallback.
+    let variants: string[] | null = null;
+    const llmEnv = env as LlmEnv | undefined;
+    if (llmEnv?.LLM_API_KEY) {
+      const raw = await callLLM(
+        {
+          system:
+            "Ты — перформанс-копирайтер РФ. Верни СТРОГО JSON {\"variants\":[\"...\",\"...\"]} без markdown — " +
+            "два улучшенных, комплаентных варианта объявления (заголовок + тело + CTA одной строкой) на русском.",
+          prompt: `Категория: ${input.category ?? "—"}. Площадка: ${input.platform ?? "—"}.\nЗаголовок: ${headline}\nТело: ${body}\nCTA: ${cta || "—"}`,
+        },
+        llmEnv
+      );
+      try {
+        const parsed = JSON.parse(raw.replace(/^```json\s*|\s*```$/g, "").trim());
+        if (Array.isArray(parsed?.variants)) variants = parsed.variants.slice(0, 2).map((v: unknown) => String(v));
+      } catch {
+        /* keep null on parse failure */
+      }
+    }
+
+    const payload = {
+      tool: "creative_score",
+      input: { category: input.category ?? null, platform: input.platform ?? null, headlineChars: headline.length, bodyChars: body.length },
+      score,
+      grade,
+      checks,
+      complianceFlag,
+      complianceHint: complianceFlag
+        ? "Обнаружены потенциально рискованные формулировки — прогоните через compliance_check."
+        : "Грубых рисков не видно; для гарантии прогоните через compliance_check.",
+      variants,
+      disclaimer: "Эвристическая оценка качества креатива; финальное решение — за A/B-тестом (см. ab_test_planner).",
+    };
+
+    const summary =
+      `Оценка креатива: ${score}/100 (грейд ${grade}). ` +
+      `Пройдено ${checks.filter((c) => c.pass).length}/${checks.length} критериев` +
+      (complianceFlag ? "; есть комплаенс-флаг." : ".") +
+      (variants ? ` Предложено ${variants.length} улучшенных варианта.` : "");
+    return toContent(summary, payload);
+  },
+};
+
 // ── Export the group ──────────────────────────────────────────────────────────
 
-export const ANALYTICS_TOOLS: ToolDef[] = [complianceCheck, abTestPlanner, unitEconomics];
+export const ANALYTICS_TOOLS: ToolDef[] = [
+  complianceCheck,
+  abTestPlanner,
+  unitEconomics,
+  funnelModel,
+  seasonalityForecast,
+  creativeScore,
+];

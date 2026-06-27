@@ -65,7 +65,48 @@ export const DATA_META = {
   currency: "RUB",
   region: "RU/CIS",
   lastUpdated: "2026-Q2",
+  /**
+   * Provenance block surfaced to clients so every number is auditable. Honest by
+   * design: the bundled values are synthetic. When a real DataSource is wired
+   * (KV/D1/HTTP), it should overwrite `source`, `asOf`, `sampleSize` and set
+   * `synthetic: false`.
+   */
+  provenance: {
+    source: "NECTARIN synthetic baseline (bundled)",
+    methodology:
+      "Plausible RU/CIS ranges expressed as p25/p50/p75 per category × platform × KPI. " +
+      "Confidence band ≈ [p25, p75] (interquartile). Point estimate = p50 (median).",
+    sampleSize: null as number | null,
+    asOf: "2026-Q2",
+    synthetic: true,
+    confidenceNote:
+      "Treat p50 as the planning point and [p25, p75] as the realistic spread. " +
+      "Replace with NECTARIN's aggregated data for production-grade confidence.",
+  },
 };
+
+// ── Seasonality (monthly demand index, mean ≈ 1.0) ─────────────────────────
+// Index >1 = above-average demand/competition that month; <1 = softer. Used by
+// `seasonality_forecast` to time spend. Months are Jan..Dec (index 0..11).
+
+const SEASONALITY: Record<string, number[]> = {
+  realty:  [1.10, 1.05, 1.15, 1.00, 1.05, 0.95, 0.80, 0.85, 1.05, 1.00, 1.05, 0.95],
+  pharma:  [1.20, 1.15, 1.00, 1.10, 1.10, 0.90, 0.85, 0.85, 0.95, 1.10, 1.15, 1.20],
+  fmcg:    [0.90, 1.05, 1.10, 0.95, 1.05, 1.05, 1.05, 1.00, 1.05, 0.95, 1.00, 1.25],
+  retail:  [1.00, 0.90, 0.95, 0.90, 0.95, 0.95, 0.95, 1.10, 1.05, 1.00, 1.30, 1.25],
+  auto:    [0.90, 0.95, 1.10, 1.10, 1.10, 1.00, 0.90, 0.90, 1.05, 1.05, 1.05, 1.10],
+  finance: [1.15, 1.00, 1.10, 1.10, 0.95, 0.90, 0.90, 0.95, 1.05, 1.00, 1.00, 1.20],
+};
+
+export const MONTHS_RU = [
+  "Январь", "Февраль", "Март", "Апрель", "Май", "Июнь",
+  "Июль", "Август", "Сентябрь", "Октябрь", "Ноябрь", "Декабрь",
+];
+
+/** Monthly demand index (length 12, Jan..Dec) for a category, or undefined. */
+export function getSeasonalityIndex(category: string): number[] | undefined {
+  return SEASONALITY[category];
+}
 
 // ── Benchmarks (category × platform × KPI → p25/p50/p75) ───────────────────
 

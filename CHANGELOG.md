@@ -3,6 +3,31 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.3.0] — 2026-06-27
+
+Depth & transparency upgrade (Phase 2, part 1). Three new analytics tools plus a
+data-provenance layer. Backward-compatible.
+
+### Added
+- **`funnel_model`**: full-funnel projection (impressions → reach → clicks →
+  leads → qualified → sales → revenue) with conservative/base/optimistic
+  scenarios from the benchmark spread, per-stage drop-off, CAC/ROAS, and the
+  **biggest leak** call-out.
+- **`seasonality_forecast`**: 12-month RU/CIS demand index per category, peak/
+  trough months, recommended monthly budget weighting, and optional annual-budget
+  split by month.
+- **`creative_score`**: 0-100 best-practice score for ad copy (value prop,
+  specificity, CTA, length, relevance, benefit-focus, no-CAPS) with per-criterion
+  fixes, a quick compliance flag, and optional LLM-generated improved variants.
+- **Data provenance**: `DATA_META.provenance` (source, methodology, confidence,
+  `synthetic` flag) now surfaced in `ru_benchmarks` and `funnel_model` output —
+  every number is auditable and honestly labelled.
+- Seasonality dataset (`SEASONALITY`) + `getSeasonalityIndex()` accessor.
+- Tests for all three new tools — suite now **37 tests**.
+
+### Changed
+- `version` `1.2.0` → `1.3.0`; `GET /version` `toolCount` 20 → **23**.
+
 ## [1.2.0] — 2026-06-27
 
 Premium analytics upgrade — NECTARIN goes from informing/converting to operating
