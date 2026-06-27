@@ -770,6 +770,8 @@ const QUICK_AOV: Record<string, number> = {
   retail: 2500,
   fmcg: 900,
   pharma: 1400,
+  ecom: 3200,
+  edtech: 35000,
 };
 
 /** Lightweight ROI framing from a media-plan forecast (same shape as roi_calculator). */
@@ -819,6 +821,24 @@ function buildAudienceInsights(category: string, geo?: string) {
       jtbd: ["Сохранить и приумножить деньги", "Получить удобный продукт быстро", "Доверять надёжному банку"],
       affinities: ["Yandex Direct (high-intent)", "Telegram финансовые каналы", "OLV (доверие к бренду)"],
     },
+    ecom: {
+      segments: [
+        { name: "Охотники за выгодой 25-45", size: "крупный", note: "промо, скидки, кешбэк" },
+        { name: "Занятые горожане 28-45", size: "крупный", note: "скорость доставки, удобство" },
+        { name: "Маркетплейс-лоялы", size: "средний", note: "отзывы, рейтинги, СТМ" },
+      ],
+      jtbd: ["Купить выгодно и быстро", "Найти нужный товар с доставкой", "Доверять продавцу по отзывам"],
+      affinities: ["Yandex Direct (товарный фид)", "Avito (high-intent)", "ритейл-медиа Ozon/WB"],
+    },
+    edtech: {
+      segments: [
+        { name: "Смена профессии 25-40", size: "крупный", note: "IT, новые навыки, доход" },
+        { name: "Студенты/выпускники 18-26", size: "средний", note: "первая работа, портфолио" },
+        { name: "Апскилл специалистов 28-45", size: "средний", note: "рост в профессии" },
+      ],
+      jtbd: ["Освоить профессию с результатом", "Повысить доход и нанимаемость", "Учиться гибко без отрыва"],
+      affinities: ["Yandex Direct (intent)", "VK/Telegram (прогрев контентом)", "OLV (узнаваемость)"],
+    },
   };
   const insight =
     base[category] ?? {
@@ -840,6 +860,8 @@ async function buildCompetitorScan(brand?: string, category?: string) {
     auto: ["LADA", "Haval", "Chery", "Geely", "Москвич"],
     retail: ["Wildberries", "Ozon", "Яндекс Маркет", "DNS", "М.Видео"],
     pharma: ["Apteka.ru", "Эвалар", "Отисифарм", "Доктор Мом", "Нурофен"],
+    ecom: ["Wildberries", "Ozon", "Яндекс Маркет", "Мегамаркет", "AliExpress"],
+    edtech: ["Skillbox", "Нетология", "GeekBrains", "Яндекс Практикум", "Skyeng"],
   };
   const key = category ?? "retail";
   const territories = await strategist.territories(key);

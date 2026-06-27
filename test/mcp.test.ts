@@ -298,6 +298,44 @@ describe("tools/call — happy paths", () => {
     expect(sc.complianceFlag).toBe(true);
     expect(Array.isArray(sc.checks)).toBe(true);
   });
+
+  it("ru_benchmarks supports the new ecom category + returns provenance", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 25,
+      method: "tools/call",
+      params: { name: "ru_benchmarks", arguments: { category: "ecom", kpi: "CPA" } },
+    });
+    const r = json.result.structuredContent;
+    expect(r.data.results.length).toBeGreaterThan(0);
+    expect(r.provenance).toBeDefined();
+    expect(r.provenance.synthetic).toBe(true);
+  });
+
+  it("budget_optimizer includes Avito for retail (new platform)", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 26,
+      method: "tools/call",
+      params: { name: "budget_optimizer", arguments: { category: "retail", budget: 4_000_000, goal: "performance" } },
+    });
+    const alloc = json.result.structuredContent.data.optimized.allocation;
+    const platforms = alloc.map((c: any) => c.platform);
+    expect(platforms).toContain("Avito");
+  });
+
+  it("seasonality_forecast works for the new edtech category", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 27,
+      method: "tools/call",
+      params: { name: "seasonality_forecast", arguments: { category: "edtech" } },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.months).toHaveLength(12);
+    // September is a known edtech peak.
+    expect(sc.peak.month).toBe("Сентябрь");
+  });
 });
 
 describe("tools/call — error handling", () => {

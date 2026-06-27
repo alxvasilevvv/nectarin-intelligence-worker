@@ -3,6 +3,26 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.4.0] — 2026-06-27
+
+Coverage upgrade (Phase 2, part 2). Broader RU/CIS surface area — no new tools,
+but every tool now reasons over more categories and a major new channel.
+Backward-compatible.
+
+### Added
+- **2 new categories**: `ecom` (e-commerce/marketplaces) and `edtech` — full
+  benchmark matrices (CPM/CTR/CPA/VTR p25/p50/p75 across all platforms), bespoke
+  playbooks, seasonality curves, funnel rates, AOV, audience segments/JTBD, and
+  competitor pools. Categories: **8** total.
+- **New platform `Avito`** (high-intent RU classifieds): benchmarks for realty/
+  auto/retail/ecom, two inventory suppliers, and it is automatically considered by
+  `budget_optimizer` where present. Platforms: **5** total.
+
+### Changed
+- `version` `1.3.0` → `1.4.0`. `media_plan` presets stay on the 4 brand/perf
+  channels by design; Avito surfaces via `budget_optimizer` and `ru_benchmarks`.
+- Tests for new category + platform — suite now **40 tests**.
+
 ## [1.3.0] — 2026-06-27
 
 Depth & transparency upgrade (Phase 2, part 1). Three new analytics tools plus a

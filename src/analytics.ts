@@ -580,6 +580,8 @@ const FUNNEL_RATES: Record<string, { lead: number; qualify: number; close: numbe
   retail: { lead: 0.07, qualify: 0.65, close: 0.4 },
   auto: { lead: 0.05, qualify: 0.4, close: 0.1 },
   finance: { lead: 0.06, qualify: 0.5, close: 0.2 },
+  ecom: { lead: 0.08, qualify: 0.7, close: 0.5 },
+  edtech: { lead: 0.1, qualify: 0.45, close: 0.18 },
 };
 const DEFAULT_FUNNEL_RATES = { lead: 0.06, qualify: 0.55, close: 0.3 };
 

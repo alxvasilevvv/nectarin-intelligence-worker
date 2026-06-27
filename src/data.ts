@@ -20,8 +20,8 @@
 // ── Types ────────────────────────────────────────────────────────────────
 
 export type Kpi = "CPM" | "CTR" | "CPA" | "VTR";
-export type Platform = "VK Ads" | "Yandex Direct" | "Telegram Ads" | "OLV";
-export type Category = "realty" | "pharma" | "fmcg" | "retail" | "auto" | "finance";
+export type Platform = "VK Ads" | "Yandex Direct" | "Telegram Ads" | "OLV" | "Avito";
+export type Category = "realty" | "pharma" | "fmcg" | "retail" | "auto" | "finance" | "ecom" | "edtech";
 
 export interface MetricRange {
   p25: number;
@@ -55,8 +55,8 @@ export interface Playbook {
 
 // ── Convenience constants ──────────────────────────────────────────────────
 
-export const PLATFORMS: Platform[] = ["VK Ads", "Yandex Direct", "Telegram Ads", "OLV"];
-export const CATEGORIES: Category[] = ["realty", "pharma", "fmcg", "retail", "auto", "finance"];
+export const PLATFORMS: Platform[] = ["VK Ads", "Yandex Direct", "Telegram Ads", "OLV", "Avito"];
+export const CATEGORIES: Category[] = ["realty", "pharma", "fmcg", "retail", "auto", "finance", "ecom", "edtech"];
 export const KPIS: Kpi[] = ["CPM", "CTR", "CPA", "VTR"];
 
 export const DATA_META = {
@@ -96,6 +96,8 @@ const SEASONALITY: Record<string, number[]> = {
   retail:  [1.00, 0.90, 0.95, 0.90, 0.95, 0.95, 0.95, 1.10, 1.05, 1.00, 1.30, 1.25],
   auto:    [0.90, 0.95, 1.10, 1.10, 1.10, 1.00, 0.90, 0.90, 1.05, 1.05, 1.05, 1.10],
   finance: [1.15, 1.00, 1.10, 1.10, 0.95, 0.90, 0.90, 0.95, 1.05, 1.00, 1.00, 1.20],
+  ecom:    [0.95, 0.95, 1.00, 0.90, 0.95, 0.90, 0.90, 1.00, 1.05, 1.05, 1.40, 1.25],
+  edtech:  [1.20, 1.00, 0.95, 0.95, 1.05, 1.00, 0.85, 0.90, 1.30, 1.00, 1.05, 0.95],
 };
 
 export const MONTHS_RU = [
@@ -116,6 +118,7 @@ const BENCHMARKS: Record<string, Record<string, PlatformMetrics>> = {
     "Yandex Direct": { CPM: { p25: 260, p50: 410, p75: 620 }, CTR: { p25: 0.6, p50: 1.1, p75: 1.9 }, CPA: { p25: 1900, p50: 3300, p75: 5800 }, VTR: { p25: 16, p50: 24, p75: 36 } },
     "Telegram Ads": { CPM: { p25: 180, p50: 280, p75: 430 }, CTR: { p25: 0.35, p50: 0.65, p75: 1.05 }, CPA: { p25: 2800, p50: 4700, p75: 7600 }, VTR: { p25: 10, p50: 17, p75: 26 } },
     OLV: { CPM: { p25: 290, p50: 430, p75: 640 }, CTR: { p25: 0.1, p50: 0.25, p75: 0.45 }, CPA: { p25: 5200, p50: 8100, p75: 12800 }, VTR: { p25: 45, p50: 62, p75: 78 } },
+    Avito: { CPM: { p25: 200, p50: 300, p75: 450 }, CTR: { p25: 0.9, p50: 1.5, p75: 2.4 }, CPA: { p25: 1700, p50: 2900, p75: 5000 }, VTR: { p25: 4, p50: 8, p75: 14 } },
   },
   pharma: {
     "VK Ads": { CPM: { p25: 170, p50: 260, p75: 390 }, CTR: { p25: 0.4, p50: 0.75, p75: 1.2 }, CPA: { p25: 600, p50: 1100, p75: 1900 }, VTR: { p25: 13, p50: 21, p75: 31 } },
@@ -134,18 +137,33 @@ const BENCHMARKS: Record<string, Record<string, PlatformMetrics>> = {
     "Yandex Direct": { CPM: { p25: 180, p50: 280, p75: 420 }, CTR: { p25: 0.7, p50: 1.2, p75: 2.0 }, CPA: { p25: 270, p50: 480, p75: 850 }, VTR: { p25: 17, p50: 26, p75: 38 } },
     "Telegram Ads": { CPM: { p25: 120, p50: 190, p75: 290 }, CTR: { p25: 0.45, p50: 0.8, p75: 1.3 }, CPA: { p25: 380, p50: 650, p75: 1100 }, VTR: { p25: 12, p50: 20, p75: 30 } },
     OLV: { CPM: { p25: 220, p50: 330, p75: 490 }, CTR: { p25: 0.11, p50: 0.26, p75: 0.47 }, CPA: { p25: 700, p50: 1200, p75: 2000 }, VTR: { p25: 50, p50: 66, p75: 81 } },
+    Avito: { CPM: { p25: 140, p50: 210, p75: 320 }, CTR: { p25: 0.8, p50: 1.4, p75: 2.2 }, CPA: { p25: 300, p50: 520, p75: 900 }, VTR: { p25: 4, p50: 8, p75: 14 } },
   },
   auto: {
     "VK Ads": { CPM: { p25: 230, p50: 350, p75: 520 }, CTR: { p25: 0.4, p50: 0.75, p75: 1.25 }, CPA: { p25: 3200, p50: 5400, p75: 9100 }, VTR: { p25: 15, p50: 23, p75: 34 } },
     "Yandex Direct": { CPM: { p25: 280, p50: 440, p75: 660 }, CTR: { p25: 0.55, p50: 1.0, p75: 1.7 }, CPA: { p25: 2700, p50: 4500, p75: 7700 }, VTR: { p25: 17, p50: 25, p75: 37 } },
     "Telegram Ads": { CPM: { p25: 200, p50: 310, p75: 470 }, CTR: { p25: 0.32, p50: 0.58, p75: 0.95 }, CPA: { p25: 3800, p50: 6200, p75: 10400 }, VTR: { p25: 11, p50: 18, p75: 27 } },
     OLV: { CPM: { p25: 310, p50: 470, p75: 700 }, CTR: { p25: 0.1, p50: 0.24, p75: 0.44 }, CPA: { p25: 6800, p50: 11000, p75: 17500 }, VTR: { p25: 47, p50: 64, p75: 79 } },
+    Avito: { CPM: { p25: 220, p50: 330, p75: 500 }, CTR: { p25: 0.8, p50: 1.4, p75: 2.2 }, CPA: { p25: 2400, p50: 4000, p75: 6900 }, VTR: { p25: 4, p50: 8, p75: 14 } },
   },
   finance: {
     "VK Ads": { CPM: { p25: 240, p50: 370, p75: 560 }, CTR: { p25: 0.38, p50: 0.7, p75: 1.15 }, CPA: { p25: 1800, p50: 3100, p75: 5400 }, VTR: { p25: 13, p50: 21, p75: 32 } },
     "Yandex Direct": { CPM: { p25: 300, p50: 460, p75: 690 }, CTR: { p25: 0.5, p50: 0.92, p75: 1.55 }, CPA: { p25: 1500, p50: 2600, p75: 4700 }, VTR: { p25: 15, p50: 23, p75: 35 } },
     "Telegram Ads": { CPM: { p25: 210, p50: 330, p75: 500 }, CTR: { p25: 0.3, p50: 0.55, p75: 0.9 }, CPA: { p25: 2100, p50: 3600, p75: 6200 }, VTR: { p25: 10, p50: 17, p75: 26 } },
     OLV: { CPM: { p25: 330, p50: 500, p75: 750 }, CTR: { p25: 0.09, p50: 0.22, p75: 0.41 }, CPA: { p25: 4200, p50: 7000, p75: 11800 }, VTR: { p25: 46, p50: 63, p75: 78 } },
+  },
+  ecom: {
+    "VK Ads": { CPM: { p25: 140, p50: 215, p75: 330 }, CTR: { p25: 0.6, p50: 1.05, p75: 1.7 }, CPA: { p25: 280, p50: 500, p75: 880 }, VTR: { p25: 16, p50: 25, p75: 37 } },
+    "Yandex Direct": { CPM: { p25: 175, p50: 270, p75: 410 }, CTR: { p25: 0.75, p50: 1.3, p75: 2.1 }, CPA: { p25: 230, p50: 420, p75: 740 }, VTR: { p25: 18, p50: 27, p75: 39 } },
+    "Telegram Ads": { CPM: { p25: 115, p50: 185, p75: 285 }, CTR: { p25: 0.45, p50: 0.85, p75: 1.4 }, CPA: { p25: 330, p50: 580, p75: 1000 }, VTR: { p25: 12, p50: 20, p75: 30 } },
+    OLV: { CPM: { p25: 210, p50: 320, p75: 480 }, CTR: { p25: 0.12, p50: 0.27, p75: 0.49 }, CPA: { p25: 650, p50: 1100, p75: 1900 }, VTR: { p25: 51, p50: 67, p75: 82 } },
+    Avito: { CPM: { p25: 130, p50: 200, p75: 310 }, CTR: { p25: 0.85, p50: 1.5, p75: 2.3 }, CPA: { p25: 260, p50: 460, p75: 820 }, VTR: { p25: 4, p50: 8, p75: 14 } },
+  },
+  edtech: {
+    "VK Ads": { CPM: { p25: 160, p50: 245, p75: 370 }, CTR: { p25: 0.5, p50: 0.9, p75: 1.45 }, CPA: { p25: 700, p50: 1250, p75: 2200 }, VTR: { p25: 15, p50: 24, p75: 35 } },
+    "Yandex Direct": { CPM: { p25: 200, p50: 305, p75: 460 }, CTR: { p25: 0.62, p50: 1.1, p75: 1.85 }, CPA: { p25: 600, p50: 1050, p75: 1850 }, VTR: { p25: 17, p50: 26, p75: 38 } },
+    "Telegram Ads": { CPM: { p25: 140, p50: 220, p75: 340 }, CTR: { p25: 0.4, p50: 0.72, p75: 1.2 }, CPA: { p25: 800, p50: 1400, p75: 2500 }, VTR: { p25: 11, p50: 19, p75: 28 } },
+    OLV: { CPM: { p25: 230, p50: 350, p75: 520 }, CTR: { p25: 0.1, p50: 0.24, p75: 0.44 }, CPA: { p25: 1500, p50: 2500, p75: 4300 }, VTR: { p25: 49, p50: 65, p75: 80 } },
   },
 };
 
@@ -171,6 +189,8 @@ const SUPPLIERS: Supplier[] = [
   { id: "sup-tg-pharma", name: "Telegram — Health Channels", platform: "Telegram Ads", format: "channel post", qualityScore: 80, fraudRisk: "low", viewability: 0.67, humanTraffic: 0.93, categoriesStrong: ["pharma", "fmcg"] },
   { id: "sup-vk-auto", name: "VK Ads — Auto Communities", platform: "VK Ads", format: "in-feed native", qualityScore: 83, fraudRisk: "low", viewability: 0.7, humanTraffic: 0.94, categoriesStrong: ["auto", "finance"] },
   { id: "sup-prog-ssp-c", name: "Programmatic SSP-C", platform: "OLV", format: "display/video mix", qualityScore: 58, fraudRisk: "high", viewability: 0.46, humanTraffic: 0.74, categoriesStrong: [] },
+  { id: "sup-avito-promo", name: "Avito — Промо-размещения", platform: "Avito", format: "listing promo", qualityScore: 90, fraudRisk: "low", viewability: 0.92, humanTraffic: 0.97, categoriesStrong: ["realty", "auto", "retail", "ecom"] },
+  { id: "sup-avito-display", name: "Avito — Медийная реклама", platform: "Avito", format: "in-feed native", qualityScore: 84, fraudRisk: "low", viewability: 0.75, humanTraffic: 0.95, categoriesStrong: ["realty", "auto", "ecom"] },
 ];
 
 // ── Playbooks (category go-to-market) ──────────────────────────────────────
@@ -225,6 +245,22 @@ const PLAYBOOKS: Record<string, Playbook> = {
     donts: ["Не указывать только минимальную ставку без диапазона/условий", "Не гарантировать доходность инвестиционных продуктов", "Не использовать давление/срочность, вводящие в заблуждение"],
     seasonalHooks: ["Декабрь-январь: вклады под высокую ставку", "Март-апрель: налоговый вычет/ИИС", "Сентябрь: деловой сезон, кредитование бизнеса"],
     complianceNotes: ["ОБЯЗАТЕЛЬНО раскрытие существенных условий и ПСК (ФЗ «О рекламе», ФЗ «О потребкредите»)", "Указание лицензии ЦБ РФ где применимо", "Инвест-продукты — дисклеймер о рисках, без гарантий доходности", "Маркировка ОРД/ЕРИР", "Юр-согласование ДО запуска"],
+  },
+  ecom: {
+    industry: "ecom",
+    territories: ["Выгода и скидки", "Скорость доставки", "Широкий ассортимент", "Доверие и отзывы"],
+    dos: ["Перформанс + динамический ретаргетинг по товарному фиду", "Интеграция с маркетплейсами (Ozon/WB) и Avito", "Промо-механики (купоны, бандлы) под событийные пики"],
+    donts: ["Не показывать неактуальные цены/остатки", "Не обещать скидку без реальной базовой цены (ФАС)", "Не игнорировать мобильный и быстрый чек-аут"],
+    seasonalHooks: ["11.11 / 12.12 распродажи", "Чёрная пятница (ноябрь)", "Новогодние подарки (декабрь)", "Гендерные праздники (февраль-март)"],
+    complianceNotes: ["Маркировка ОРД/ЕРИР", "Достоверность цен/акций и наличия", "Корректные условия рассрочки/кредита (см. finance)"],
+  },
+  edtech: {
+    industry: "edtech",
+    territories: ["Карьерный рост и доход", "Новая профессия с нуля", "Гибкий формат обучения", "Результат и трудоустройство"],
+    dos: ["Лидген на вебинары/бесплатные уроки как верх воронки", "Прогрев через контент и email/Telegram", "Социальное доказательство: кейсы выпускников"],
+    donts: ["Не гарантировать трудоустройство/доход без оговорок (ФАС)", "Не использовать поддельные отзывы", "Не давить ложной срочностью на скидки"],
+    seasonalHooks: ["Сентябрь: «учебный год», старт потоков", "Январь: цели на новый год", "Май-июнь: подготовка к карьерным изменениям", "Ноябрь: распродажи курсов"],
+    complianceNotes: ["Маркировка ОРД/ЕРИР", "При наличии лицензии — корректно указывать образовательную лицензию", "Достоверность обещаний о результате/доходе"],
   },
 };
 

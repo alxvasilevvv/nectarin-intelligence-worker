@@ -58,9 +58,13 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
   **real-or-stub**: it calls Anthropic/OpenAI when `LLM_API_KEY` is set and falls
   back to a deterministic stub otherwise (and on any model error), so the pipeline
   never breaks.
-- **`src/data.ts`** — synthetic benchmarks / suppliers / playbooks behind a
-  `DataSource` interface (default `MockDataSource`; `KvDataSource`/`HttpDataSource`
-  stubs included). See **`DATA_SCHEMA.md`** for the exact data NECTARIN must supply.
+- **`src/data.ts`** — synthetic benchmarks / suppliers / playbooks + seasonality
+  behind a `DataSource` interface (default `MockDataSource`;
+  `KvDataSource`/`HttpDataSource` stubs included). Coverage: **8 categories**
+  (realty, finance, auto, retail, fmcg, pharma, ecom, edtech) × **5 platforms**
+  (VK Ads, Yandex Direct, Telegram Ads, OLV, Avito), with a `provenance` block on
+  every benchmark response. See **`DATA_SCHEMA.md`** for the exact data NECTARIN
+  must supply.
 - **`src/auth.ts`** — **real OAuth 2.1 bearer verification** via `jose`
   (`createRemoteJWKSet` + `jwtVerify`) against a JWKS URL — validates signature,
   issuer, audience, expiry. In production **Unyly Connect** fronts OAuth 2.1

@@ -101,6 +101,8 @@ const AOV_BY_CATEGORY: Record<string, number> = {
   retail: 2500,
   fmcg: 900,
   pharma: 1400,
+  ecom: 3200,
+  edtech: 35000,
 };
 
 function aovFor(category: string): number {

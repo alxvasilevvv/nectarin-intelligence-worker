@@ -71,7 +71,7 @@ function ru(n: number): string {
 const ruBenchmarks: ToolDef = {
   name: "ru_benchmarks",
   description:
-    "RU/CIS advertising benchmarks. Returns CPM/CTR/CPA/VTR ranges (p25/p50/p75) and percentile context for a category × KPI, optionally narrowed to one platform (VK Ads, Yandex Direct, Telegram Ads, OLV). Mock aggregated data.",
+    "RU/CIS advertising benchmarks. Returns CPM/CTR/CPA/VTR ranges (p25/p50/p75) and percentile context for a category × KPI, optionally narrowed to one platform (VK Ads, Yandex Direct, Telegram Ads, OLV, Avito). Categories incl. realty, finance, auto, retail, fmcg, pharma, ecom, edtech. Includes data provenance. Mock aggregated data.",
   inputSchema: {
     type: "object",
     properties: {
