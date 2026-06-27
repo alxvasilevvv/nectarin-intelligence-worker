@@ -3,6 +3,21 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.9.0] — 2026-06-28
+
+Argument autocompletion so MCP clients can suggest valid enum values as the user
+types a prompt/tool argument.
+
+### Added
+- **`completion/complete`** handler + the `completions` capability in
+  `initialize`. Completes the shared enum-valued arguments by name —
+  `category`, `kpi`, `platform`, `goal` — filtered by a case-insensitive prefix
+  (capped at 100). Unknown arguments return an empty list. No PII, no state.
+
+### Changed
+- `version` `2.8.0` → `2.9.0`. Suite **83 tests** (capability advertised,
+  prefix/empty completion for category/goal/kpi, unknown-arg empty result).
+
 ## [2.8.0] — 2026-06-28
 
 MCP polish for premium clients: behavioral tool annotations and a live,

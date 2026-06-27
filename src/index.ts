@@ -29,6 +29,8 @@
 import { ALL_TOOLS, TOOLS_BY_NAME, describeTool } from "./tools.js";
 import {
   CATEGORIES,
+  KPIS,
+  PLATFORMS,
   setDataSource,
   LayeredKvDataSource,
   MockDataSource,
@@ -99,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.8.0";
+const SERVER_VERSION = "2.9.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -483,6 +485,14 @@ interface RpcMeta {
   tool?: string;
 }
 
+/** Candidate values for `completion/complete`, keyed by argument name. */
+const COMPLETION_POOLS: Record<string, string[]> = {
+  category: [...CATEGORIES],
+  kpi: [...KPIS],
+  platform: [...PLATFORMS],
+  goal: ["awareness", "consideration", "performance", "retention"],
+};
+
 async function handleRpc(rpc: JsonRpcRequest, env: Env, meta: RpcMeta = {}): Promise<Response | null> {
   const { id, method, params } = rpc;
   const hasId = id !== undefined && id !== null;
@@ -496,6 +506,7 @@ async function handleRpc(rpc: JsonRpcRequest, env: Env, meta: RpcMeta = {}): Pro
           tools: { listChanged: false },
           prompts: { listChanged: false },
           resources: { listChanged: false },
+          completions: {},
         },
         instructions:
           "NECTARIN Intelligence — orchestrator-worker AI marketing agent for RU/CIS. All data is MOCK/synthetic. Not legal advice.",
@@ -508,6 +519,19 @@ async function handleRpc(rpc: JsonRpcRequest, env: Env, meta: RpcMeta = {}): Pro
 
     case "ping":
       return rpcResult(id ?? null, {});
+
+    case "completion/complete": {
+      // Argument autocompletion (MCP). Completes the well-known enum-valued
+      // arguments shared across prompts/tools by argument NAME, filtered by the
+      // partial value (case-insensitive prefix). Unknown args ⇒ empty list.
+      const argName = (params?.argument?.name ?? "") as string;
+      const partial = String(params?.argument?.value ?? "").toLowerCase();
+      const pool = COMPLETION_POOLS[argName] ?? [];
+      const values = pool.filter((v) => v.toLowerCase().startsWith(partial)).slice(0, 100);
+      return rpcResult(id ?? null, {
+        completion: { values, total: values.length, hasMore: false },
+      });
+    }
 
     case "tools/list":
       return rpcResult(id ?? null, {

@@ -37,8 +37,9 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
   (no `@modelcontextprotocol/sdk` dependency — the SDK's transports target Node's
   `http`/streams, which don't exist on Workers, so a hand-rolled handler is cleaner
   and dependency-free). Implements `initialize`, `tools/list`, `tools/call`,
-  `prompts/list`, `prompts/get`, `resources/list`, `resources/read`, `ping`, and
-  the `notifications/*` no-ops, with proper JSON-RPC results/errors.
+  `prompts/list`, `prompts/get`, `resources/list`, `resources/read`,
+  `completion/complete`, `ping`, and the `notifications/*` no-ops, with proper
+  JSON-RPC results/errors.
 - **`src/tools.ts`** — the tool registry. It composes three groups: the 11
   **Intelligence** tools (incl. the flagship `strategy_orchestrate` and the
   `budget_optimizer`), the 6 **Growth & Automation** tools, and the 3 **Premium

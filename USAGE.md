@@ -94,6 +94,9 @@ Built‑in **prompts** (9): `build_media_plan`, `full_strategy`, `competitor_tea
 (live JSON catalog of all tools + annotations + prompts). `tools/list` also
 returns a `title` and behavioral `annotations` (read-only / idempotent / open-world) per tool.
 
+**Autocompletion:** `completion/complete` suggests valid values for the `category`,
+`kpi`, `platform` and `goal` arguments as you type (case-insensitive prefix).
+
 ---
 
 ## 3. Recommended flows

@@ -96,6 +96,55 @@ describe("tools/list", () => {
   });
 });
 
+describe("completion/complete", () => {
+  it("initialize advertises the completions capability", async () => {
+    const { json } = await rpc({ jsonrpc: "2.0", id: 40, method: "initialize", params: {} });
+    expect(json.result.capabilities.completions).toBeDefined();
+  });
+
+  it("completes category by case-insensitive prefix", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 41,
+      method: "completion/complete",
+      params: { ref: { type: "ref/prompt", name: "build_media_plan" }, argument: { name: "category", value: "re" } },
+    });
+    const values = json.result.completion.values;
+    expect(values).toContain("realty");
+    expect(values).toContain("retail");
+    expect(values).not.toContain("finance");
+    expect(json.result.completion.hasMore).toBe(false);
+  });
+
+  it("completes goal and kpi argument pools", async () => {
+    const goal = await rpc({
+      jsonrpc: "2.0",
+      id: 42,
+      method: "completion/complete",
+      params: { ref: { type: "ref/prompt", name: "build_media_plan" }, argument: { name: "goal", value: "per" } },
+    });
+    expect(goal.json.result.completion.values).toEqual(["performance"]);
+
+    const kpi = await rpc({
+      jsonrpc: "2.0",
+      id: 43,
+      method: "completion/complete",
+      params: { ref: { type: "ref/prompt", name: "x" }, argument: { name: "kpi", value: "" } },
+    });
+    expect(kpi.json.result.completion.values).toEqual(["CPM", "CTR", "CPA", "VTR"]);
+  });
+
+  it("returns an empty list for an unknown argument", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 44,
+      method: "completion/complete",
+      params: { ref: { type: "ref/prompt", name: "x" }, argument: { name: "nope", value: "a" } },
+    });
+    expect(json.result.completion.values).toEqual([]);
+  });
+});
+
 describe("resources", () => {
   it("resources/list returns the methodology, glossary and live catalog", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 30, method: "resources/list" });
