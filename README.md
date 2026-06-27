@@ -412,7 +412,7 @@ interface, so going real is a one-line wiring change — no upstream edits.
   display `title` per tool. Pure tools are `readOnlyHint`/`idempotentHint` true,
   `openWorldHint` false; LLM-backed (`creative_variants`, `localize`) are
   non-idempotent/open-world; `request_nectarin_proposal` is not read-only.
-- Prompts (10): `build_media_plan`, **`full_strategy`** (one-shot flagship via
+- Prompts (11): `build_media_plan`, **`full_strategy`** (one-shot flagship via
   `strategy_orchestrate`), `competitor_teardown`, the two funnel
   orchestrators **`sell_nectarin_services`** (roi_calculator → value_forecast →
   lead_qualify → request_nectarin_proposal → book_consultation) and
@@ -422,5 +422,6 @@ interface, so going real is a one-line wiring change — no upstream edits.
   (anomaly_detector → cohort_ltv + unit_economics), **`launch_flight`**
   (media_plan → seasonality_forecast → utm_builder → pacing_monitor) and
   **`performance_review`** (anomaly_detector → attribution_model →
-  bid_simulator → budget_optimizer), and **`saturation_reallocation`**
-  (response_curve → pacing_monitor) for diminishing-returns budget splits.
+  bid_simulator → budget_optimizer), **`saturation_reallocation`**
+  (response_curve → pacing_monitor) for diminishing-returns budget splits, and
+  **`mmm_planning`** (mmm_optimize) for time-series adstock + saturation modeling.

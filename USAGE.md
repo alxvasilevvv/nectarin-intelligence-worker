@@ -93,9 +93,9 @@ stays on JSON, so existing clients are unaffected.
 |---|---|
 | `mmm_optimize` | MMM‑lite: fits adstock (carryover) + saturation per channel from spend/conversions **time series**, then computes the conversion‑maximizing steady‑state budget split (Lagrange bisection, marginal CPA equalized) with fit R²/confidence. |
 
-Built‑in **prompts** (10): `build_media_plan`, `full_strategy`, `competitor_teardown`,
+Built‑in **prompts** (11): `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`,
-`launch_flight`, `performance_review`, `saturation_reallocation`.
+`launch_flight`, `performance_review`, `saturation_reallocation`, `mmm_planning`.
 **Resources:** `nectarin://methodology`, `nectarin://glossary`, `nectarin://catalog`
 (live JSON catalog of all tools + annotations + prompts). `tools/list` also
 returns a `title` and behavioral `annotations` (read-only / idempotent / open-world) per tool.

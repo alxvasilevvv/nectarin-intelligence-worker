@@ -1002,16 +1002,30 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 10 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 11 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(10);
+    expect(json.result.prompts).toHaveLength(11);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
     expect(names).toContain("launch_flight");
     expect(names).toContain("performance_review");
     expect(names).toContain("saturation_reallocation");
+    expect(names).toContain("mmm_planning");
+  });
+
+  it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 67,
+      method: "prompts/get",
+      params: { name: "mmm_planning", arguments: { data: "Yandex Direct | spend: 500000,520000,480000,510000 | conv: 820,840,790,825", totalBudget: "1000000" } },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("mmm_optimize");
+    expect(text).toContain("Yandex Direct");
+    expect(text).toContain("1000000");
   });
 
   it("prompts/get saturation_reallocation embeds the channels and calls response_curve", async () => {

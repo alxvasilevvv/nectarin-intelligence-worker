@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.12.0";
+const SERVER_VERSION = "2.13.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -502,6 +502,32 @@ const PROMPTS = [
       `3) Объясни рекомендованный сплит: где предельный CPA выровнен, какой канал недо/переинвестирован, ожидаемый uplift и улучшение blended CPA.\n` +
       `4) (Опц.) Для канала с самой большой добавкой бюджета вызови pacing_monitor, чтобы проверить реалистичность дневного темпа.\n` +
       `5) Дай чёткую рекомендацию и предупреждение: модель на одной точке калибровки — проверь эластичность b на истории. Данные иллюстративные.`,
+  },
+  {
+    name: "mmm_planning",
+    title: "Marketing Mix Modeling (adstock + saturation)",
+    description:
+      "Run a marketing mix model on per-channel spend & conversions time series (mmm_optimize): fit adstock + saturation and reallocate the budget to maximize steady-state conversions.",
+    arguments: [
+      {
+        name: "data",
+        description:
+          "Per-channel time series, e.g. 'Yandex Direct | spend: 500000,520000,480000,510000 | conv: 820,840,790,825; VK Ads | spend: ... | conv: ...' (≥4 aligned periods each)",
+        required: true,
+      },
+      { name: "totalBudget", description: "Per-period budget to allocate in RUB (optional; default = current mean spend)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, MMM-аналитик RU/CIS.\n` +
+      `Построй marketing mix model и оптимизируй бюджет по каналам.\n` +
+      `Данные по каналам (spend/conv ряды): ${a.data}\n` +
+      (a.totalBudget ? `Целевой бюджет на период: ${a.totalBudget} ₽.\n` : `Бюджет: реаллокация текущего среднего.\n`) +
+      `\nШаги:\n` +
+      `1) Распарси данные в массив каналов {name, spend:[...], conversions:[...]} (ряды одинаковой длины, ≥4 периодов).\n` +
+      `2) Вызови mmm_optimize(channels${a.totalBudget ? ", totalBudget" : ""}).\n` +
+      `3) По каждому каналу объясни: adstock-распад λ (и период полураспада переноса), эластичность насыщения b, качество подгонки R² и флаг lowConfidence.\n` +
+      `4) Объясни рекомендованный сплит: где предельный CPA выровнен, какой канал недо/переинвестирован, ожидаемый uplift к стабильному уровню.\n` +
+      `5) Явно предупреди про каналы с низким R² (валидировать до перелива бюджета). Данные иллюстративные, не реальные бенчмарки.`,
   },
 ];
 

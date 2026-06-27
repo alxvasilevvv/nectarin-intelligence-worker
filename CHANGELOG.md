@@ -3,6 +3,17 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.13.0] — 2026-06-28
+
+### Added
+- **`mmm_planning`** guided prompt (11 prompts total) — parses per-channel
+  spend/conversions series, calls `mmm_optimize`, and explains the adstock decay,
+  saturation elasticity, fit R²/confidence and the reallocated split. One-click
+  MMM in Claude's prompt UI.
+
+### Changed
+- `version` `2.12.0` → `2.13.0`. Suite **89 tests** (prompt count, series interpolation).
+
 ## [2.12.0] — 2026-06-28
 
 The senior-marketer headline capability: a real Marketing Mix Model (34th tool).
