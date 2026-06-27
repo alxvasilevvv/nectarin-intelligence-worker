@@ -1,7 +1,7 @@
 # NECTARIN Intelligence — Usage & Claude Prompt
 
 Premium AI marketing agent for the **RU/CIS** market, served as a remote **MCP**
-server on Cloudflare Workers. **27 tools** across three groups, a model‑agnostic
+server on Cloudflare Workers. **30 tools** across four groups, a model‑agnostic
 LLM narrative seam (with KV response cache), real‑data layering via KV, and an
 opt‑in SSE transport.
 
@@ -37,7 +37,7 @@ stays on JSON, so existing clients are unaffected.
 
 ---
 
-## 2. Tool catalogue (27)
+## 2. Tool catalogue (30)
 
 ### Intelligence (11)
 | Tool | What it does |
@@ -78,6 +78,13 @@ stays on JSON, so existing clients are unaffected.
 | `report_export` | Strategy → slides / Markdown deck / one‑pager. |
 | `localize` | LLM translation + cultural adaptation (RU/EN/KZ/UZ). |
 
+### Premium (3) — generate · monitor · project
+| Tool | What it does |
+|---|---|
+| `creative_variants` | Generate + score N ready‑to‑test ad variants (LLM, KV‑cached; template fallback), ranked best‑first. |
+| `anomaly_detector` | Robust median/MAD anomaly detection over a metric time series for always‑on monitoring. |
+| `cohort_ltv` | Retention‑curve cohort LTV/NPV + LTV:CAC + payback. |
+
 Built‑in **prompts**: `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`.
 **Resources:** `nectarin://methodology`, `nectarin://glossary`.
@@ -99,6 +106,12 @@ to produce a deck, `compliance_check` if regulated, `book_consultation` to close
 
 **Performance optimization:**
 `attribution_model` → `bid_simulator` → `budget_optimizer` → `ab_test_planner`.
+
+**Creative testing loop:**
+`creative_variants` → `compliance_check` (risky ones) → `ab_test_planner` → ship winners.
+
+**Always-on monitoring & retention:**
+`anomaly_detector` (daily CPA/CTR/spend) → `cohort_ltv` + `unit_economics` to size the impact.
 
 **Sell NECTARIN:**
 `roi_calculator` → `value_forecast` → `lead_qualify` → `request_nectarin_proposal`

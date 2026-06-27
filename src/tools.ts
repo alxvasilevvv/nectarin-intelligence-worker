@@ -16,6 +16,7 @@ import { runPlan } from "./orchestrator.js";
 import { CATEGORIES, KPIS, PLATFORMS, DATA_META } from "./data.js";
 import { GROWTH_TOOLS } from "./growth.js";
 import { ANALYTICS_TOOLS } from "./analytics.js";
+import { PREMIUM_TOOLS } from "./premium.js";
 import type { Env } from "./index.js";
 
 export interface JsonSchema {
@@ -365,8 +366,8 @@ const INTELLIGENCE_TOOLS: ToolDef[] = [
   strategyOrchestrate,
 ];
 
-// Full registry = Intelligence + Growth & Automation + Premium Analytics tools.
-export const ALL_TOOLS: ToolDef[] = [...INTELLIGENCE_TOOLS, ...GROWTH_TOOLS, ...ANALYTICS_TOOLS];
+// Full registry = Intelligence + Growth & Automation + Premium Analytics + Premium tools.
+export const ALL_TOOLS: ToolDef[] = [...INTELLIGENCE_TOOLS, ...GROWTH_TOOLS, ...ANALYTICS_TOOLS, ...PREMIUM_TOOLS];
 
 export const TOOLS_BY_NAME: Record<string, ToolDef> = Object.fromEntries(
   ALL_TOOLS.map((t) => [t.name, t])

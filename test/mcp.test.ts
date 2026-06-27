@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(27);
+    expect(json.toolCount).toBe(30);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(27);
+    expect(tools).toHaveLength(30);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -58,6 +58,9 @@ describe("tools/list", () => {
     expect(names).toContain("bid_simulator");
     expect(names).toContain("report_export");
     expect(names).toContain("localize");
+    expect(names).toContain("creative_variants");
+    expect(names).toContain("anomaly_detector");
+    expect(names).toContain("cohort_ltv");
   });
 });
 
@@ -427,6 +430,75 @@ describe("tools/call — happy paths", () => {
   });
 });
 
+describe("premium tools (v2.1)", () => {
+  it("creative_variants returns ranked, scored variants (template fallback)", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 50,
+      method: "tools/call",
+      params: { name: "creative_variants", arguments: { product: "Кэшбэк-карта", audience: "молодые специалисты", channel: "VK Ads", count: 3 } },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.usedLlm).toBe(false);
+    expect(sc.variants).toHaveLength(3);
+    // Ranked best-first.
+    expect(sc.variants[0].score).toBeGreaterThanOrEqual(sc.variants[1].score);
+    for (const v of sc.variants) {
+      expect(typeof v.headline).toBe("string");
+      expect(typeof v.score).toBe("number");
+      expect(["A", "B", "C", "D"]).toContain(v.grade);
+    }
+  });
+
+  it("anomaly_detector flags an obvious spike and the latest point", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 51,
+      method: "tools/call",
+      params: { name: "anomaly_detector", arguments: { series: [100, 102, 98, 101, 99, 100, 103, 500], metric: "CPA" } },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.anomalies.length).toBeGreaterThanOrEqual(1);
+    expect(sc.latest.anomaly).toBe(true);
+    expect(sc.anomalies.some((a: any) => a.value === 500 && a.direction === "up")).toBe(true);
+  });
+
+  it("anomaly_detector reports no anomalies on a flat series", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 52,
+      method: "tools/call",
+      params: { name: "anomaly_detector", arguments: { series: [50, 50, 50, 50, 50] } },
+    });
+    expect(json.result.structuredContent.anomalies).toHaveLength(0);
+  });
+
+  it("cohort_ltv computes LTV and payback from a churn rate + CAC", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 53,
+      method: "tools/call",
+      params: { name: "cohort_ltv", arguments: { cohortSize: 1000, arpu: 500, monthlyChurnPct: 10, periods: 12, grossMarginPct: 80, cac: 1500 } },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.ltvPerCustomer).toBeGreaterThan(0);
+    expect(sc.totalLtv).toBeGreaterThan(0);
+    expect(sc.ltvCacRatio).toBeGreaterThan(0);
+    expect(sc.table.length).toBe(13); // periods + period 0
+  });
+
+  it("cohort_ltv errors helpfully when no retention source is given", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 54,
+      method: "tools/call",
+      params: { name: "cohort_ltv", arguments: { cohortSize: 100, arpu: 300 } },
+    });
+    expect(json.result.isError).toBe(true);
+    expect(JSON.stringify(json.result)).toContain("retentionCurve");
+  });
+});
+
 describe("infrastructure: KV data + SSE", () => {
   // In-memory KV double honoring the type hint.
   function fakeKv(initial: Record<string, unknown> = {}) {
@@ -487,7 +559,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(27);
+    expect(parsed.result.tools.length).toBe(30);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -570,7 +642,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(27);
+    expect(json.result.tools).toHaveLength(30);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -598,7 +670,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(27);
+    expect(json.result.tools).toHaveLength(30);
   });
 
   it("/version reports authMode shared-token when configured", async () => {

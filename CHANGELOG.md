@@ -3,6 +3,28 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.1.0] — 2026-06-27
+
+New **Premium** tool group (3 tools) — generate, monitor, project. The KV LLM
+cache (2.0) makes the LLM-backed tool here cheap on repeat. Backward-compatible.
+
+### Added
+- **`creative_variants`**: generate AND score N ready-to-test ad variants for a
+  product × audience × channel. LLM-backed + KV-cached; deterministic template
+  fallback without a key. Each variant scored by the `creative_score` heuristic
+  (0-100 + grade) with a compliance flag, ranked best-first. Verified on prod
+  (best variant 92/A via LLM).
+- **`anomaly_detector`**: robust median/MAD z-score anomaly detection over a
+  metric time series for always-on monitoring; per-point severity/direction,
+  latest-point flag, std fallback for low-variance series. Deterministic.
+- **`cohort_ltv`**: retention-curve cohort LTV/NPV projection (explicit curve OR
+  churn%+periods), per-period survivors/revenue, LTV:CAC, payback. Deterministic.
+
+### Changed
+- `version` `2.0.0` → `2.1.0`; `toolCount` 27 → **30** (new `src/premium.ts`).
+- Suite grows to **58 tests**. Smoke script honors `minItems` + adds conditional-
+  requirement overrides; full prod smoke **30/30 green**.
+
 ## [2.0.0] — 2026-06-27
 
 Production infrastructure milestone. The server now has a real persistence layer

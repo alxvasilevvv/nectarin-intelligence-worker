@@ -62,7 +62,8 @@ def sample(schema):
         return True
     if t == "array":
         items = schema.get("items", {})
-        return [sample(items)] if items else []
+        n = max(int(schema.get("minItems", 1)), 1)
+        return [sample(items) for _ in range(n)] if items else []
     if t == "object":
         return build_args(schema)
     # string fallback — honor "JSON string" fields with a valid JSON literal
@@ -82,6 +83,7 @@ def build_args(schema):
 # via plain `required` (e.g. "pass A, OR B+C"). Merged over the generic args.
 OVERRIDES = {
     "unit_economics": {"cac": 3000},
+    "cohort_ltv": {"monthlyChurnPct": 10, "periods": 12},
 }
 
 

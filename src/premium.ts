@@ -1,0 +1,397 @@
+/**
+ * PREMIUM tool group (v2.1) for NECTARIN Intelligence — Cloudflare Workers.
+ *
+ * Three senior-operator capabilities that round out the suite:
+ *   • creative_variants — generate & score N on-brand ad variants (LLM-backed,
+ *     KV-cached; deterministic template fallback without a key).
+ *   • anomaly_detector  — robust (median/MAD) anomaly detection over a metric
+ *     time series for always-on monitoring. Fully deterministic.
+ *   • cohort_ltv        — retention-curve cohort LTV/NPV projection. Deterministic.
+ *
+ * Nothing here transmits PII or makes a real CRM/network call. Outputs are
+ * decision-support, not legal/financial advice. All figures are illustrative.
+ */
+
+import { CATEGORIES, PLATFORMS } from "./data.js";
+import { callLLM, type LlmEnv } from "./orchestrator.js";
+import type { ToolDef, ToolResult } from "./tools.js";
+
+// ── local helpers (self-contained, mirrors analytics.ts) ─────────────────────
+
+function round(n: number, dp = 0): number {
+  const f = 10 ** dp;
+  return Math.round(n * f) / f;
+}
+function clamp(n: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, n));
+}
+function ru(n: number): string {
+  try {
+    return Number(n).toLocaleString("ru-RU");
+  } catch {
+    return String(n);
+  }
+}
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+function toContent(summary: string, payload: unknown): ToolResult {
+  return {
+    content: [
+      { type: "text", text: summary },
+      { type: "text", text: "```json\n" + JSON.stringify(payload, null, 2) + "\n```" },
+    ],
+    structuredContent: isRecord(payload) ? payload : { result: payload },
+  };
+}
+
+/** Compact creative scorer (shared shape with analytics.creative_score). */
+function scoreCreative(headline: string, body: string, cta: string): {
+  score: number;
+  grade: "A" | "B" | "C" | "D";
+  complianceFlag: boolean;
+} {
+  const full = `${headline} ${body} ${cta}`.trim();
+  const hasNumbers = /\d/.test(full);
+  const hasCta = cta.length > 0 || /(узнай|закаж|купи|оформи|получи|перейд|регистрир|подключ|скачай|запиш|оставь заявку|звони)/i.test(full);
+  const headlineOk = headline.length >= 8 && headline.length <= 60;
+  const bodyOk = body.length >= 20 && body.length <= 300;
+  const hasBenefit = /(сэконом|выгод|быстр|удобн|бесплатн|гаранти|защит|увеличь|сниз|без|за \d|всего|скидк|подар)/i.test(full);
+  const hasUrgency = /(сегодня|сейчас|до \d|успей|ограничен|новинк|сезон|акци|только)/i.test(full);
+  const notAllCaps = !(headline === headline.toUpperCase() && /[А-ЯA-Z]{6,}/.test(headline));
+  const weights: Array<[boolean, number]> = [
+    [headlineOk, 18], [bodyOk, 12], [hasNumbers, 18], [hasCta, 20],
+    [hasBenefit, 16], [hasUrgency, 8], [notAllCaps, 8],
+  ];
+  const score = weights.reduce((a, [ok, w]) => a + (ok ? w : 0), 0);
+  const grade = score >= 85 ? "A" : score >= 70 ? "B" : score >= 50 ? "C" : "D";
+  const complianceFlag = /(лучш|№\s?1|самый|100\s?%|гаранти|излечива)/i.test(full);
+  return { score, grade, complianceFlag };
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Tool 1: creative_variants — generate + score N ad variants
+// ═════════════════════════════════════════════════════════════════════════════
+
+const TONE_RU: Record<string, string> = {
+  bold: "дерзкий, энергичный",
+  expert: "экспертный, доказательный",
+  friendly: "дружелюбный, тёплый",
+  premium: "премиальный, статусный",
+};
+
+interface Variant {
+  headline: string;
+  body: string;
+  cta: string;
+  score: number;
+  grade: string;
+  complianceFlag: boolean;
+}
+
+/** Deterministic template fallback (no LLM key) — varied, plausibly-good copy. */
+function templateVariants(product: string, audience: string, channel: string, count: number, tone: string): Variant[] {
+  const angles = [
+    { h: `${product}: выгода уже сегодня`, b: `Решение для аудитории «${audience}». Экономьте время и до 30% бюджета. Понятный результат с первой недели.`, c: "Оформите заявку" },
+    { h: `${product} без переплат`, b: `Для «${audience}»: прозрачные условия, запуск за 1 день, поддержка 24/7. Только то, что действительно работает.`, c: "Получить расчёт" },
+    { h: `${product} — попробуйте на ${channel}`, b: `Подобрали под «${audience}»: 3 готовых сценария и измеримый эффект. Старт без долгих согласований.`, c: "Узнать подробнее" },
+    { h: `Рост для «${audience}»`, b: `${product}: +22% к конверсии в среднем по нише. Настроим под ваши цели и бюджет за один созвон.`, c: "Запишитесь на разбор" },
+    { h: `${product}: меньше затрат, больше заявок`, b: `Аудитория «${audience}» уже выбирает нас. Снизьте CPA и масштабируйте то, что окупается.`, c: "Перейти и оформить" },
+  ];
+  void tone;
+  return angles.slice(0, count).map((a) => ({
+    headline: a.h,
+    body: a.b,
+    cta: a.c,
+    ...scoreCreative(a.h, a.b, a.c),
+  }));
+}
+
+const creativeVariants: ToolDef = {
+  name: "creative_variants",
+  description:
+    "Generate AND score multiple ready-to-test ad variants for a product × audience × channel. With an LLM key it writes N on-brand, RU-compliant variants (KV-cached); without a key it returns strong deterministic template variants. Every variant is scored by the same heuristic as creative_score (0-100 + grade) and gets a quick compliance flag, then ranked best-first. Pairs with ab_test_planner to test the winners.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      product: { type: "string", description: "Product / offer to advertise" },
+      audience: { type: "string", description: "Target audience description" },
+      channel: { type: "string", description: "Channel / platform (e.g. VK Ads, Telegram Ads)" },
+      category: { type: "string", enum: CATEGORIES, description: "Optional category for context" },
+      count: { type: "integer", minimum: 1, maximum: 5, description: "How many variants (1-5, default 3)" },
+      tone: { type: "string", enum: ["bold", "expert", "friendly", "premium"], description: "Optional tone of voice" },
+    },
+    required: ["product", "audience", "channel"],
+    additionalProperties: false,
+  },
+  async handler(input, env) {
+    const product = String(input.product ?? "");
+    const audience = String(input.audience ?? "");
+    const channel = String(input.channel ?? "");
+    const count = clamp(Math.round(Number(input.count ?? 3)), 1, 5);
+    const tone = typeof input.tone === "string" ? input.tone : "expert";
+
+    let variants: Variant[] | null = null;
+    let usedLlm = false;
+    const llmEnv = env as LlmEnv | undefined;
+
+    if (llmEnv?.LLM_API_KEY) {
+      const raw = await callLLM(
+        {
+          system:
+            `Ты — перформанс-копирайтер РФ (тон: ${TONE_RU[tone] ?? "экспертный"}). ` +
+            `Верни СТРОГО JSON {"variants":[{"headline":"...","body":"...","cta":"..."}]} без markdown — ` +
+            `${count} разных, комплаентных (ФЗ-38, без «лучший/№1/100%/гарантия») варианта объявления на русском. ` +
+            `headline 8–60 символов, body 20–300, явный CTA.`,
+          prompt: `Продукт: ${product}\nАудитория: ${audience}\nКанал: ${channel}\nКатегория: ${input.category ?? "—"}`,
+        },
+        llmEnv
+      );
+      try {
+        const parsed = JSON.parse(raw.replace(/^```json\s*|\s*```$/g, "").trim());
+        if (Array.isArray(parsed?.variants)) {
+          variants = parsed.variants.slice(0, count).map((v: any) => {
+            const headline = String(v?.headline ?? "");
+            const body = String(v?.body ?? "");
+            const cta = String(v?.cta ?? "");
+            return { headline, body, cta, ...scoreCreative(headline, body, cta) };
+          });
+          usedLlm = (variants?.length ?? 0) > 0;
+        }
+      } catch {
+        /* fall through to template */
+      }
+    }
+
+    if (!variants || variants.length === 0) {
+      variants = templateVariants(product, audience, channel, count, tone);
+      usedLlm = false;
+    }
+
+    const ranked: Variant[] = [...variants].sort((a, b) => b.score - a.score);
+    const best = ranked[0];
+    variants = ranked;
+
+    const payload = {
+      tool: "creative_variants",
+      input: { product, audience, channel, category: input.category ?? null, count, tone },
+      usedLlm,
+      variants,
+      best: best ? { headline: best.headline, score: best.score, grade: best.grade } : null,
+      nextStep: "Протестируйте 2 лучших варианта через ab_test_planner; рискованные — через compliance_check.",
+      disclaimer: usedLlm
+        ? "Варианты сгенерированы моделью и оценены эвристикой; финал — за A/B-тестом."
+        : "LLM-ключ не задан — возвращены шаблонные варианты. Оценка эвристическая.",
+    };
+    const summary =
+      `Сгенерировано ${variants.length} вариантов для «${product}» (${channel})` +
+      (usedLlm ? " через LLM" : " (шаблоны)") +
+      `. Лучший: ${best?.score ?? 0}/100 (грейд ${best?.grade ?? "—"}).`;
+    return toContent(summary, payload);
+  },
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Tool 2: anomaly_detector — robust (median/MAD) anomaly detection
+// ═════════════════════════════════════════════════════════════════════════════
+
+function median(xs: number[]): number {
+  const s = [...xs].sort((a, b) => a - b);
+  const n = s.length;
+  if (n === 0) return 0;
+  return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2;
+}
+
+const anomalyDetector: ToolDef = {
+  name: "anomaly_detector",
+  description:
+    "Flag anomalies in a metric time series (e.g. daily CPA, CTR, spend, conversions) for always-on monitoring. Uses a robust median/MAD z-score (resistant to outliers), with a std-based fallback for low-variance series. Reports each anomaly's index, value, z-score, direction and severity, whether the LATEST point is anomalous, and the baseline. Deterministic.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      series: {
+        type: "array",
+        items: { type: "number" },
+        minItems: 4,
+        description: "Ordered metric values (oldest → newest), at least 4 points",
+      },
+      metric: { type: "string", description: "Optional metric label (e.g. 'CPA')" },
+      direction: { type: "string", enum: ["both", "up", "down"], description: "Which spikes to flag (default both)" },
+      sensitivity: { type: "number", minimum: 1.5, maximum: 5, description: "z-score threshold (default 3.0; lower = more sensitive)" },
+    },
+    required: ["series"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const series: number[] = (Array.isArray(input.series) ? input.series : []).map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n));
+    if (series.length < 4) throw new Error("series must contain at least 4 finite numbers.");
+    const metric = input.metric ? String(input.metric) : "значение";
+    const direction = ["both", "up", "down"].includes(input.direction) ? input.direction : "both";
+    const threshold = clamp(Number(input.sensitivity ?? 3), 1.5, 5);
+
+    const med = median(series);
+    const mad = median(series.map((x) => Math.abs(x - med)));
+    const mean = series.reduce((a, b) => a + b, 0) / series.length;
+    const std = Math.sqrt(series.reduce((a, b) => a + (b - mean) ** 2, 0) / series.length);
+
+    // Robust z (median/MAD, scaled by 1.4826). Fallback to std-based z if MAD=0.
+    const useMad = mad > 0;
+    const scale = useMad ? mad * 1.4826 : std;
+    const z = (x: number): number => (scale > 0 ? (x - (useMad ? med : mean)) / scale : 0);
+
+    const anomalies = series
+      .map((value, index) => {
+        const zi = round(z(value), 2);
+        const dir = zi > 0 ? "up" : zi < 0 ? "down" : "flat";
+        return { index, value, z: zi, direction: dir, severity: severityFor(Math.abs(zi)) };
+      })
+      .filter((a) => Math.abs(a.z) >= threshold)
+      .filter((a) => direction === "both" || a.direction === direction);
+
+    const last = series[series.length - 1];
+    const lastZ = round(z(last), 2);
+    const latestAnomaly =
+      Math.abs(lastZ) >= threshold && (direction === "both" || (lastZ > 0 ? "up" : "down") === direction);
+
+    const payload = {
+      tool: "anomaly_detector",
+      input: { metric, points: series.length, direction, threshold },
+      baseline: { median: round(med, 4), mad: round(mad, 4), mean: round(mean, 4), std: round(std, 4), method: useMad ? "median/MAD" : "mean/std" },
+      anomalies,
+      latest: { value: last, z: lastZ, anomaly: latestAnomaly },
+      disclaimer: "Статистический детектор; подтверждайте бизнес-контекстом (промо, сезонность — см. seasonality_forecast).",
+    };
+    const summary =
+      `Аномалии «${metric}» (${series.length} точек, порог z=${threshold}): найдено ${anomalies.length}` +
+      (latestAnomaly ? `; ПОСЛЕДНЯЯ точка аномальна (z=${lastZ}).` : "; последняя точка в норме.");
+    return toContent(summary, payload);
+  },
+};
+
+function severityFor(absZ: number): "medium" | "high" | "critical" {
+  if (absZ >= 5) return "critical";
+  if (absZ >= 4) return "high";
+  return "medium";
+}
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Tool 3: cohort_ltv — retention-curve cohort LTV / NPV projection
+// ═════════════════════════════════════════════════════════════════════════════
+
+const cohortLtv: ToolDef = {
+  name: "cohort_ltv",
+  description:
+    "Project a cohort's lifetime value from a retention curve. Provide either an explicit retentionCurve (fraction surviving each period, period 0 = 1.0) OR a monthlyChurnPct + periods to synthesize one. Returns per-period survivors/revenue, cumulative LTV per customer and for the whole cohort, optional NPV discounting, and payback period if CAC is given. Complements unit_economics. Deterministic; figures illustrative.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      cohortSize: { type: "integer", exclusiveMinimum: 0, description: "Customers in the cohort" },
+      arpu: { type: "number", exclusiveMinimum: 0, description: "Average revenue per user PER PERIOD (₽)" },
+      retentionCurve: {
+        type: "array",
+        items: { type: "number", minimum: 0, maximum: 1 },
+        description: "Retention fraction per period (period 0 should be 1.0). Use this OR monthlyChurnPct+periods.",
+      },
+      monthlyChurnPct: { type: "number", minimum: 0, maximum: 100, description: "Constant churn %/period to synthesize a curve" },
+      periods: { type: "integer", minimum: 1, maximum: 120, description: "Number of periods when using monthlyChurnPct (default 12)" },
+      grossMarginPct: { type: "number", minimum: 0, maximum: 100, description: "Gross margin % applied to revenue (default 100)" },
+      discountRatePct: { type: "number", minimum: 0, maximum: 100, description: "Annual discount rate for NPV (default 0 = no discount)" },
+      cac: { type: "number", minimum: 0, description: "Optional CAC (₽) to compute payback period" },
+    },
+    required: ["cohortSize", "arpu"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const cohortSize = Number(input.cohortSize);
+    const arpu = Number(input.arpu);
+    const margin = clamp(Number(input.grossMarginPct ?? 100), 0, 100) / 100;
+    const annualDiscount = clamp(Number(input.discountRatePct ?? 0), 0, 100) / 100;
+    const cac = input.cac != null ? Number(input.cac) : null;
+
+    // Build retention curve.
+    let curve: number[];
+    if (Array.isArray(input.retentionCurve) && input.retentionCurve.length > 0) {
+      curve = input.retentionCurve.map((r: any) => clamp(Number(r), 0, 1));
+      if (curve[0] !== 1) curve = [1, ...curve]; // ensure period 0 = full cohort
+    } else if (input.monthlyChurnPct != null) {
+      const churn = clamp(Number(input.monthlyChurnPct), 0, 100) / 100;
+      const periods = clamp(Math.round(Number(input.periods ?? 12)), 1, 120);
+      curve = Array.from({ length: periods + 1 }, (_, t) => (1 - churn) ** t);
+    } else {
+      throw new Error("Provide retentionCurve OR monthlyChurnPct (+ optional periods).");
+    }
+
+    // Monthly discount factor from annual rate.
+    const monthlyDiscount = annualDiscount > 0 ? (1 + annualDiscount) ** (1 / 12) - 1 : 0;
+
+    const rows = curve.map((retention, period) => {
+      const survivors = cohortSize * retention;
+      const revenue = survivors * arpu * margin;
+      const npvFactor = monthlyDiscount > 0 ? 1 / (1 + monthlyDiscount) ** period : 1;
+      const npvRevenue = revenue * npvFactor;
+      return { period, retention: round(retention, 4), survivors: round(survivors, 1), revenue: round(revenue, 2), npvRevenue: round(npvRevenue, 2) };
+    });
+
+    let cum = 0;
+    let cumNpv = 0;
+    const table = rows.map((r) => {
+      cum += r.revenue;
+      cumNpv += r.npvRevenue;
+      return { ...r, cumRevenue: round(cum, 2), cumNpvRevenue: round(cumNpv, 2) };
+    });
+
+    const totalLtv = round(cum, 2);
+    const totalNpvLtv = round(cumNpv, 2);
+    const ltvPerCustomer = round(totalLtv / cohortSize, 2);
+    const npvLtvPerCustomer = round(totalNpvLtv / cohortSize, 2);
+
+    // Payback period (first period where per-customer cumulative revenue ≥ CAC).
+    let paybackPeriod: number | null = null;
+    if (cac != null && cac > 0) {
+      for (const r of table) {
+        if (r.cumRevenue / cohortSize >= cac) {
+          paybackPeriod = r.period;
+          break;
+        }
+      }
+    }
+    const ltvCacRatio = cac != null && cac > 0 ? round(ltvPerCustomer / cac, 2) : null;
+
+    const payload = {
+      tool: "cohort_ltv",
+      input: {
+        cohortSize,
+        arpu,
+        grossMarginPct: round(margin * 100, 2),
+        discountRatePct: round(annualDiscount * 100, 2),
+        periods: curve.length - 1,
+        retentionSource: Array.isArray(input.retentionCurve) && input.retentionCurve.length ? "curve" : "synthesized",
+        cac,
+      },
+      ltvPerCustomer,
+      npvLtvPerCustomer,
+      totalLtv,
+      totalNpvLtv,
+      ltvCacRatio,
+      paybackPeriod,
+      table,
+      verdict:
+        ltvCacRatio == null
+          ? "Передайте cac для оценки LTV:CAC и срока окупаемости."
+          : ltvCacRatio >= 3
+          ? "Здоровая экономика: LTV:CAC ≥ 3 — можно масштабировать."
+          : ltvCacRatio >= 1
+          ? "Окупается, но запас тонкий: поднимайте retention/ARPU или снижайте CAC."
+          : "Юнит-экономика отрицательная: LTV < CAC — не масштабируйте, чините воронку.",
+      disclaimer: "Иллюстративная модель; не финансовая консультация. Сверьте с unit_economics.",
+    };
+    const summary =
+      `Когорта ${ru(cohortSize)} клиентов: LTV/клиент ${ru(ltvPerCustomer)} ₽` +
+      (annualDiscount > 0 ? ` (NPV ${ru(npvLtvPerCustomer)} ₽)` : "") +
+      `, всего ${ru(totalLtv)} ₽ за ${curve.length - 1} периодов` +
+      (ltvCacRatio != null ? `; LTV:CAC ${ltvCacRatio}, окупаемость ${paybackPeriod ?? "не достигнута"}${paybackPeriod != null ? " период(ов)" : ""}.` : ".");
+    return toContent(summary, payload);
+  },
+};
+
+export const PREMIUM_TOOLS: ToolDef[] = [creativeVariants, anomalyDetector, cohortLtv];
