@@ -1,0 +1,57 @@
+name = "nectarin-intelligence"
+main = "src/index.ts"
+compatibility_date = "2025-06-01"
+
+# nodejs_compat is harmless and future-proofs you if you later add a lib that
+# touches Node built-ins (e.g. `jose` for JWT verification). The v1 code itself
+# uses only Web-standard APIs, so you can remove this if you prefer a leaner build.
+compatibility_flags = ["nodejs_compat"]
+
+# Observability: surface logs in the Cloudflare dashboard.
+[observability]
+enabled = true
+
+# ── Plain (non-secret) vars ────────────────────────────────────────────────
+# Leave OAUTH_* blank to run in DEV-BYPASS (auth disabled). For production set
+# them — OR keep them blank and let Unyly Connect's gateway enforce OAuth in
+# front of this Worker. Real secrets (LLM keys, signing material) must go via
+#   npx wrangler secret put LLM_API_KEY
+# NOT in this file.
+[vars]
+OAUTH_ISSUER = ""        # e.g. "https://auth.unyly.com/"  (note trailing slash)
+OAUTH_AUDIENCE = ""      # e.g. "https://nectarin-intelligence.<subdomain>.workers.dev/mcp"
+OAUTH_JWKS_URL = ""      # JWKS endpoint; if blank it is derived from OAUTH_ISSUER + /.well-known/jwks.json
+DEV_BYPASS = "1"         # "1" = skip token check (dev). Set to "0" in production.
+
+# Rate limiting: requests/min per token (or per IP). Default 60 if unset.
+RATE_LIMIT_PER_MIN = "60"
+# Build/commit identifier surfaced by GET /version (set at deploy time if desired).
+GIT_COMMIT = "dev"
+
+# ── Growth & Automation (funnel) vars ──────────────────────────────────────
+# These drive the GROWTH & AUTOMATION tool group (roi_calculator, lead_qualify,
+# request_nectarin_proposal, book_consultation, automation_recipe, value_forecast).
+# They are PLACEHOLDERS — replace with NECTARIN's real funnel endpoints. No tool
+# performs a real network call or sends PII; the proposal/booking tools only
+# return structured text + a clearly-stubbed reference (see src/growth.ts).
+NECTARIN_BOOKING_URL = "https://nectarin.example/booking"   # placeholder scheduling link
+NECTARIN_CONTACT_EMAIL = "hello@nectarin.example"           # placeholder funnel inbox
+NECTARIN_BRAND_NAME = "NECTARIN"                            # brand label used in copy
+# Where a real proposal would be POSTed (CRM/webhook). Left blank on purpose so
+# nothing is ever sent; wire a `wrangler secret`/var here in production.
+NECTARIN_CRM_WEBHOOK_URL = ""
+
+# ── Future real-data bindings (uncomment + fill IDs when ready) ─────────────
+# Create with the Cloudflare MCP/dashboard or:
+#   npx wrangler kv namespace create NECTARIN_KV
+#   npx wrangler d1 create nectarin-intelligence
+# then paste the printed IDs below and swap the accessors in src/data.ts.
+
+# [[kv_namespaces]]
+# binding = "NECTARIN_KV"
+# id = "<your-kv-namespace-id>"
+
+# [[d1_databases]]
+# binding = "NECTARIN_DB"
+# database_name = "nectarin-intelligence"
+# database_id = "<your-d1-database-id>"

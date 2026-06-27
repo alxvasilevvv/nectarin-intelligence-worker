@@ -1,0 +1,25 @@
+{
+  "name": "nectarin-intelligence-worker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "NECTARIN Intelligence — remote MCP server (RU/CIS AI marketing agent) on Cloudflare Workers.",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "build": "wrangler deploy --dry-run --outdir dist",
+    "dry": "wrangler deploy --dry-run --outdir dist",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "jose": "^5.9.6"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20250601.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.8",
+    "wrangler": "^4.20.0"
+  }
+}

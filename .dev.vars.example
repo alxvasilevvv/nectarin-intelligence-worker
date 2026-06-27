@@ -1,0 +1,24 @@
+# Local dev variables for `wrangler dev`.
+# Copy this file to `.dev.vars` (which is gitignored) and edit.
+#
+# These override [vars] in wrangler.toml during local development only.
+# For PRODUCTION secrets use `npx wrangler secret put <NAME>` instead — never
+# commit real tokens or signing keys.
+
+# OAuth 2.1 — leave blank (or set DEV_BYPASS=1) to disable auth locally.
+# In production these identify this resource server to the authorization server.
+OAUTH_ISSUER=""          # e.g. https://auth.unyly.com/   (trailing slash matters for JWKS URL)
+OAUTH_AUDIENCE=""        # e.g. https://nectarin-intelligence.<subdomain>.workers.dev/mcp
+OAUTH_JWKS_URL=""        # JWKS endpoint; if blank it is derived from OAUTH_ISSUER
+
+# DEV_BYPASS=1 skips the bearer-token check entirely (local convenience).
+# Set to 0 to exercise the real jose JWKS verifyToken() path with OAUTH_* set.
+DEV_BYPASS="1"
+
+# Rate limit (requests/min per token or IP). Default 60.
+RATE_LIMIT_PER_MIN="60"
+
+# ── Optional, for when callLLM() is wired to a real model (production: use
+#    `wrangler secret put LLM_API_KEY` instead of putting it here) ──
+# LLM_API_KEY=""
+# LLM_MODEL="claude-3-7-sonnet"
