@@ -678,3 +678,39 @@ describe("auth", () => {
     expect(json.authMode).toBe("shared-token");
   });
 });
+
+describe("prompts", () => {
+  it("prompts/list returns all 7 guided prompts incl. the new ones", async () => {
+    const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
+    const names = json.result.prompts.map((p: any) => p.name);
+    expect(json.result.prompts).toHaveLength(7);
+    expect(names).toContain("full_strategy");
+    expect(names).toContain("creative_lab");
+    expect(names).toContain("growth_monitor");
+  });
+
+  it("prompts/get creative_lab interpolates args into a user message", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 61,
+      method: "prompts/get",
+      params: { name: "creative_lab", arguments: { product: "Кэшбэк-карта", audience: "студенты", channel: "VK Ads" } },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("creative_variants");
+    expect(text).toContain("Кэшбэк-карта");
+    expect(text).toContain("ab_test_planner");
+  });
+
+  it("prompts/get growth_monitor embeds the series", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 62,
+      method: "prompts/get",
+      params: { name: "growth_monitor", arguments: { metric: "CPA", series: "100,102,98,480" } },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("anomaly_detector");
+    expect(text).toContain("100,102,98,480");
+  });
+});

@@ -378,9 +378,11 @@ interface, so going real is a one-line wiring change — no upstream edits.
 ## Resources & prompts exposed
 
 - Resources: `nectarin://methodology`, `nectarin://glossary`.
-- Prompts: `build_media_plan`, **`full_strategy`** (one-shot flagship via
-  `strategy_orchestrate`), `competitor_teardown`, and the two funnel
+- Prompts (7): `build_media_plan`, **`full_strategy`** (one-shot flagship via
+  `strategy_orchestrate`), `competitor_teardown`, the two funnel
   orchestrators **`sell_nectarin_services`** (roi_calculator → value_forecast →
   lead_qualify → request_nectarin_proposal → book_consultation) and
   **`automate_my_marketing`** (automation_recipe → roi_calculator →
-  book_consultation).
+  book_consultation), plus **`creative_lab`** (creative_variants →
+  compliance_check → ab_test_planner) and **`growth_monitor`**
+  (anomaly_detector → cohort_ltv + unit_economics).

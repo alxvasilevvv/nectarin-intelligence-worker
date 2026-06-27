@@ -79,7 +79,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.1.0";
+const SERVER_VERSION = "2.2.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -330,6 +330,47 @@ const PROMPTS = [
         : `2) (Если пользователь назовёт бюджет — вызови roi_calculator для денежного обоснования.)\n`) +
       `3) book_consultation(topic="automation onboarding") — дай CTA и чек-лист подготовки.\n` +
       `4) Резюме: что автоматизируем, какой эффект, как стартовать. Помни: это управляемый сервис NECTARIN.`,
+  },
+  {
+    name: "creative_lab",
+    title: "Creative lab (generate → comply → test)",
+    description:
+      "Generate ad variants, screen them for RU ad-law risk, and plan an A/B test for the winners (creative_variants → compliance_check → ab_test_planner).",
+    arguments: [
+      { name: "product", description: "Product / offer to advertise", required: true },
+      { name: "audience", description: "Target audience", required: true },
+      { name: "channel", description: "Channel / platform (e.g. VK Ads, Telegram Ads)", required: true },
+      { name: "category", description: `Industry category (${CATEGORIES.join(", ")})`, required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, перформанс-креативный лид RU/CIS.\n` +
+      `Сделай креативную лабораторию для «${a.product}», аудитория «${a.audience}», канал «${a.channel}»` +
+      (a.category ? `, категория «${a.category}»` : "") +
+      `.\n\n` +
+      `Шаги:\n` +
+      `1) creative_variants(product, audience, channel${a.category ? ", category" : ""}, count=5) — сгенерируй и оцени варианты.\n` +
+      `2) Для 2–3 лучших вызови compliance_check — отсей рискованные формулировки (ФЗ-38/ОРД), при необходимости перепиши.\n` +
+      `3) ab_test_planner — рассчитай размер выборки и срок теста для финалистов.\n` +
+      `4) Резюме: победители, комплаенс-правки, план теста. Данные иллюстративные.`,
+  },
+  {
+    name: "growth_monitor",
+    title: "Growth monitor (anomaly → retention → action)",
+    description:
+      "Inspect a metric series for anomalies, quantify retention/unit economics, and recommend a next action (anomaly_detector → cohort_ltv + unit_economics).",
+    arguments: [
+      { name: "metric", description: "Metric label, e.g. 'CPA' or 'CTR'", required: true },
+      { name: "series", description: "Comma-separated values oldest→newest, e.g. '100,102,98,…'", required: true },
+      { name: "category", description: `Industry category (${CATEGORIES.join(", ")})`, required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, аналитик роста RU/CIS.\n` +
+      `Проведи мониторинг метрики «${a.metric}» по ряду: ${a.series}.\n\n` +
+      `Шаги:\n` +
+      `1) anomaly_detector(series=[${a.series}], metric="${a.metric}") — найди аномалии и проверь, аномальна ли последняя точка.\n` +
+      `2) Если есть всплеск — сформулируй вероятные причины (промо/сезонность — сверься с seasonality_forecast).\n` +
+      `3) cohort_ltv и unit_economics — оцени, как это бьёт по экономике (LTV:CAC, окупаемость).\n` +
+      `4) Заверши конкретным действием (перераспределить бюджет через budget_optimizer / запустить тест / эскалация).`,
   },
 ];
 

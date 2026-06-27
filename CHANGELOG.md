@@ -3,6 +3,19 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.2.0] — 2026-06-27
+
+Two guided **prompts** that surface the v2.1 Premium tools in the Claude
+Connectors UI. Pure additive content. Backward-compatible.
+
+### Added
+- **`creative_lab`** prompt: creative_variants → compliance_check → ab_test_planner.
+- **`growth_monitor`** prompt: anomaly_detector → cohort_ltv + unit_economics → action.
+
+### Changed
+- `version` `2.1.0` → `2.2.0`. Prompts 5 → **7**. Suite **61 tests** (added
+  prompts/list + prompts/get coverage).
+
 ## [2.1.0] — 2026-06-27
 
 New **Premium** tool group (3 tools) — generate, monitor, project. The KV LLM

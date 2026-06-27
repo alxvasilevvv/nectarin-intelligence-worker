@@ -86,7 +86,7 @@ stays on JSON, so existing clients are unaffected.
 | `cohort_ltv` | Retention‑curve cohort LTV/NPV + LTV:CAC + payback. |
 
 Built‑in **prompts**: `build_media_plan`, `full_strategy`, `competitor_teardown`,
-`sell_nectarin_services`, `automate_my_marketing`.
+`sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`.
 **Resources:** `nectarin://methodology`, `nectarin://glossary`.
 
 ---
