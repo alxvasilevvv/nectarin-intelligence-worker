@@ -188,4 +188,37 @@ describe("auth", () => {
     expect(status).toBe(200);
     expect(json.result.tools).toHaveLength(15);
   });
+
+  it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
+    const { status, res } = await rpc(
+      { jsonrpc: "2.0", id: 13, method: "tools/list" },
+      devEnv({ MCP_SHARED_TOKEN: "s3cret-token" })
+    );
+    expect(status).toBe(401);
+    expect(res.headers.get("WWW-Authenticate")).toMatch(/Bearer/);
+  });
+
+  it("shared token: 401 with a wrong bearer", async () => {
+    const { status } = await rpc(
+      { jsonrpc: "2.0", id: 14, method: "tools/list" },
+      devEnv({ MCP_SHARED_TOKEN: "s3cret-token" }),
+      { authorization: "Bearer wrong-token" }
+    );
+    expect(status).toBe(401);
+  });
+
+  it("shared token: 200 with the correct bearer", async () => {
+    const { status, json } = await rpc(
+      { jsonrpc: "2.0", id: 15, method: "tools/list" },
+      devEnv({ MCP_SHARED_TOKEN: "s3cret-token" }),
+      { authorization: "Bearer s3cret-token" }
+    );
+    expect(status).toBe(200);
+    expect(json.result.tools).toHaveLength(15);
+  });
+
+  it("/version reports authMode shared-token when configured", async () => {
+    const { json } = await get("/version", devEnv({ MCP_SHARED_TOKEN: "s3cret-token" }));
+    expect(json.authMode).toBe("shared-token");
+  });
 });

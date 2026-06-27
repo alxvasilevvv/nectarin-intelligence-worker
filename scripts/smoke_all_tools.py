@@ -1,23 +1,29 @@
 #!/usr/bin/env python3
-"""Production smoke test: call every tool with minimal valid args derived from its JSON Schema."""
-import json, sys, urllib.request
+"""Production smoke test: call every tool with minimal valid args derived from its JSON Schema.
+
+Usage:
+    MCP_TOKEN=<shared-token> python3 scripts/smoke_all_tools.py [BASE_URL]
+
+If the server is protected by MCP_SHARED_TOKEN, pass it via the MCP_TOKEN env var.
+"""
+import json, os, sys, urllib.request
 
 BASE = sys.argv[1] if len(sys.argv) > 1 else "https://nectarin-intelligence.alxvasilevv.workers.dev"
+TOKEN = os.environ.get("MCP_TOKEN", "").strip()
 
 
 def rpc(method, params=None, _id=1):
     body = {"jsonrpc": "2.0", "id": _id, "method": method}
     if params is not None:
         body["params"] = params
-    req = urllib.request.Request(
-        BASE + "/mcp",
-        data=json.dumps(body).encode(),
-        headers={
-            "content-type": "application/json",
-            "accept": "application/json",
-            "user-agent": "nectarin-smoke/1.0",
-        },
-    )
+    headers = {
+        "content-type": "application/json",
+        "accept": "application/json",
+        "user-agent": "nectarin-smoke/1.0",
+    }
+    if TOKEN:
+        headers["authorization"] = f"Bearer {TOKEN}"
+    req = urllib.request.Request(BASE + "/mcp", data=json.dumps(body).encode(), headers=headers)
     with urllib.request.urlopen(req, timeout=20) as r:
         return json.loads(r.read())
 
@@ -40,7 +46,10 @@ def sample(schema):
         return [sample(items)] if items else []
     if t == "object":
         return build_args(schema)
-    # string fallback — use description hints lightly
+    # string fallback — honor "JSON string" fields with a valid JSON literal
+    desc = schema.get("description", "").lower()
+    if "json" in desc:
+        return '{"cpm":300,"ctr":0.4,"cpa":1800,"vtr":55,"spend":500000}'
     return "тест"
 
 

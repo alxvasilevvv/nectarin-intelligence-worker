@@ -20,6 +20,12 @@
  *   - OAUTH_ISSUER    — expected `iss` claim.
  *   - OAUTH_AUDIENCE  — expected `aud` claim (this resource server / the /mcp URL).
  *   - DEV_BYPASS=1    — skip verification entirely (local/dev convenience).
+ *   - MCP_SHARED_TOKEN — optional shared-secret bearer. When set (as a `wrangler
+ *                       secret`), the endpoint requires `Authorization: Bearer
+ *                       <token>` to equal it. This is a dependency-free way to
+ *                       protect the server without an external OAuth provider; it
+ *                       is checked BEFORE dev-bypass/JWKS, so it always wins when
+ *                       present. Leave unset to use OAuth (or DEV_BYPASS).
  *
  * MCP spec note: a 401 MUST include a `WWW-Authenticate` header pointing at the
  * protected-resource metadata so clients can discover the authorization server.
@@ -70,6 +76,28 @@ function isTrue(v: string | undefined): boolean {
   return s === "1" || s === "true" || s === "yes";
 }
 
+/** Constant-time string comparison to avoid leaking the token via timing. */
+function timingSafeEqual(a: string, b: string): boolean {
+  const enc = new TextEncoder();
+  const ab = enc.encode(a);
+  const bb = enc.encode(b);
+  if (ab.length !== bb.length) return false;
+  let diff = 0;
+  for (let i = 0; i < ab.length; i++) diff |= ab[i] ^ bb[i];
+  return diff === 0;
+}
+
+/** Read the configured shared-secret token (empty string when not set). */
+function sharedToken(env: Env): string {
+  return (env.MCP_SHARED_TOKEN ?? "").trim();
+}
+
+/** Human-readable auth mode for the /version endpoint. */
+export function authMode(env: Env): "shared-token" | "dev-bypass" | "oauth" {
+  if (sharedToken(env)) return "shared-token";
+  return isDevBypass(env) ? "dev-bypass" : "oauth";
+}
+
 /**
  * Decide whether auth runs in permissive dev-bypass mode.
  * Bypass when DEV_BYPASS is truthy, OR when OAuth is not configured at all
@@ -92,6 +120,23 @@ export function isDevBypass(env: Env): boolean {
  * check `.authenticated` and, on failure, respond with `unauthorizedResponse`.
  */
 export async function authenticate(req: Request, env: Env): Promise<AuthContext> {
+  // Shared-secret mode takes precedence over everything else when configured:
+  // it lets the server be protected without an external OAuth provider.
+  const shared = sharedToken(env);
+  if (shared) {
+    const header = req.headers.get("authorization") ?? "";
+    const token = header.startsWith("Bearer ") ? header.slice("Bearer ".length).trim() : "";
+    if (token && timingSafeEqual(token, shared)) {
+      return { authenticated: true, subject: "shared-token", scopes: ["*"], devBypass: false };
+    }
+    return {
+      authenticated: false,
+      scopes: [],
+      devBypass: false,
+      error: token ? "invalid_token" : "missing_token",
+    };
+  }
+
   if (isDevBypass(env)) {
     return { authenticated: true, scopes: ["*"], devBypass: true };
   }

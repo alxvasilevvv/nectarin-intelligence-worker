@@ -28,7 +28,7 @@
 
 import { ALL_TOOLS, TOOLS_BY_NAME } from "./tools.js";
 import { CATEGORIES } from "./data.js";
-import { authenticate, unauthorizedResponse, isDevBypass } from "./auth.js";
+import { authenticate, unauthorizedResponse, authMode } from "./auth.js";
 import { enforceRateLimit } from "./ratelimit.js";
 import { validateInput, formatErrors } from "./validate.js";
 
@@ -39,6 +39,12 @@ export interface Env {
   /** JWKS endpoint; if omitted it is derived from OAUTH_ISSUER. */
   OAUTH_JWKS_URL?: string;
   DEV_BYPASS?: string;
+  /**
+   * Optional shared-secret bearer token. When set (via `wrangler secret put
+   * MCP_SHARED_TOKEN`), /mcp requires `Authorization: Bearer <token>`. Checked
+   * before DEV_BYPASS/OAuth — a dependency-free way to lock the endpoint.
+   */
+  MCP_SHARED_TOKEN?: string;
   // ── Rate limiting ──
   /** Requests per minute per token/IP. Default 60. */
   RATE_LIMIT_PER_MIN?: string;
@@ -451,7 +457,7 @@ export default {
         protocolVersion: PROTOCOL_VERSION,
         toolCount: ALL_TOOLS.length,
         commit: (env.GIT_COMMIT && env.GIT_COMMIT.trim()) || "dev",
-        authMode: isDevBypass(env) ? "dev-bypass" : "oauth",
+        authMode: authMode(env),
       });
     }
 

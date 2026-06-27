@@ -21,7 +21,12 @@ enabled = true
 OAUTH_ISSUER = ""        # e.g. "https://auth.unyly.com/"  (note trailing slash)
 OAUTH_AUDIENCE = ""      # e.g. "https://nectarin-intelligence.<subdomain>.workers.dev/mcp"
 OAUTH_JWKS_URL = ""      # JWKS endpoint; if blank it is derived from OAUTH_ISSUER + /.well-known/jwks.json
-DEV_BYPASS = "1"         # "1" = skip token check (dev). Set to "0" in production.
+DEV_BYPASS = "0"         # "1" = skip token check (dev). Production runs with the
+                         # MCP_SHARED_TOKEN secret below, which is enforced
+                         # regardless of this flag.
+# Endpoint protection without an external OAuth provider: a shared bearer token.
+# Set it as a SECRET (never in this file):  npx wrangler secret put MCP_SHARED_TOKEN
+# When present, /mcp requires `Authorization: Bearer <token>` (checked before OAuth).
 
 # Rate limiting: requests/min per token (or per IP). Default 60 if unset.
 RATE_LIMIT_PER_MIN = "60"
