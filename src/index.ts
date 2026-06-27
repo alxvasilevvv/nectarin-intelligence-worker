@@ -51,6 +51,16 @@ export interface Env {
   // ── Observability ──
   /** Optional build/commit identifier surfaced by GET /version (set at deploy). */
   GIT_COMMIT?: string;
+  // ── LLM seam (model-agnostic narrative). All optional — absent ⇒ deterministic
+  //    stub. Set LLM_API_KEY via `wrangler secret put LLM_API_KEY` to go live. ──
+  /** API key for the narrative model. When set, callLLM() makes a real request. */
+  LLM_API_KEY?: string;
+  /** "anthropic" (default) | "openai". */
+  LLM_PROVIDER?: string;
+  /** Model id (per-provider default when unset). */
+  LLM_MODEL?: string;
+  /** Optional API base override (proxy / Azure / self-host). */
+  LLM_BASE_URL?: string;
   // Growth & Automation (funnel) vars — see wrangler.toml [vars] and src/growth.ts.
   // All placeholders; no tool sends PII or makes a real network call.
   NECTARIN_BOOKING_URL?: string;
@@ -63,7 +73,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "1.0.0";
+const SERVER_VERSION = "1.1.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -201,6 +211,31 @@ const PROMPTS = [
       `3) Вызови media_plan со всеми параметрами и используй его прогноз.\n` +
       `4) Если категория регулируемая (pharma/finance) — обязательно покажи compliance-gate.\n` +
       `5) Дай краткое резюме: сплит, прогноз (охват/конверсии/CPA), риски.`,
+  },
+  {
+    name: "full_strategy",
+    title: "Full go-to-market strategy (orchestrated)",
+    description:
+      "One-shot flagship: runs strategy_orchestrate to assemble benchmarks, audience, competitors, a media plan + forecast, an optimized split, a creative concept, compliance and ROI into a single strategy with an executive summary.",
+    arguments: [
+      { name: "brand", description: "Brand name", required: true },
+      { name: "category", description: `Industry category (${CATEGORIES.join(", ")})`, required: true },
+      { name: "budget", description: "Monthly budget in RUB (number)", required: true },
+      { name: "goal", description: "awareness | consideration | performance | retention", required: true },
+      { name: "geo", description: "Geography", required: true },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, директор по стратегии RU/CIS.\n` +
+      `Собери полную go-to-market стратегию для бренда «${a.brand}», категория «${a.category}», ` +
+      `бюджет ${a.budget} ₽/мес, цель «${a.goal}», гео «${a.geo}».\n\n` +
+      `Шаги:\n` +
+      `1) Вызови strategy_orchestrate(brand, category, budget, goal, geo) — это один сквозной вызов, ` +
+      `который соберёт бенчмарки, аудиторию, конкурентов, медиаплан с прогнозом, оптимизированный сплит, ` +
+      `креативный концепт, комплаенс и ROI.\n` +
+      `2) Покажи executiveSummary, затем разверни ключевые блоки (сплит+прогноз, оптимизация, риски/комплаенс).\n` +
+      `3) Если есть STOP-GATE (pharma/finance) — явно предупреди про юридическое согласование.\n` +
+      `4) Заверши конкретным следующим шагом (book_consultation или request_nectarin_proposal). ` +
+      `Помни: данные mock/иллюстративные.`,
   },
   {
     name: "competitor_teardown",

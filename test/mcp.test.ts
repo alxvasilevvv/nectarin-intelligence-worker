@@ -23,18 +23,18 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(15);
+    expect(json.toolCount).toBe(17);
     expect(json.commit).toBeDefined();
   });
 });
 
 describe("tools/list", () => {
-  it("returns exactly 15 tools, each with a JSON-Schema inputSchema", async () => {
+  it("returns exactly 17 tools, each with a JSON-Schema inputSchema", async () => {
     const { status, json } = await rpc({ jsonrpc: "2.0", id: 2, method: "tools/list" });
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(15);
+    expect(tools).toHaveLength(17);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -46,6 +46,8 @@ describe("tools/list", () => {
     expect(names).toContain("media_plan");
     expect(names).toContain("roi_calculator");
     expect(names).toContain("lead_qualify");
+    expect(names).toContain("budget_optimizer");
+    expect(names).toContain("strategy_orchestrate");
   });
 });
 
@@ -114,6 +116,50 @@ describe("tools/call — happy paths", () => {
     expect(sc.fitScore).toBeGreaterThan(0);
     expect(sc.fitScore).toBeLessThanOrEqual(100);
     expect(sc.recommendedTier).toBe("enterprise retainer");
+  });
+
+  it("budget_optimizer maximizes conversions and respects the per-channel cap", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 16,
+      method: "tools/call",
+      params: { name: "budget_optimizer", arguments: { category: "retail", budget: 4_000_000, goal: "performance" } },
+    });
+    const d = json.result.structuredContent.data;
+    const alloc = d.optimized.allocation;
+    expect(Array.isArray(alloc)).toBe(true);
+    // Spend sums to (about) the budget.
+    const spend = alloc.reduce((a: number, c: any) => a + c.spend, 0);
+    expect(Math.abs(spend - 4_000_000)).toBeLessThan(2);
+    // No channel exceeds the cap (45% default) of the budget.
+    for (const c of alloc) expect(c.sharePct).toBeLessThanOrEqual(45.1);
+    // Optimizer must not be worse than the preset on conversions.
+    expect(d.optimized.totals.conversions).toBeGreaterThanOrEqual(d.baselinePreset.totals.conversions);
+    expect(d.optimized.totals.blendedCpa).toBeGreaterThan(0);
+  });
+
+  it("strategy_orchestrate assembles a full strategy from all workers", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 17,
+      method: "tools/call",
+      params: {
+        name: "strategy_orchestrate",
+        arguments: { brand: "Acme", category: "finance", budget: 8_000_000, goal: "performance", geo: "РФ" },
+      },
+    });
+    const d = json.result.structuredContent.data;
+    expect(typeof d.executiveSummary).toBe("string");
+    expect(d.mediaPlan.forecast.conversions).toBeGreaterThan(0);
+    expect(Array.isArray(d.optimizedSplit.allocation)).toBe(true);
+    expect(d.benchmarks.results.length).toBeGreaterThan(0);
+    expect(d.audience.segments.length).toBeGreaterThan(0);
+    expect(d.competitors.competitors.length).toBeGreaterThan(0);
+    expect(d.creativeConcepts.length).toBeGreaterThan(0);
+    // finance is regulated → STOP-GATE present.
+    expect(d.compliance.regulated).toBe(true);
+    expect(d.roi.estAnnualValueRub).toBeGreaterThan(0);
+    expect(d.pipeline.length).toBeGreaterThan(0);
   });
 });
 
@@ -186,7 +232,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(15);
+    expect(json.result.tools).toHaveLength(17);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -214,7 +260,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(15);
+    expect(json.result.tools).toHaveLength(17);
   });
 
   it("/version reports authMode shared-token when configured", async () => {

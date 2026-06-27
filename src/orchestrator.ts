@@ -18,13 +18,14 @@ import {
   getMetric,
   getPlaybook,
   getSuppliers,
+  PLATFORMS,
   type Kpi,
   type MetricRange,
   type Platform,
   type Supplier,
 } from "./data.js";
 
-// ── LLM stub (model-agnostic) ──────────────────────────────────────────────
+// ── LLM seam (model-agnostic, real-or-stub) ─────────────────────────────────
 
 export interface LlmRequest {
   system: string;
@@ -33,33 +34,111 @@ export interface LlmRequest {
 }
 
 /**
- * STUB — does NOT call any model. Returns a deterministic templated string so
- * the Worker runs offline.
+ * Minimal env surface the LLM seam needs. A subset of the Worker `Env` so the
+ * orchestrator stays decoupled from the HTTP layer (and unit-testable).
  *
- * To make this real on Workers, call the Anthropic / OpenAI HTTP API directly
- * with `fetch()` (both are reachable from a Worker), reading the key from a
- * `wrangler secret` (e.g. env.LLM_API_KEY), e.g.:
- *
- *   const r = await fetch("https://api.anthropic.com/v1/messages", {
- *     method: "POST",
- *     headers: {
- *       "x-api-key": env.LLM_API_KEY,
- *       "anthropic-version": "2023-06-01",
- *       "content-type": "application/json",
- *     },
- *     body: JSON.stringify({
- *       model: env.LLM_MODEL ?? "claude-3-7-sonnet",
- *       max_tokens: 1024,
- *       system: req.system,
- *       messages: [{ role: "user", content: req.prompt }],
- *     }),
- *   });
- *   const j = await r.json();
- *   return j.content.map((c: any) => (c.type === "text" ? c.text : "")).join("");
+ *   LLM_API_KEY   — set via `wrangler secret put LLM_API_KEY` to enable real calls.
+ *   LLM_PROVIDER  — "anthropic" (default) | "openai".
+ *   LLM_MODEL     — model id (sane per-provider default if unset).
+ *   LLM_BASE_URL  — override API base (proxies / Azure / self-host). Optional.
  */
-export async function callLLM(req: LlmRequest): Promise<string> {
+export interface LlmEnv {
+  LLM_API_KEY?: string;
+  LLM_PROVIDER?: string;
+  LLM_MODEL?: string;
+  LLM_BASE_URL?: string;
+}
+
+/** Context threaded through the orchestrator (carries the LLM env). */
+export interface OrchestratorCtx {
+  env?: LlmEnv;
+}
+
+/** Deterministic, offline narrative — used when no API key is configured. */
+function stubNarrative(req: LlmRequest): string {
   const ctx = req.context ? ` [grounded on ${summarizeContext(req.context)}]` : "";
-  return `«${req.prompt.trim()}»${ctx} — (LLM-stub: replace callLLM() with an Anthropic/OpenAI fetch() for production narrative.)`;
+  return `«${req.prompt.trim()}»${ctx} — (LLM-stub: set LLM_API_KEY to generate a real narrative.)`;
+}
+
+/**
+ * Generate narrative text. When `env.LLM_API_KEY` is present the call hits a real
+ * model (Anthropic by default, OpenAI optional) over `fetch()` — fully supported
+ * on the Workers runtime. When the key is absent, or the call fails for ANY
+ * reason, we fall back to the deterministic stub so the pipeline NEVER breaks.
+ * This keeps the server model-agnostic and offline-safe by construction.
+ */
+export async function callLLM(req: LlmRequest, env?: LlmEnv): Promise<string> {
+  const key = (env?.LLM_API_KEY ?? "").trim();
+  if (!key) return stubNarrative(req);
+  const provider = (env?.LLM_PROVIDER ?? "anthropic").trim().toLowerCase();
+  try {
+    const text =
+      provider === "openai"
+        ? await callOpenAI(req, key, env)
+        : await callAnthropic(req, key, env);
+    const out = text.trim();
+    return out || stubNarrative(req);
+  } catch {
+    // Never let a model outage take down a tool call — degrade to the stub.
+    return stubNarrative(req);
+  }
+}
+
+async function callAnthropic(req: LlmRequest, key: string, env?: LlmEnv): Promise<string> {
+  const base = (env?.LLM_BASE_URL ?? "https://api.anthropic.com").replace(/\/+$/, "");
+  const model = (env?.LLM_MODEL ?? "claude-3-5-haiku-latest").trim();
+  const user = req.context
+    ? `${req.prompt}\n\nКонтекст (JSON):\n${safeJson(req.context)}`
+    : req.prompt;
+  const r = await fetch(`${base}/v1/messages`, {
+    method: "POST",
+    headers: {
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "content-type": "application/json",
+    },
+    body: JSON.stringify({
+      model,
+      max_tokens: 700,
+      system: req.system,
+      messages: [{ role: "user", content: user }],
+    }),
+  });
+  if (!r.ok) throw new Error(`anthropic ${r.status}`);
+  const j = (await r.json()) as { content?: Array<{ type: string; text?: string }> };
+  return (j.content ?? []).map((c) => (c.type === "text" ? c.text ?? "" : "")).join("");
+}
+
+async function callOpenAI(req: LlmRequest, key: string, env?: LlmEnv): Promise<string> {
+  const base = (env?.LLM_BASE_URL ?? "https://api.openai.com").replace(/\/+$/, "");
+  const model = (env?.LLM_MODEL ?? "gpt-4o-mini").trim();
+  const user = req.context
+    ? `${req.prompt}\n\nКонтекст (JSON):\n${safeJson(req.context)}`
+    : req.prompt;
+  const r = await fetch(`${base}/v1/chat/completions`, {
+    method: "POST",
+    headers: { authorization: `Bearer ${key}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      model,
+      max_tokens: 700,
+      messages: [
+        { role: "system", content: req.system },
+        { role: "user", content: user },
+      ],
+    }),
+  });
+  if (!r.ok) throw new Error(`openai ${r.status}`);
+  const j = (await r.json()) as { choices?: Array<{ message?: { content?: string } }> };
+  return j.choices?.[0]?.message?.content ?? "";
+}
+
+function safeJson(v: unknown): string {
+  try {
+    const s = JSON.stringify(v, null, 2);
+    return s.length > 4000 ? `${s.slice(0, 4000)}…` : s;
+  } catch {
+    return String(v);
+  }
 }
 
 function summarizeContext(ctx: unknown): string {
@@ -223,23 +302,42 @@ const strategist = {
 // ── Worker: copywriter ───────────────────────────────────────────────────────
 
 const copywriter = {
-  async rationale(topic: string, context: unknown): Promise<string> {
-    return callLLM({
-      system:
-        "You are NECTARIN Intelligence, a senior RU/CIS media strategist. Be concise, concrete, in Russian.",
-      prompt: `Сформулируй обоснование: ${topic}`,
-      context,
-    });
+  async rationale(topic: string, context: unknown, env?: LlmEnv): Promise<string> {
+    return callLLM(
+      {
+        system:
+          "You are NECTARIN Intelligence, a senior RU/CIS media strategist. Be concise, concrete, in Russian.",
+        prompt: `Сформулируй обоснование: ${topic}`,
+        context,
+      },
+      env
+    );
   },
-  async conceptTerritories(product: string, audience: string, channel: string): Promise<string[]> {
+  async conceptTerritories(product: string, audience: string, channel: string, env?: LlmEnv): Promise<string[]> {
     const seeds = ["Контраст «было/стало»", "Инсайт аудитории + продукт-решение", "Демонстрация в нативном контексте канала"];
     return Promise.all(
       seeds.map((s, i) =>
-        callLLM({
-          system: "Креативный директор NECTARIN. Кратко, на русском.",
-          prompt: `Концепт ${i + 1} для «${product}» / аудитория «${audience}» / канал «${channel}»: ${s}`,
-        })
+        callLLM(
+          {
+            system: "Креативный директор NECTARIN. Кратко, на русском.",
+            prompt: `Концепт ${i + 1} для «${product}» / аудитория «${audience}» / канал «${channel}»: ${s}`,
+          },
+          env
+        )
       )
+    );
+  },
+  async executiveSummary(context: unknown, env?: LlmEnv): Promise<string> {
+    return callLLM(
+      {
+        system:
+          "Ты — NECTARIN Intelligence, директор по стратегии. Дай руководителю краткое executive summary " +
+          "(5-7 предложений) на русском: ключевой вывод, рекомендованный сплит и прогноз, главные риски/комплаенс, " +
+          "следующий шаг. Без воды, конкретно, со ссылкой на цифры из контекста.",
+        prompt: "Сделай executive summary по собранной стратегии.",
+        context,
+      },
+      env
     );
   },
 };
@@ -272,6 +370,14 @@ export const PLAN: Record<string, string[]> = {
   geo_aeo_audit: ["analyst", "strategist", "copywriter"],
   creative_brief: ["strategist", "copywriter", "compliance"],
   report_explain: ["analyst", "copywriter"],
+  budget_optimizer: ["dataRetriever", "analyst", "strategist"],
+  strategy_orchestrate: [
+    "dataRetriever",
+    "analyst",
+    "strategist",
+    "copywriter",
+    "compliance",
+  ],
 };
 
 export interface PlanResult<T = unknown> {
@@ -284,8 +390,13 @@ export interface PlanResult<T = unknown> {
 const DISCLAIMER =
   "MOCK/synthetic data. NECTARIN Intelligence (Cloudflare Workers) — replace data accessors with real aggregated benchmarks (KV/D1). Not legal advice.";
 
-export async function runPlan(toolName: string, input: any): Promise<PlanResult> {
+export async function runPlan(
+  toolName: string,
+  input: any,
+  ctx: OrchestratorCtx = {}
+): Promise<PlanResult> {
   const workers = PLAN[toolName] ?? [];
+  const env = ctx.env;
 
   switch (toolName) {
     case "ru_benchmarks": {
@@ -350,7 +461,8 @@ export async function runPlan(toolName: string, input: any): Promise<PlanResult>
       const comp = await compliance.review(category);
       const rationale = await copywriter.rationale(
         `сплит под цель «${goal}» в категории «${category}», бюджет ${budget} RUB, гео ${geo}`,
-        { goal, category, split, totals: forecast.totals }
+        { goal, category, split, totals: forecast.totals },
+        env
       );
       return synth(toolName, workers, {
         input: { budget, goal, geo, audience, period, category, currency: "RUB" },
@@ -391,13 +503,13 @@ export async function runPlan(toolName: string, input: any): Promise<PlanResult>
     case "geo_aeo_audit": {
       const { brand, market } = input as { brand: string; market?: string };
       const audit = buildGeoAeoAudit(brand, market ?? "RU");
-      const summary = await copywriter.rationale(`AEO/GEO видимость бренда «${brand}»`, audit.scores);
+      const summary = await copywriter.rationale(`AEO/GEO видимость бренда «${brand}»`, audit.scores, env);
       return synth(toolName, workers, { ...audit, summary });
     }
 
     case "creative_brief": {
       const { product, audience, channel } = input as { product: string; audience: string; channel: string };
-      const concepts = await copywriter.conceptTerritories(product, audience, channel);
+      const concepts = await copywriter.conceptTerritories(product, audience, channel, env);
       return synth(toolName, workers, {
         product,
         audience,
@@ -425,8 +537,141 @@ export async function runPlan(toolName: string, input: any): Promise<PlanResult>
         });
       }
       const findings = explainMetrics(parsed);
-      const summary = await copywriter.rationale("краткое резюме отчёта простыми словами", parsed);
+      const summary = await copywriter.rationale("краткое резюме отчёта простыми словами", parsed, env);
       return synth(toolName, workers, { ...findings, summary });
+    }
+
+    case "budget_optimizer": {
+      const { category, budget, goal, maxSharePct } = input as {
+        category: string;
+        budget: number;
+        goal?: Goal;
+        maxSharePct?: number;
+      };
+      const optimized = await optimizeBudget(category, budget, maxSharePct);
+      // Baseline = the goal-preset split (or performance) so we can quantify uplift.
+      const preset = strategist.channelSplit(goal ?? "performance");
+      const presetForecast = await analyst.forecastChannels(category, preset, budget);
+      const presetConv = presetForecast.totals.conversions;
+      const upliftPct = presetConv
+        ? round(((optimized.totals.conversions - presetConv) / presetConv) * 100, 1)
+        : null;
+      return synth(toolName, workers, {
+        input: { category, budget, goal: goal ?? "performance", maxSharePct: optimized.cap * 100, currency: "RUB" },
+        objective: "maximize conversions for a fixed budget (linear LP, per-channel cap)",
+        method:
+          "conversions(channel) = spend / CPA(p50); maximize Σ conversions s.t. Σ spend = budget and " +
+          "spend(channel) ≤ cap × budget → water-fill lowest-CPA channels first (optimal for a linear objective with box caps).",
+        optimized: {
+          allocation: optimized.allocation,
+          totals: optimized.totals,
+        },
+        baselinePreset: {
+          goal: goal ?? "performance",
+          split: preset.map((s) => ({ platform: s.platform, sharePct: round(s.share * 100) })),
+          totals: presetForecast.totals,
+        },
+        upliftVsPresetPct: upliftPct,
+        recommendation:
+          upliftPct && upliftPct > 0
+            ? `Оптимизированный сплит даёт +${upliftPct}% конверсий к пресету «${goal ?? "performance"}» при том же бюджете.`
+            : "Пресет уже близок к оптимуму по конверсиям; диверсификация может быть оправдана охватом/риском.",
+      });
+    }
+
+    case "strategy_orchestrate": {
+      const { brand, category, budget, goal, geo, audience, period } = input as {
+        brand?: string;
+        category: string;
+        budget: number;
+        goal: Goal;
+        geo: string;
+        audience?: string;
+        period?: string;
+      };
+      const aud = audience ?? "ядро категории";
+      const per = period ?? "ближайший квартал";
+
+      // 1) Benchmarks (CPA snapshot across platforms) + 2) audience + 3) competitors,
+      //    all gathered in parallel — the orchestrator fanning out to its workers.
+      const [benchmarks, audienceData, competitors] = await Promise.all([
+        (async () => {
+          const retrieved = await dataRetriever.benchmarks(category);
+          const platforms = Object.keys(retrieved.platformMetrics ?? {});
+          const rows = (
+            await Promise.all(
+              platforms.map(async (p) => {
+                const range = await getMetric(category, p, "CPA");
+                return range ? { platform: p, kpi: "CPA" as Kpi, range } : null;
+              })
+            )
+          ).filter(Boolean);
+          return { category, kpi: "CPA", region: "RU/CIS", currency: "RUB", results: rows };
+        })(),
+        Promise.resolve(buildAudienceInsights(category, geo)),
+        buildCompetitorScan(brand, category),
+      ]);
+
+      // 4) Strategist split → 5) analyst forecast → 6) optimizer (best split).
+      const split = strategist.channelSplit(goal);
+      const forecast = await analyst.forecastChannels(category, split, budget);
+      const optimized = await optimizeBudget(category, budget);
+
+      // 7) Compliance gate.
+      const comp = await compliance.review(category);
+
+      // 8) Creative direction (1 lead concept) — real LLM if configured.
+      const leadChannel = forecast.channels[0]?.platform ?? "VK Ads";
+      const concepts = await copywriter.conceptTerritories(
+        brand ?? `категория ${category}`,
+        aud,
+        leadChannel,
+        env
+      );
+
+      // 9) Lightweight ROI framing from the forecast (consistent with roi_calculator method).
+      const roi = quickRoi(category, budget, forecast.totals.blendedCpa);
+
+      // 10) Synthesizer: an executive summary that ties it all together (LLM or stub).
+      const strategyContext = {
+        brand: brand ?? null,
+        category,
+        budget,
+        goal,
+        geo,
+        split: forecast.channels.map((c) => ({ platform: c.platform, sharePct: c.share, spend: c.spend })),
+        forecast: forecast.totals,
+        optimizedTotals: optimized.totals,
+        topSegments: audienceData.segments?.slice(0, 2),
+        topCompetitors: competitors.competitors?.slice(0, 3).map((c: any) => c.name),
+        compliance: { regulated: comp.regulated, gate: comp.gate },
+        roi,
+      };
+      const executiveSummary = await copywriter.executiveSummary(strategyContext, env);
+
+      return synth(toolName, workers, {
+        brand: brand ?? null,
+        input: { category, budget, goal, geo, audience: aud, period: per, currency: "RUB" },
+        executiveSummary,
+        benchmarks,
+        audience: audienceData,
+        competitors,
+        mediaPlan: {
+          channelSplit: forecast.channels.map((c) => ({ platform: c.platform, sharePct: c.share, spend: c.spend })),
+          flight: buildFlight(per, forecast.channels.map((c) => c.platform)),
+          forecast: forecast.totals,
+          perChannel: forecast.channels,
+        },
+        optimizedSplit: {
+          allocation: optimized.allocation,
+          totals: optimized.totals,
+          note: "Сплит, максимизирующий конверсии при том же бюджете (см. budget_optimizer).",
+        },
+        creativeConcepts: concepts.map((c, i) => ({ id: i + 1, idea: c })),
+        compliance: comp,
+        roi,
+        pipeline: workers,
+      });
     }
 
     default:
@@ -449,6 +694,94 @@ function buildFlight(period: string, platforms: Platform[]) {
     period,
     weightHint: round(1 / platforms.length + (i === 0 ? 0.05 : -0.02), 2),
   }));
+}
+
+function clamp(n: number, lo: number, hi: number): number {
+  return Math.min(hi, Math.max(lo, n));
+}
+
+/**
+ * Allocate a fixed budget across platforms to MAXIMIZE conversions, subject to a
+ * per-channel cap. Conversions per RUB = 1/CPA, so for a linear objective with
+ * box constraints the optimum is water-filling: fill the lowest-CPA channels
+ * first up to the cap, then the next, etc. Returns the allocation + totals and
+ * the cap actually used (so the tool can report it).
+ */
+async function optimizeBudget(
+  category: string,
+  budget: number,
+  maxSharePct?: number
+): Promise<{
+  cap: number;
+  allocation: Array<{ platform: Platform; spend: number; sharePct: number; cpa: number; conversions: number }>;
+  totals: { spend: number; conversions: number; blendedCpa: number | null };
+}> {
+  const cap = clamp(maxSharePct ? maxSharePct / 100 : 0.45, 0.25, 1);
+  const bm = await getCategoryBenchmarks(category);
+  const platforms = bm ? (Object.keys(bm) as Platform[]) : PLATFORMS;
+  const withCpa = await Promise.all(
+    platforms.map(async (p) => ({ platform: p, cpa: (await getMetric(category, p, "CPA"))?.p50 ?? 1500 }))
+  );
+  withCpa.sort((a, b) => a.cpa - b.cpa); // lowest CPA first = most conversions per RUB
+
+  const capAmt = budget * cap;
+  let remaining = budget;
+  const spends = withCpa.map(({ platform, cpa }) => {
+    const spend = Math.min(capAmt, Math.max(0, remaining));
+    remaining -= spend;
+    return { platform, cpa, spend };
+  });
+  // Cap too tight to place the whole budget → top up the cheapest channel.
+  if (remaining > 0.5 && spends.length) spends[0].spend += remaining;
+
+  const allocation = spends
+    .filter((s) => s.spend > 0)
+    .map(({ platform, cpa, spend }) => ({
+      platform,
+      spend: round(spend),
+      sharePct: round((spend / budget) * 100, 1),
+      cpa,
+      conversions: cpa > 0 ? round(spend / cpa) : 0,
+    }));
+
+  const totalConv = allocation.reduce((a, c) => a + c.conversions, 0);
+  return {
+    cap,
+    allocation,
+    totals: {
+      spend: round(budget),
+      conversions: totalConv,
+      blendedCpa: totalConv ? round(budget / totalConv) : null,
+    },
+  };
+}
+
+// Illustrative average order/lead value per category (synthetic; mirrors growth.ts).
+const QUICK_AOV: Record<string, number> = {
+  realty: 350000,
+  finance: 9000,
+  auto: 45000,
+  retail: 2500,
+  fmcg: 900,
+  pharma: 1400,
+};
+
+/** Lightweight ROI framing from a media-plan forecast (same shape as roi_calculator). */
+function quickRoi(category: string, budget: number, blendedCpa: number | null) {
+  const aov = QUICK_AOV[category] ?? 3000;
+  const conv = blendedCpa && blendedCpa > 0 ? round(budget / blendedCpa) : 0;
+  const monthlyValue = round(conv * aov);
+  const annualValue = monthlyValue * 12;
+  const annualBudget = round(budget * 12);
+  return {
+    assumedAovRub: aov,
+    monthlyConversions: conv,
+    estMonthlyValueRub: monthlyValue,
+    estAnnualValueRub: annualValue,
+    annualBudget,
+    estRoiX: annualBudget > 0 ? round(annualValue / annualBudget, 1) : null,
+    note: "Иллюстративно: ценность = конверсии × условный AOV категории (синтетика).",
+  };
 }
 
 function buildAudienceInsights(category: string, geo?: string) {

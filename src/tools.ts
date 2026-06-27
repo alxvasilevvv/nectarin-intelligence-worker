@@ -131,8 +131,8 @@ const mediaPlan: ToolDef = {
     required: ["budget", "goal", "geo", "audience", "period", "category"],
     additionalProperties: false,
   },
-  async handler(input) {
-    const result = await runPlan("media_plan", input);
+  async handler(input, env) {
+    const result = await runPlan("media_plan", input, { env });
     const d = result.data as any;
     const t = d.forecast;
     const gate = d.compliance?.gate ? ` ⚠ ${d.compliance.gate}` : "";
@@ -220,8 +220,8 @@ const geoAeoAudit: ToolDef = {
     required: ["brand"],
     additionalProperties: false,
   },
-  async handler(input) {
-    const result = await runPlan("geo_aeo_audit", input);
+  async handler(input, env) {
+    const result = await runPlan("geo_aeo_audit", input, { env });
     const d = result.data as any;
     const summary = `GEO/AEO аудит «${d.brand}» (${d.market}): общий индекс видимости ${d.overall}/100; ${d.recommendations.length} рекомендаций.`;
     return toContent(summary, result);
@@ -242,8 +242,8 @@ const creativeBrief: ToolDef = {
     required: ["product", "audience", "channel"],
     additionalProperties: false,
   },
-  async handler(input) {
-    const result = await runPlan("creative_brief", input);
+  async handler(input, env) {
+    const result = await runPlan("creative_brief", input, { env });
     const d = result.data as any;
     const summary = `Креативный бриф «${d.product}» для «${d.audience}» в канале «${d.channel}» + ${d.conceptTerritories.length} концепта.`;
     return toContent(summary, result);
@@ -265,8 +265,8 @@ const reportExplain: ToolDef = {
     required: ["metricsJson"],
     additionalProperties: false,
   },
-  async handler(input) {
-    const result = await runPlan("report_explain", input);
+  async handler(input, env) {
+    const result = await runPlan("report_explain", input, { env });
     const d = result.data as any;
     if (d.error) {
       return { content: [{ type: "text", text: `Ошибка: ${d.error}` }], isError: true };
@@ -276,7 +276,79 @@ const reportExplain: ToolDef = {
   },
 };
 
-// Original "Intelligence" tool group.
+const budgetOptimizer: ToolDef = {
+  name: "budget_optimizer",
+  description:
+    "Optimize a RUB media budget across VK Ads / Yandex Direct / Telegram Ads / OLV to MAXIMIZE conversions (not just follow a goal preset). Uses real optimization: conversions/RUB = 1/CPA, then water-fills the lowest-CPA channels first up to a per-channel cap (default 45%). Returns the optimal allocation, projected conversions & blended CPA, and the uplift vs. the goal-preset split. Mock benchmarks.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      category: { type: "string", enum: CATEGORIES, description: "Industry category (anchors benchmarks)" },
+      budget: { type: "number", exclusiveMinimum: 0, description: "Total budget in RUB" },
+      goal: {
+        type: "string",
+        enum: ["awareness", "consideration", "performance", "retention"],
+        description: "Goal whose preset split is used as the comparison baseline (default performance)",
+      },
+      maxSharePct: {
+        type: "number",
+        minimum: 25,
+        maximum: 100,
+        description: "Per-channel cap as a percent of budget (default 45). Lower = more diversified.",
+      },
+    },
+    required: ["category", "budget"],
+    additionalProperties: false,
+  },
+  async handler(input, env) {
+    const result = await runPlan("budget_optimizer", input, { env });
+    const d = result.data as any;
+    const t = d.optimized.totals;
+    const up = d.upliftVsPresetPct;
+    const summary =
+      `Оптимизация бюджета «${input.category}» (${ru(input.budget)} ₽): ` +
+      `~${ru(t.conversions)} конверсий, blended CPA ${t.blendedCpa ?? "n/a"} ₽` +
+      (up !== null ? `, +${up}% к пресету.` : ".");
+    return toContent(summary, result);
+  },
+};
+
+const strategyOrchestrate: ToolDef = {
+  name: "strategy_orchestrate",
+  description:
+    "FLAGSHIP end-to-end orchestration. In ONE call NECTARIN fans out to all of its workers and returns a complete go-to-market strategy: RU/CIS CPA benchmarks, audience segments & JTBD, competitor landscape, goal-based channel split WITH a forecast (impressions/reach/conversions/blended CPA), a conversion-maximizing optimized split, a lead creative concept, compliance gate, a quick ROI framing, and an executive summary. The narrative uses a real LLM when LLM_API_KEY is set (Anthropic/OpenAI), otherwise a deterministic stub. Mock/synthetic data; not legal advice.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      brand: { type: "string", description: "Brand name (optional but recommended)" },
+      category: { type: "string", enum: CATEGORIES, description: "Industry category" },
+      budget: { type: "number", exclusiveMinimum: 0, description: "Monthly budget in RUB" },
+      goal: {
+        type: "string",
+        enum: ["awareness", "consideration", "performance", "retention"],
+        description: "Primary marketing goal",
+      },
+      geo: { type: "string", description: "Geography, e.g. 'РФ', 'Москва+МО', 'СНГ'" },
+      audience: { type: "string", description: "Optional audience description" },
+      period: { type: "string", description: "Optional flight period, e.g. 'Q4 2026'" },
+    },
+    required: ["category", "budget", "goal", "geo"],
+    additionalProperties: false,
+  },
+  async handler(input, env) {
+    const result = await runPlan("strategy_orchestrate", input, { env });
+    const d = result.data as any;
+    const f = d.mediaPlan?.forecast ?? {};
+    const gate = d.compliance?.gate ? " ⚠ STOP-GATE (регулируемая)" : "";
+    const summary =
+      `Полная стратегия${d.brand ? ` «${d.brand}»` : ""} / «${input.category}» / цель «${input.goal}» / ${ru(input.budget)} ₽. ` +
+      `Прогноз: ~${ru(f.estReach ?? 0)} охват, ~${ru(f.conversions ?? 0)} конверсий, blended CPA ${f.blendedCpa ?? "n/a"} ₽. ` +
+      `Собрано ${d.pipeline?.length ?? 0} воркеров (бенчмарки, аудитория, конкуренты, медиаплан, оптимизация, креатив, комплаенс, ROI).${gate}`;
+    return toContent(summary, result);
+  },
+};
+
+// Original "Intelligence" tool group + the new orchestration/optimization tools.
 const INTELLIGENCE_TOOLS: ToolDef[] = [
   ruBenchmarks,
   supplierQuality,
@@ -287,6 +359,8 @@ const INTELLIGENCE_TOOLS: ToolDef[] = [
   geoAeoAudit,
   creativeBrief,
   reportExplain,
+  budgetOptimizer,
+  strategyOrchestrate,
 ];
 
 // Full registry = Intelligence tools + Growth & Automation tools (funnel).

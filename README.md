@@ -21,8 +21,9 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
   and dependency-free). Implements `initialize`, `tools/list`, `tools/call`,
   `prompts/list`, `prompts/get`, `resources/list`, `resources/read`, `ping`, and
   the `notifications/*` no-ops, with proper JSON-RPC results/errors.
-- **`src/tools.ts`** — the tool registry. It composes two groups: the 9
-  **Intelligence** tools and the 6 **Growth & Automation** tools (see the table
+- **`src/tools.ts`** — the tool registry. It composes two groups: the 11
+  **Intelligence** tools (incl. the flagship `strategy_orchestrate` and the
+  `budget_optimizer`) and the 6 **Growth & Automation** tools (see the table
   below), each with a JSON-Schema `inputSchema` + async handler.
 - **`src/growth.ts`** — the 6 **Growth & Automation** tools (the funnel layer):
   `roi_calculator`, `lead_qualify`, `request_nectarin_proposal`,
@@ -32,7 +33,14 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
 - **`src/orchestrator.ts`** — the planner → workers (dataRetriever, analyst,
   strategist, copywriter, compliance) → synthesizer pipeline. `media_plan` math is
   real: `impressions = spend / CPM × 1000`, `clicks = impressions × CTR`,
-  `conversions = spend / CPA`, plus estimated reach and blended CPA.
+  `conversions = spend / CPA`, plus estimated reach and blended CPA. The flagship
+  **`strategy_orchestrate`** fans out to every worker in one call (benchmarks +
+  audience + competitors + plan/forecast + optimized split + creative + compliance
+  + ROI + executive summary). **`budget_optimizer`** solves the conversion-maximizing
+  channel split (water-fill by CPA under a per-channel cap). The `callLLM()` seam is
+  **real-or-stub**: it calls Anthropic/OpenAI when `LLM_API_KEY` is set and falls
+  back to a deterministic stub otherwise (and on any model error), so the pipeline
+  never breaks.
 - **`src/data.ts`** — synthetic benchmarks / suppliers / playbooks behind a
   `DataSource` interface (default `MockDataSource`; `KvDataSource`/`HttpDataSource`
   stubs included). See **`DATA_SCHEMA.md`** for the exact data NECTARIN must supply.
@@ -62,11 +70,13 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
 
 ---
 
-## Tools (15 total)
+## Tools (17 total)
 
-### Intelligence group (inform)
+### Intelligence group (inform + orchestrate)
 | Tool | What it does |
 |---|---|
+| `strategy_orchestrate` | **Flagship.** One call → full go-to-market strategy: benchmarks + audience + competitors + media plan/forecast + optimized split + creative concept + compliance + ROI + executive summary. |
+| `budget_optimizer` | Conversion-maximizing budget split (water-fill by CPA under a per-channel cap) + uplift vs. the goal preset. |
 | `ru_benchmarks` | CPM/CTR/CPA/VTR percentiles for a category × KPI (× platform). |
 | `supplier_quality` | Inventory quality index, fraud risk, recommended/avoid suppliers. |
 | `media_plan` | RUB budget split + real forecast (impr/clicks/conv/reach/blended CPA). |
@@ -170,9 +180,21 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 15 tools (9 Intelligence + 6 Growth & Automation);
+`tools/list` returns all 17 tools (11 Intelligence + 6 Growth & Automation);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
+
+```bash
+# Flagship: full orchestrated strategy in one call
+curl -s "$HOST/mcp" \
+  -H "content-type: application/json" \
+  -d '{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"strategy_orchestrate","arguments":{"brand":"Acme","category":"finance","budget":8000000,"goal":"performance","geo":"РФ"}}}'
+
+# Optimize the channel split to maximize conversions
+curl -s "$HOST/mcp" \
+  -H "content-type: application/json" \
+  -d '{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"budget_optimizer","arguments":{"category":"retail","budget":4000000,"goal":"performance"}}}'
+```
 
 ```bash
 # Funnel example: ROI pitch (synthetic, anchored to mock benchmarks)
@@ -194,17 +216,18 @@ curl -s "$HOST/mcp" \
 cp .dev.vars.example .dev.vars   # edit if needed; .dev.vars is gitignored
 npm run dev                      # wrangler dev → http://localhost:8787/mcp
 npm run typecheck                # tsc --noEmit
-npm test                         # vitest run (24 tests)
+npm test                         # vitest run (30 tests)
 npm run dry                      # wrangler deploy --dry-run --outdir dist (no Cloudflare auth needed)
 ```
 
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (15 tools), happy-path `tools/call`
-(`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`), invalid params
-(`-32602`), unknown tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off,
-no token), plus unit tests for the rate limiter and validator.
+initialize handshake, `tools/list` (17 tools), happy-path `tools/call`
+(`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
+`budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
+tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit
+tests for the rate limiter and validator.
 
 ---
 
@@ -227,10 +250,22 @@ Turn it on for real/shared use.
 ### Secrets (never in `wrangler.toml` / git)
 Use Cloudflare secrets for anything sensitive:
 ```bash
-npx wrangler secret put LLM_API_KEY            # when callLLM() is wired to a model
+npx wrangler secret put LLM_API_KEY            # enables REAL narrative (Anthropic/OpenAI)
 npx wrangler secret put NECTARIN_DATA_API_KEY  # if using HttpDataSource
 ```
 `.dev.vars` is for local dev only and is gitignored.
+
+### Enable a real LLM narrative (optional)
+`callLLM()` is **real-or-stub**. With no key it returns a deterministic stub, so
+the server runs fully offline. To switch narrative copy (`media_plan` rationale,
+`creative_brief` concepts, `geo_aeo_audit` summary, and the `strategy_orchestrate`
+executive summary) to a real model:
+```bash
+npx wrangler secret put LLM_API_KEY   # required to go live
+```
+Optional `[vars]`: `LLM_PROVIDER` (`anthropic` default | `openai`), `LLM_MODEL`
+(per-provider default otherwise), `LLM_BASE_URL` (proxy/Azure/self-host). Any model
+error degrades gracefully back to the stub — a tool call never fails because of the LLM.
 
 ### Enable OAuth 2.1 (real bearer verification)
 1. In `wrangler.toml` `[vars]` set `DEV_BYPASS = "0"` and fill `OAUTH_ISSUER`,
@@ -287,7 +322,8 @@ interface, so going real is a one-line wiring change — no upstream edits.
 ## Resources & prompts exposed
 
 - Resources: `nectarin://methodology`, `nectarin://glossary`.
-- Prompts: `build_media_plan`, `competitor_teardown`, and the two funnel
+- Prompts: `build_media_plan`, **`full_strategy`** (one-shot flagship via
+  `strategy_orchestrate`), `competitor_teardown`, and the two funnel
   orchestrators **`sell_nectarin_services`** (roi_calculator → value_forecast →
   lead_qualify → request_nectarin_proposal → book_consultation) and
   **`automate_my_marketing`** (automation_recipe → roi_calculator →
