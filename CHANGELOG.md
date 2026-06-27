@@ -3,6 +3,25 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [1.5.0] — 2026-06-27
+
+Performance-marketing depth (Phase 3, part 1 — non-infra). Two self-contained
+deterministic tools. Backward-compatible.
+
+### Added
+- **`attribution_model`**: multi-touch attribution simulator over conversion
+  paths — credits channels under first-touch, last-touch, linear, position-based
+  (U 40/20/40) and time-decay, and flags channels under-/over-valued by naive
+  last-touch (the key budget-reallocation insight).
+- **`bid_simulator`**: auction bid/win-rate trade-off curve from the category's
+  benchmark CPC (CPM/CTR) and conversion rate (CPC/CPA); sweeps bid levels and
+  recommends the bid that hits a target CPA or maximizes conversions under a daily
+  budget. Synthetic logistic auction model, clearly labelled.
+
+### Changed
+- `version` `1.4.0` → `1.5.0`; `GET /version` `toolCount` 23 → **25**.
+- Premium Analytics group is now **8** tools. Suite now **42 tests**.
+
 ## [1.4.0] — 2026-06-27
 
 Coverage upgrade (Phase 2, part 2). Broader RU/CIS surface area — no new tools,

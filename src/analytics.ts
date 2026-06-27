@@ -33,6 +33,10 @@ function round(n: number, dp = 0): number {
   return Math.round(n * f) / f;
 }
 
+function clamp(n: number, lo: number, hi: number): number {
+  return Math.max(lo, Math.min(hi, n));
+}
+
 function ru(n: number): string {
   try {
     return Number(n).toLocaleString("ru-RU");
@@ -860,6 +864,235 @@ const creativeScore: ToolDef = {
   },
 };
 
+// ═════════════════════════════════════════════════════════════════════════════
+// Tool 7: attribution_model — multi-touch attribution across 5 models
+// ═════════════════════════════════════════════════════════════════════════════
+
+type AttrModel = "firstTouch" | "lastTouch" | "linear" | "positionBased" | "timeDecay";
+
+/** Credit weights for ONE path (length n), per model, summing to 1.0. */
+function pathWeights(n: number, model: AttrModel): number[] {
+  if (n <= 0) return [];
+  if (n === 1) return [1];
+  switch (model) {
+    case "firstTouch": {
+      const w = new Array(n).fill(0);
+      w[0] = 1;
+      return w;
+    }
+    case "lastTouch": {
+      const w = new Array(n).fill(0);
+      w[n - 1] = 1;
+      return w;
+    }
+    case "linear":
+      return new Array(n).fill(1 / n);
+    case "positionBased": {
+      // U-shaped: 40% first, 40% last, 20% spread across the middle.
+      if (n === 2) return [0.5, 0.5];
+      const w = new Array(n).fill(0);
+      w[0] = 0.4;
+      w[n - 1] = 0.4;
+      const mid = 0.2 / (n - 2);
+      for (let i = 1; i < n - 1; i++) w[i] = mid;
+      return w;
+    }
+    case "timeDecay": {
+      // Heavier toward the last touch (weight_i = 2^i), normalized.
+      const raw = Array.from({ length: n }, (_, i) => 2 ** i);
+      const sum = raw.reduce((a, b) => a + b, 0);
+      return raw.map((v) => v / sum);
+    }
+  }
+}
+
+const attributionModel: ToolDef = {
+  name: "attribution_model",
+  description:
+    "Multi-touch attribution simulator. Given conversion PATHS (ordered channel sequences with their conversion counts), it credits conversions to channels under five models — first-touch, last-touch, linear, position-based (U-shaped 40/20/40) and time-decay — and highlights which channels are UNDER- or OVER-valued by naive last-touch vs. multi-touch (the key budget-reallocation insight). Deterministic.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      paths: {
+        type: "array",
+        minItems: 1,
+        description: "Conversion paths. Each: an ordered list of channel touchpoints + the number of conversions on that path.",
+        items: {
+          type: "object",
+          properties: {
+            channels: { type: "array", minItems: 1, items: { type: "string" }, description: "Ordered channels (first → last touch)" },
+            conversions: { type: "number", exclusiveMinimum: 0, description: "Conversions attributed to this path" },
+          },
+          required: ["channels", "conversions"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["paths"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const paths = (input.paths ?? []) as Array<{ channels: string[]; conversions: number }>;
+    const models: AttrModel[] = ["firstTouch", "lastTouch", "linear", "positionBased", "timeDecay"];
+    const credit: Record<AttrModel, Record<string, number>> = {
+      firstTouch: {}, lastTouch: {}, linear: {}, positionBased: {}, timeDecay: {},
+    };
+    let totalConversions = 0;
+
+    for (const p of paths) {
+      const channels = (p.channels ?? []).map(String);
+      const conv = Number(p.conversions) || 0;
+      if (channels.length === 0 || conv <= 0) continue;
+      totalConversions += conv;
+      for (const model of models) {
+        const w = pathWeights(channels.length, model);
+        channels.forEach((ch, i) => {
+          credit[model][ch] = (credit[model][ch] ?? 0) + w[i] * conv;
+        });
+      }
+    }
+
+    const allChannels = Array.from(new Set(paths.flatMap((p) => (p.channels ?? []).map(String))));
+
+    const byChannel = allChannels.map((ch) => {
+      const row: Record<string, number> = {};
+      for (const model of models) row[model] = round(credit[model][ch] ?? 0, 1);
+      const lt = row.lastTouch;
+      const multi = (row.linear + row.positionBased + row.timeDecay) / 3;
+      const deltaPct = lt > 0 ? round(((multi - lt) / lt) * 100, 1) : multi > 0 ? 100 : 0;
+      return {
+        channel: ch,
+        credited: row,
+        lastTouchVsMultiTouchDeltaPct: deltaPct,
+        verdict:
+          deltaPct > 15 ? "undervalued by last-touch — заслуживает больше бюджета"
+          : deltaPct < -15 ? "overvalued by last-touch — вероятно, переинвестирован"
+          : "оценён сбалансированно",
+      };
+    });
+
+    // Sort: most undervalued first (biggest reallocation opportunity).
+    byChannel.sort((a, b) => b.lastTouchVsMultiTouchDeltaPct - a.lastTouchVsMultiTouchDeltaPct);
+
+    const payload = {
+      tool: "attribution_model",
+      input: { paths: paths.length, totalConversions: round(totalConversions, 1) },
+      models: ["firstTouch", "lastTouch", "linear", "positionBased", "timeDecay"],
+      byChannel,
+      insight:
+        byChannel.length > 0
+          ? `Канал «${byChannel[0].channel}» наиболее недооценён last-touch-моделью (${byChannel[0].lastTouchVsMultiTouchDeltaPct > 0 ? "+" : ""}${byChannel[0].lastTouchVsMultiTouchDeltaPct}% vs мульти-тач) — кандидат на рост бюджета.`
+          : "Недостаточно данных для вывода.",
+      method:
+        "first/last — 100% первому/последнему касанию; linear — поровну по касаниям; " +
+        "position-based — 40/20/40 (U); time-decay — вес 2^i к последнему касанию. " +
+        "delta% = (среднее по linear/position/time-decay − last-touch) / last-touch.",
+      disclaimer: "Симуляция атрибуции на переданных путях; для production нужны реальные мульти-тач данные (CDP/трекинг).",
+    };
+
+    const summary =
+      `Атрибуция по ${paths.length} путям (${round(totalConversions, 0)} конверсий), ` +
+      `5 моделей, ${allChannels.length} каналов. ` +
+      (byChannel.length ? `Самый недооценённый last-touch: ${byChannel[0].channel}.` : "");
+    return toContent(summary, payload);
+  },
+};
+
+// ═════════════════════════════════════════════════════════════════════════════
+// Tool 8: bid_simulator — auction bid/win-rate trade-off curve
+// ═════════════════════════════════════════════════════════════════════════════
+
+const bidSimulator: ToolDef = {
+  name: "bid_simulator",
+  description:
+    "Simulate an auction bidding strategy. Using the category's benchmark CPC (derived from CPM/CTR) and conversion rate (from CPC/CPA), it sweeps bid levels and returns a trade-off curve — win-rate, clicks, conversions, spend and resulting CPA at each bid — capped by a daily budget. Recommends the bid that hits a target CPA (if given) or maximizes conversions. Synthetic logistic auction model, clearly labelled.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      category: { type: "string", enum: CATEGORIES, description: "Industry category (sets the reference CPC/CPA)" },
+      dailyBudget: { type: "number", exclusiveMinimum: 0, description: "Daily budget cap, RUB" },
+      targetCpa: { type: "number", exclusiveMinimum: 0, description: "Optional target CPA, RUB — the recommended bid will aim for it" },
+    },
+    required: ["category", "dailyBudget"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const category = String(input.category);
+    const dailyBudget = Number(input.dailyBudget);
+    const targetCpa = input.targetCpa ? Number(input.targetCpa) : null;
+
+    const cpmMed = (await blendedKpi(category, "CPM", "p50")) ?? 300;
+    const ctrMed = (await blendedKpi(category, "CTR", "p50")) ?? 0.8; // percent
+    const cpaMed = (await blendedKpi(category, "CPA", "p50")) ?? 1500;
+    // CPC = CPM / (1000 * CTR_fraction); convRate = CPC / CPA.
+    const refCpc = cpmMed / (1000 * (ctrMed / 100));
+    const convRate = cpaMed > 0 ? refCpc / cpaMed : 0.02;
+
+    // Available daily click pool (synthetic headroom) at full win-rate.
+    const poolClicks = (dailyBudget / refCpc) * 1.8;
+
+    const multiples = [0.6, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5];
+    const curve = multiples.map((m) => {
+      const bid = refCpc * m;
+      const effectiveCpc = bid * 0.9; // ~second-price
+      // Logistic win-rate centered at the market reference bid.
+      const winRate = clamp(1 / (1 + Math.exp(-4 * (m - 1))), 0.03, 0.97);
+      const availableClicks = poolClicks * winRate;
+      const budgetClicks = dailyBudget / effectiveCpc;
+      const clicks = Math.floor(Math.min(availableClicks, budgetClicks));
+      const conversions = Math.round(clicks * convRate);
+      const spend = round(clicks * effectiveCpc);
+      const cpa = conversions > 0 ? round(spend / conversions) : null;
+      return {
+        bidMultipleOfMarket: m,
+        bid: round(bid),
+        effectiveCpc: round(effectiveCpc),
+        winRatePct: round(winRate * 100, 1),
+        clicks,
+        conversions,
+        spend,
+        cpa,
+      };
+    });
+
+    // Recommendation.
+    let recommended;
+    let rationale;
+    if (targetCpa) {
+      // Highest-volume bid whose CPA still ≤ target.
+      const feasible = curve.filter((c) => c.cpa !== null && c.cpa <= targetCpa);
+      if (feasible.length) {
+        recommended = feasible.reduce((a, b) => (b.conversions > a.conversions ? b : a));
+        rationale = `Максимум конверсий при CPA ≤ целевого ${ru(targetCpa)} ₽.`;
+      } else {
+        recommended = curve.reduce((a, b) => ((b.cpa ?? Infinity) < (a.cpa ?? Infinity) ? b : a));
+        rationale = `Целевой CPA ${ru(targetCpa)} ₽ недостижим в этой модели — выбран бид с минимальным CPA.`;
+      }
+    } else {
+      recommended = curve.reduce((a, b) => (b.conversions > a.conversions ? b : a));
+      rationale = "Максимум конверсий в рамках дневного бюджета.";
+    }
+
+    const payload = {
+      tool: "bid_simulator",
+      input: { category, dailyBudget, targetCpa },
+      reference: { cpc: round(refCpc), cpaMedian: round(cpaMed), convRatePct: round(convRate * 100, 2) },
+      curve,
+      recommended: { ...recommended, rationale },
+      method:
+        "CPC = CPM/(1000·CTR); convRate = CPC/CPA; win-rate = логистическая от бида относительно рынка; " +
+        "clicks = min(pool·win-rate, budget/effCPC); effCPC ≈ 0.9·bid (second-price).",
+      provenance: DATA_META.provenance,
+      disclaimer: "Синтетическая модель аукциона для планирования бид-стратегии; не отражает реальную динамику площадки.",
+    };
+
+    const summary =
+      `Бид-симуляция (${category}, бюджет ${ru(dailyBudget)} ₽/день): рекоменд. бид ${ru(recommended.bid)} ₽ ` +
+      `(win ${recommended.winRatePct}%, ~${ru(recommended.conversions)} конв./день, CPA ${recommended.cpa ?? "n/a"} ₽). ${rationale}`;
+    return toContent(summary, payload);
+  },
+};
+
 // ── Export the group ──────────────────────────────────────────────────────────
 
 export const ANALYTICS_TOOLS: ToolDef[] = [
@@ -869,4 +1102,6 @@ export const ANALYTICS_TOOLS: ToolDef[] = [
   funnelModel,
   seasonalityForecast,
   creativeScore,
+  attributionModel,
+  bidSimulator,
 ];

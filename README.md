@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-23-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-25-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the listing once the review is approved
 > (`https://unyly.org/ru/mcp/nectarin-intelligence`). Until then, add it manually as a
@@ -35,18 +35,20 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
   **Intelligence** tools (incl. the flagship `strategy_orchestrate` and the
   `budget_optimizer`), the 6 **Growth & Automation** tools, and the 3 **Premium
   Analytics** tools (see the tables below), each with a JSON-Schema `inputSchema`
-  + async handler. The Premium Analytics group now has **6** tools.
+  + async handler. The Premium Analytics group now has **8** tools.
 - **`src/growth.ts`** — the 6 **Growth & Automation** tools (the funnel layer):
   `roi_calculator`, `lead_qualify`, `request_nectarin_proposal`,
   `book_consultation`, `automation_recipe`, `value_forecast`. Deterministic,
   synthetic logic anchored to the same mock benchmarks; **no PII is sent and no
   real network call is made** (proposal/booking are clearly-marked stubs).
-- **`src/analytics.ts`** — the 6 **Premium Analytics** tools: `compliance_check`
+- **`src/analytics.ts`** — the 8 **Premium Analytics** tools: `compliance_check`
   (RU ad-law copy review, ФЗ-38/ОРД, optional LLM rewrite), `ab_test_planner`
   (real two-proportion power analysis with inverse-normal z + Bonferroni),
   `unit_economics` (LTV/CAC/payback/ROAS + verdict), `funnel_model` (full-funnel
-  scenarios + biggest leak), `seasonality_forecast` (12-month demand index), and
-  `creative_score` (best-practice copy scoring). Deterministic and auditable.
+  scenarios + biggest leak), `seasonality_forecast` (12-month demand index),
+  `creative_score` (best-practice copy scoring), `attribution_model` (5-model
+  multi-touch attribution), and `bid_simulator` (auction bid/win-rate curve).
+  Deterministic and auditable.
 - **`src/orchestrator.ts`** — the planner → workers (dataRetriever, analyst,
   strategist, copywriter, compliance) → synthesizer pipeline. `media_plan` math is
   real: `impressions = spend / CPM × 1000`, `clicks = impressions × CTR`,
@@ -91,7 +93,7 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
 
 ---
 
-## Tools (23 total)
+## Tools (25 total)
 
 ### Intelligence group (inform + orchestrate)
 | Tool | What it does |
@@ -134,6 +136,8 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 | `funnel_model` | Full-funnel projection (impressions→reach→clicks→leads→qualified→sales→revenue) with conservative/base/optimistic scenarios, per-stage drop-off, CAC/ROAS, and the **biggest leak**. |
 | `seasonality_forecast` | 12-month RU/CIS demand index per category, peak/trough months, monthly budget weighting + optional annual-budget split. |
 | `creative_score` | 0-100 best-practice score for ad copy (value prop, specificity, CTA, length, benefit-focus, no-CAPS) + fixes, compliance flag, optional LLM variants. |
+| `attribution_model` | Multi-touch attribution over conversion paths (first/last/linear/position-based/time-decay) + which channels last-touch under/over-values. |
+| `bid_simulator` | Auction bid/win-rate trade-off curve from benchmark CPC/conv-rate; recommends a bid for a target CPA or max conversions under a daily budget. |
 
 > **Funnel logic & safety.** All Growth figures are synthetic/illustrative and
 > anchored to the same mock RU/CIS benchmarks (`src/data.ts`) — internally
@@ -214,7 +218,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 23 tools (11 Intelligence + 6 Growth & Automation + 6 Premium Analytics);
+`tools/list` returns all 25 tools (11 Intelligence + 6 Growth & Automation + 8 Premium Analytics);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -257,7 +261,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (23 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (25 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit

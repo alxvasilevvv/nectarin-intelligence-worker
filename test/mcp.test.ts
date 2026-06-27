@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(23);
+    expect(json.toolCount).toBe(25);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(23);
+    expect(tools).toHaveLength(25);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -54,6 +54,8 @@ describe("tools/list", () => {
     expect(names).toContain("funnel_model");
     expect(names).toContain("seasonality_forecast");
     expect(names).toContain("creative_score");
+    expect(names).toContain("attribution_model");
+    expect(names).toContain("bid_simulator");
   });
 });
 
@@ -336,6 +338,49 @@ describe("tools/call — happy paths", () => {
     // September is a known edtech peak.
     expect(sc.peak.month).toBe("Сентябрь");
   });
+
+  it("attribution_model credits channels across 5 models", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 28,
+      method: "tools/call",
+      params: {
+        name: "attribution_model",
+        arguments: {
+          paths: [
+            { channels: ["VK Ads", "Yandex Direct"], conversions: 100 },
+            { channels: ["OLV", "VK Ads", "Yandex Direct"], conversions: 50 },
+          ],
+        },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.byChannel.length).toBe(3);
+    // last-touch must hand 100% of all conversions to the final touch (Yandex Direct here).
+    const yandex = sc.byChannel.find((c: any) => c.channel === "Yandex Direct");
+    expect(yandex.credited.lastTouch).toBe(150);
+    // first-touch credits OLV only for the path it starts.
+    const olv = sc.byChannel.find((c: any) => c.channel === "OLV");
+    expect(olv.credited.firstTouch).toBe(50);
+  });
+
+  it("bid_simulator returns a curve and a recommended bid", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 29,
+      method: "tools/call",
+      params: { name: "bid_simulator", arguments: { category: "retail", dailyBudget: 200000 } },
+    });
+    const sc = json.result.structuredContent;
+    expect(Array.isArray(sc.curve)).toBe(true);
+    expect(sc.curve.length).toBeGreaterThan(3);
+    expect(sc.recommended.bid).toBeGreaterThan(0);
+    expect(sc.reference.cpc).toBeGreaterThan(0);
+    // win-rate must be monotonically non-decreasing in bid multiple.
+    for (let i = 1; i < sc.curve.length; i++) {
+      expect(sc.curve[i].winRatePct).toBeGreaterThanOrEqual(sc.curve[i - 1].winRatePct);
+    }
+  });
 });
 
 describe("tools/call — error handling", () => {
@@ -407,7 +452,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(23);
+    expect(json.result.tools).toHaveLength(25);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -435,7 +480,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(23);
+    expect(json.result.tools).toHaveLength(25);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
