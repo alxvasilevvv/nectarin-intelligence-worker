@@ -27,10 +27,11 @@
  */
 
 import { ALL_TOOLS, TOOLS_BY_NAME } from "./tools.js";
-import { CATEGORIES } from "./data.js";
+import { CATEGORIES, setDataSource, LayeredKvDataSource, MockDataSource } from "./data.js";
 import { authenticate, unauthorizedResponse, authMode } from "./auth.js";
 import { enforceRateLimit } from "./ratelimit.js";
 import { validateInput, formatErrors } from "./validate.js";
+import { getLlmCacheStats, type KvLike } from "./orchestrator.js";
 
 export interface Env {
   // ── OAuth 2.1 resource-server config (Unyly Connect fronts OAuth in prod) ──
@@ -67,13 +68,18 @@ export interface Env {
   NECTARIN_CONTACT_EMAIL?: string;
   NECTARIN_BRAND_NAME?: string;
   NECTARIN_CRM_WEBHOOK_URL?: string;
-  // Future bindings (see commented sections in wrangler.toml):
-  // NECTARIN_KV?: KVNamespace;
-  // NECTARIN_DB?: D1Database;
+  /**
+   * KV namespace binding. Two uses (both optional / graceful):
+   *   • callLLM() narrative response cache (cache:llm:<hash>).
+   *   • LayeredKvDataSource — operator-uploaded real/override benchmarks layered
+   *     over the bundled synthetic data (benchmarks:<category>, playbook:<industry>, suppliers).
+   */
+  NECTARIN_KV?: KvLike;
+  // Future binding: NECTARIN_DB?: D1Database (per-tenant relational data).
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "1.6.0";
+const SERVER_VERSION = "2.0.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -111,6 +117,38 @@ function json(body: unknown, status = 200, extra: Record<string, string> = {}): 
 
 function rpcResult(id: JsonRpcId, result: unknown): Response {
   return json({ jsonrpc: "2.0", id, result });
+}
+
+/**
+ * Wrap a JSON-RPC body as a single Server-Sent Events `message` frame. Used for
+ * the OPT-IN SSE response path (Streamable HTTP). Default transport stays JSON so
+ * existing clients are unaffected; SSE is only used when explicitly requested.
+ */
+function sseResponse(body: unknown, extra: Record<string, string> = {}): Response {
+  const frame = `event: message\ndata: ${JSON.stringify(body)}\n\n`;
+  return new Response(frame, {
+    status: 200,
+    headers: {
+      "content-type": "text/event-stream; charset=utf-8",
+      "cache-control": "no-cache",
+      connection: "keep-alive",
+      ...CORS_HEADERS,
+      ...extra,
+    },
+  });
+}
+
+/**
+ * SSE is OPT-IN to avoid changing behavior for existing JSON clients:
+ *   • `?stream=1` query param, OR
+ *   • `Accept: text/event-stream` WITHOUT also accepting application/json.
+ * Clients that send `Accept: application/json, text/event-stream` (the common MCP
+ * default) keep getting JSON.
+ */
+function wantsSse(url: URL, request: Request): boolean {
+  if (url.searchParams.get("stream") === "1") return true;
+  const accept = (request.headers.get("accept") ?? "").toLowerCase();
+  return accept.includes("text/event-stream") && !accept.includes("application/json");
 }
 
 function rpcError(
@@ -462,17 +500,29 @@ function logRequest(entry: { method: string; tool?: string; ms: number; status: 
 
 // ── HTTP entry ───────────────────────────────────────────────────────────────
 
+/**
+ * Install the data source, keyed by the KV binding identity. In production every
+ * request carries the same binding object, so this installs exactly once. It only
+ * re-installs if the binding identity changes (e.g. across tests) — never churns
+ * under concurrency with a stable binding.
+ */
+let installedFor: unknown = Symbol("uninstalled");
+function ensureDataSource(env: Env): void {
+  const target: unknown = env.NECTARIN_KV ?? "mock";
+  if (installedFor === target) return;
+  setDataSource(env.NECTARIN_KV ? new LayeredKvDataSource(env.NECTARIN_KV) : new MockDataSource());
+  installedFor = target;
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     const origin = `${url.protocol}//${url.host}`;
     const resourceMetadataUrl = `${origin}/.well-known/oauth-protected-resource`;
 
-    // ── To go live on real data, wire the data source ONCE here, e.g.:
-    //     setDataSource(new KvDataSource(env.NECTARIN_KV));
-    //   (import setDataSource/KvDataSource from "./data.js"). Default = mock.
-    // ── For globally-coordinated rate limits, install a KV/DO limiter here, e.g.:
-    //     setRateLimiter(new KvRateLimiter(env.NECTARIN_KV));
+    // Wire the KV-layered data source (real/override benchmarks over mock) once.
+    // Absent binding ⇒ stays on the bundled synthetic data. Idempotent.
+    ensureDataSource(env);
 
     // CORS preflight.
     if (request.method === "OPTIONS") {
@@ -481,7 +531,15 @@ export default {
 
     // Health probe.
     if (url.pathname === "/health" && request.method === "GET") {
-      return json({ status: "ok", server: SERVER_NAME, version: SERVER_VERSION, tools: ALL_TOOLS.length });
+      return json({
+        status: "ok",
+        server: SERVER_NAME,
+        version: SERVER_VERSION,
+        tools: ALL_TOOLS.length,
+        kv: env.NECTARIN_KV ? "bound" : "unbound",
+        dataSource: env.NECTARIN_KV ? "kv-layered" : "mock",
+        llmCache: getLlmCacheStats(),
+      });
     }
 
     // Version / build info (observability).
@@ -493,6 +551,8 @@ export default {
         toolCount: ALL_TOOLS.length,
         commit: (env.GIT_COMMIT && env.GIT_COMMIT.trim()) || "dev",
         authMode: authMode(env),
+        kv: env.NECTARIN_KV ? "bound" : "unbound",
+        llmCache: getLlmCacheStats(),
       });
     }
 
@@ -600,12 +660,19 @@ export default {
 
       const meta: RpcMeta = {};
       const method = (payload as JsonRpcRequest).method;
+      const sse = wantsSse(url, request);
       try {
         const res = await handleRpc(payload as JsonRpcRequest, env, meta);
         // Notification → no response body.
         if (!res) {
           logRequest({ method, tool: meta.tool, ms: Date.now() - started, status: 202 });
           return new Response(null, { status: 202, headers: CORS_HEADERS });
+        }
+        // Opt-in SSE: re-emit the JSON-RPC body as a single SSE frame.
+        if (sse) {
+          const obj = await res.json();
+          logRequest({ method, tool: meta.tool, ms: Date.now() - started, status: 200 });
+          return sseResponse(obj);
         }
         logRequest({ method, tool: meta.tool, ms: Date.now() - started, status: res.status });
         return res;

@@ -3,6 +3,35 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.0.0] — 2026-06-27
+
+Production infrastructure milestone. The server now has a real persistence layer
+(KV), real‑data layering, a response cache, an opt‑in streaming transport, and a
+shipped Claude usage/prompt guide. Fully backward‑compatible — every change is
+additive and graceful (absent bindings ⇒ prior behavior).
+
+### Added
+- **KV namespace `NECTARIN_KV`** bound in `wrangler.toml` (id provisioned).
+- **LLM response cache** in `callLLM()` — keyed by SHA‑256 of
+  provider/model/base/system/prompt/context, 24h TTL. Repeat narratives are
+  ~50× faster and incur no LLM spend. Verified on prod: cold 9.8s → warm 0.2s,
+  identical output. Cache failures are swallowed (never break a tool call).
+- **`LayeredKvDataSource`** — operator‑uploaded REAL/override benchmarks,
+  playbooks and suppliers (`benchmarks:<category>`, `playbook:<industry>`,
+  `suppliers`) layered OVER the bundled synthetic data; missing keys fall back to
+  mock. Installed once per isolate, idempotent, concurrency‑safe.
+- **Opt‑in SSE transport** on `POST /mcp` (`?stream=1` or `Accept:
+  text/event-stream` without `application/json`). Default stays JSON so existing
+  clients are unaffected.
+- **Observability**: `/health` and `/version` now report KV binding status,
+  active data source, and live LLM cache hit/miss/store counters.
+- **`USAGE.md`** — connection guide, full 27‑tool catalogue, recommended flows,
+  and a ready‑to‑paste Claude system prompt.
+
+### Changed
+- `version` `1.6.0` → `2.0.0`. Suite grows to **53 tests** (added KV cache,
+  LayeredKvDataSource, and SSE coverage; new `test/cache.test.ts`).
+
 ## [1.6.0] — 2026-06-27
 
 Delivery & reach (Phase 3, part 2 — non-infra). Two composable tools that make

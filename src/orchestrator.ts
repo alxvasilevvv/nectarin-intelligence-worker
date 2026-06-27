@@ -42,11 +42,35 @@ export interface LlmRequest {
  *   LLM_MODEL     — model id (sane per-provider default if unset).
  *   LLM_BASE_URL  — override API base (proxies / Azure / self-host). Optional.
  */
+/** Minimal KV surface (subset of Cloudflare KVNamespace) — keeps us CF-type-free. */
+export interface KvLike {
+  get(key: string, type?: "text" | "json"): Promise<any>;
+  put(key: string, value: string, opts?: { expirationTtl?: number }): Promise<void>;
+}
+
 export interface LlmEnv {
   LLM_API_KEY?: string;
   LLM_PROVIDER?: string;
   LLM_MODEL?: string;
   LLM_BASE_URL?: string;
+  /** Optional KV binding for caching narrative responses (cache:llm:<hash>). */
+  NECTARIN_KV?: KvLike;
+}
+
+/** Cache TTL for LLM narrative responses (24h). */
+const LLM_CACHE_TTL_SEC = 86400;
+
+/** Hex SHA-256 via Web Crypto (available on Workers + Node ≥18). */
+async function sha256hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Cache instrumentation counters (per isolate; surfaced via getLlmCacheStats). */
+const llmCacheStats = { hits: 0, misses: 0, stores: 0 };
+export function getLlmCacheStats(): { hits: number; misses: number; stores: number } {
+  return { ...llmCacheStats };
 }
 
 /** Context threaded through the orchestrator (carries the LLM env). */
@@ -71,13 +95,45 @@ export async function callLLM(req: LlmRequest, env?: LlmEnv): Promise<string> {
   const key = (env?.LLM_API_KEY ?? "").trim();
   if (!key) return stubNarrative(req);
   const provider = (env?.LLM_PROVIDER ?? "anthropic").trim().toLowerCase();
+  const model = (env?.LLM_MODEL ?? "").trim();
+  const base = (env?.LLM_BASE_URL ?? "").trim();
+
+  // ── Response cache (KV). Key = hash of everything that affects the output.
+  // A cache hit avoids a network round-trip + LLM spend. Cache failures are
+  // swallowed so they can never break a tool call.
+  const kv = env?.NECTARIN_KV;
+  let cacheKey: string | null = null;
+  if (kv) {
+    try {
+      const fingerprint = JSON.stringify({ provider, model, base, system: req.system, prompt: req.prompt, context: req.context ?? null });
+      cacheKey = `cache:llm:${await sha256hex(fingerprint)}`;
+      const cached = await kv.get(cacheKey, "text");
+      if (typeof cached === "string" && cached.length > 0) {
+        llmCacheStats.hits++;
+        return cached;
+      }
+      llmCacheStats.misses++;
+    } catch {
+      cacheKey = null; // KV hiccup → behave as if no cache.
+    }
+  }
+
   try {
     const text =
       provider === "openai"
         ? await callOpenAI(req, key, env)
         : await callAnthropic(req, key, env);
     const out = text.trim();
-    return out || stubNarrative(req);
+    if (!out) return stubNarrative(req);
+    if (kv && cacheKey) {
+      try {
+        await kv.put(cacheKey, out, { expirationTtl: LLM_CACHE_TTL_SEC });
+        llmCacheStats.stores++;
+      } catch {
+        /* cache write best-effort */
+      }
+    }
+    return out;
   } catch {
     // Never let a model outage take down a tool call — degrade to the stub.
     return stubNarrative(req);

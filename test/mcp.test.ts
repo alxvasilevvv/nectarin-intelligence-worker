@@ -427,6 +427,80 @@ describe("tools/call — happy paths", () => {
   });
 });
 
+describe("infrastructure: KV data + SSE", () => {
+  // In-memory KV double honoring the type hint.
+  function fakeKv(initial: Record<string, unknown> = {}) {
+    const store = new Map<string, unknown>(Object.entries(initial));
+    return {
+      async get(key: string, type?: "text" | "json") {
+        const v = store.get(key);
+        if (v == null) return null;
+        if (type === "json") return typeof v === "string" ? JSON.parse(v) : v;
+        return typeof v === "string" ? v : JSON.stringify(v);
+      },
+      async put(key: string, value: string) {
+        store.set(key, value);
+      },
+    };
+  }
+
+  it("ru_benchmarks reflects KV override benchmarks when NECTARIN_KV is bound", async () => {
+    const override = {
+      "VK Ads": {
+        CPM: { p25: 1, p50: 2, p75: 3 },
+        CTR: { p25: 1, p50: 1, p75: 1 },
+        CPA: { p25: 111, p50: 222, p75: 333 },
+        VTR: { p25: 1, p50: 1, p75: 1 },
+      },
+    };
+    const env = devEnv({ NECTARIN_KV: fakeKv({ "benchmarks:retail": override }) as any });
+    const { status, json } = await rpc(
+      { jsonrpc: "2.0", id: 40, method: "tools/call", params: { name: "ru_benchmarks", arguments: { category: "retail", kpi: "CPA" } } },
+      env
+    );
+    expect(status).toBe(200);
+    // The override (p50 = 222, single platform) should be visible in the output.
+    expect(JSON.stringify(json.result)).toContain("222");
+    // restore mock for later tests by issuing a plain devEnv request
+    await rpc({ jsonrpc: "2.0", id: 41, method: "ping" });
+  });
+
+  it("/health reports kv binding + dataSource + llmCache", async () => {
+    const env = devEnv({ NECTARIN_KV: fakeKv() as any });
+    const { json } = await get("/health", env);
+    expect(json.kv).toBe("bound");
+    expect(json.dataSource).toBe("kv-layered");
+    expect(json.llmCache).toBeDefined();
+    await rpc({ jsonrpc: "2.0", id: 42, method: "ping" }); // reset data source to mock
+  });
+
+  it("returns an SSE frame when the client opts in via Accept: text/event-stream", async () => {
+    const { res } = await rpc(
+      { jsonrpc: "2.0", id: 43, method: "tools/list" },
+      devEnv(),
+      { accept: "text/event-stream" }
+    );
+    expect(res.headers.get("content-type")).toContain("text/event-stream");
+    const body = await res.text();
+    expect(body.startsWith("event: message")).toBe(true);
+    expect(body).toContain('"jsonrpc":"2.0"');
+    // The SSE data line must carry the tools/list result.
+    const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
+    const parsed = JSON.parse(dataLine.slice("data: ".length));
+    expect(parsed.result.tools.length).toBe(27);
+  });
+
+  it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
+    const { status, json } = await rpc(
+      { jsonrpc: "2.0", id: 44, method: "ping" },
+      devEnv(),
+      { accept: "application/json, text/event-stream" }
+    );
+    expect(status).toBe(200);
+    expect(json.jsonrpc).toBe("2.0");
+  });
+});
+
 describe("tools/call — error handling", () => {
   it("invalid params → -32602 (missing required + bad enum)", async () => {
     const { json } = await rpc({

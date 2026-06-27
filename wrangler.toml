@@ -58,16 +58,19 @@ NECTARIN_BRAND_NAME = "NECTARIN"                            # brand label used i
 # nothing is ever sent; wire a `wrangler secret`/var here in production.
 NECTARIN_CRM_WEBHOOK_URL = ""
 
-# ── Future real-data bindings (uncomment + fill IDs when ready) ─────────────
-# Create with the Cloudflare MCP/dashboard or:
-#   npx wrangler kv namespace create NECTARIN_KV
+# ── KV namespace (LLM response cache + real/override benchmark data) ─────────
+# Used by:
+#   • callLLM() response cache (cache:llm:<hash> → narrative, TTL ~24h) — cuts
+#     latency and LLM spend; absent binding ⇒ no-op (still works).
+#   • LayeredKvDataSource — operator-uploaded REAL/override benchmarks
+#     (benchmarks:<category>, playbook:<industry>, suppliers) layered OVER the
+#     bundled synthetic data; missing keys fall back to mock. Safe + idempotent.
+[[kv_namespaces]]
+binding = "NECTARIN_KV"
+id = "5b16a4d53bc5424396d0b9f39a2423c3"
+
+# ── Future D1 binding (per-tenant relational data) ──────────────────────────
 #   npx wrangler d1 create nectarin-intelligence
-# then paste the printed IDs below and swap the accessors in src/data.ts.
-
-# [[kv_namespaces]]
-# binding = "NECTARIN_KV"
-# id = "<your-kv-namespace-id>"
-
 # [[d1_databases]]
 # binding = "NECTARIN_DB"
 # database_name = "nectarin-intelligence"

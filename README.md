@@ -10,16 +10,24 @@
 > (`https://unyly.org/ru/mcp/nectarin-intelligence`). Until then, add it manually as a
 > custom connector with the `/mcp` URL (see [Add to Claude](#add-to-claude-custom-connector)).
 
-A **deploy-ready** remote [Model Context Protocol](https://modelcontextprotocol.io)
+A **production** remote [Model Context Protocol](https://modelcontextprotocol.io)
 server for **NECTARIN Intelligence** — an orchestrator-worker AI marketing agent
 for the RU/CIS market. It runs entirely on a single Cloudflare Worker, serves MCP
-over **Streamable HTTP (JSON-RPC 2.0)**, and ships with **mock/synthetic RU data**
-so v1 needs no database.
+over **Streamable HTTP (JSON-RPC 2.0)** with an **opt-in SSE** transport, ships
+with **mock/synthetic RU data** plus **KV real-data layering**, and a
+**KV-cached, model-agnostic LLM narrative** (DeepSeek wired in this deploy).
+
+> **New in 2.0:** KV LLM response cache (cold 9.8s → warm 0.2s on prod),
+> `LayeredKvDataSource` for operator-uploaded real benchmarks, opt-in SSE, and
+> richer `/health` + `/version` observability. See **[USAGE.md](./USAGE.md)** for
+> the connection guide, full tool catalogue, recommended flows, and a ready-to-paste
+> Claude system prompt.
 
 Go live with `npx wrangler deploy` using your own Cloudflare token.
 
 > All figures are **MOCK / synthetic**, plausible for RU/CIS in RUB. Not legal advice.
-> Swap the data accessors in `src/data.ts` for real data when ready (KV/D1 stubs are in `wrangler.toml`).
+> To serve real data, upload it to KV (`benchmarks:<category>`, `playbook:<industry>`,
+> `suppliers`) — `LayeredKvDataSource` overrides mock per-key (see [USAGE.md](./USAGE.md)).
 
 ---
 

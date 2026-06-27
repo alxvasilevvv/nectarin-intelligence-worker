@@ -305,6 +305,53 @@ export class MockDataSource implements DataSource {
   }
 }
 
+/** Minimal KV surface (subset of Cloudflare KVNamespace). */
+export interface KvLike {
+  get(key: string, type?: "text" | "json"): Promise<any>;
+  put(key: string, value: string, opts?: { expirationTtl?: number }): Promise<void>;
+}
+
+/**
+ * KV-backed source that LAYERS operator-uploaded REAL/override data OVER the
+ * bundled synthetic data. For each lookup it tries KV first
+ * (`benchmarks:<category>`, `playbook:<industry>`, `suppliers`); on a miss OR any
+ * KV error it transparently falls back to the mock. This makes "go live on real
+ * data" a pure data-upload operation — no code change, no risk: partially-filled
+ * KV just overrides the categories you've populated. Safe + idempotent to install.
+ */
+export class LayeredKvDataSource implements DataSource {
+  constructor(private kv: KvLike, private fallback: DataSource = new MockDataSource()) {}
+
+  private async kvGet<T>(key: string): Promise<T | undefined> {
+    try {
+      const v = (await this.kv.get(key, "json")) as T | null;
+      return v ?? undefined;
+    } catch {
+      return undefined;
+    }
+  }
+
+  async getCategoryBenchmarks(category: string): Promise<Record<string, PlatformMetrics> | undefined> {
+    const fromKv = await this.kvGet<Record<string, PlatformMetrics>>(`benchmarks:${category}`);
+    if (fromKv) return fromKv;
+    return this.fallback.getCategoryBenchmarks(category);
+  }
+  async getMetric(category: string, platform: string, kpi: Kpi): Promise<MetricRange | undefined> {
+    const bm = await this.getCategoryBenchmarks(category);
+    return bm?.[platform]?.[kpi];
+  }
+  async getPlaybook(industry: string): Promise<Playbook | undefined> {
+    const fromKv = await this.kvGet<Playbook>(`playbook:${industry}`);
+    if (fromKv) return fromKv;
+    return this.fallback.getPlaybook(industry);
+  }
+  async getSuppliers(): Promise<Supplier[]> {
+    const fromKv = await this.kvGet<Supplier[]>("suppliers");
+    if (fromKv && fromKv.length) return fromKv;
+    return this.fallback.getSuppliers();
+  }
+}
+
 // Active data source (swap with setDataSource()). Defaults to mock.
 let activeDataSource: DataSource = new MockDataSource();
 
