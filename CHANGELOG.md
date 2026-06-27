@@ -3,6 +3,26 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.8.0] — 2026-06-28
+
+MCP polish for premium clients: behavioral tool annotations and a live,
+machine-readable catalog resource.
+
+### Added
+- **Tool annotations on `tools/list`** (MCP `ToolAnnotations` hints) + a display
+  `title` for every tool. Safe defaults (read-only, non-destructive, idempotent,
+  closed-world); per-tool overrides flag LLM-backed tools (`creative_variants`,
+  `localize`) as non-idempotent/open-world and the funnel `request_nectarin_proposal`
+  as not read-only. Titles auto-generated with marketing acronyms upper-cased
+  (e.g. `ROI Calculator`, `UTM Builder`).
+- **`nectarin://catalog` resource** — a live `application/json` catalog of all
+  tools (title, description, input schema, annotations) + built-in prompts,
+  generated from the registry on every read so it can never drift.
+
+### Changed
+- `version` `2.7.0` → `2.8.0`. Suite **79 tests** (annotation defaults/overrides,
+  generated titles, catalog list/read, unknown-uri rejection).
+
 ## [2.7.0] — 2026-06-27
 
 Per-tenant data without touching a single tool. Each request can carry its own

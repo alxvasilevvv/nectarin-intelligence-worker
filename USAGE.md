@@ -90,7 +90,9 @@ stays on JSON, so existing clients are unaffected.
 Built‑in **prompts** (9): `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`,
 `launch_flight`, `performance_review`.
-**Resources:** `nectarin://methodology`, `nectarin://glossary`.
+**Resources:** `nectarin://methodology`, `nectarin://glossary`, `nectarin://catalog`
+(live JSON catalog of all tools + annotations + prompts). `tools/list` also
+returns a `title` and behavioral `annotations` (read-only / idempotent / open-world) per tool.
 
 ---
 

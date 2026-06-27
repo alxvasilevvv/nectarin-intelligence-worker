@@ -3,7 +3,7 @@
   "name": "io.github.alxvasilevvv/nectarin-intelligence-worker",
   "title": "NECTARIN Intelligence",
   "description": "RU/CIS AI marketing intelligence agent — 32 MCP tools incl. one-call strategy orchestration, a conversion-maximizing budget optimizer, RU ad-law compliance review (ФЗ-38/ОРД), A/B test power analysis, unit-economics (LTV/CAC), full-funnel modeling, seasonality forecasting, creative scoring & multi-variant generation, anomaly detection, cohort LTV, UTM builder, budget pacing, multi-touch attribution, bid simulation, deck export and CIS localization: media planning, RU benchmarks, audience insights, competitor & GEO/AEO scans, ROI/value forecasting, creative briefs and lead/funnel helpers. KV-cached LLM narrative, global rate limiting, per-tenant real-data layering (X-Tenant-Id) and opt-in SSE. Orchestrator-worker server on Cloudflare Workers.",
-  "version": "2.7.0",
+  "version": "2.8.0",
   "repository": {
     "url": "https://github.com/alxvasilevvv/nectarin-intelligence-worker",
     "source": "github"

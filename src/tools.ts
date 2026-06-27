@@ -32,10 +32,24 @@ export interface ToolResult {
   isError?: boolean;
 }
 
+/**
+ * MCP tool annotations (behavioral HINTS for clients — untrusted, advisory).
+ * https://modelcontextprotocol.io/specification — `ToolAnnotations`.
+ */
+export interface ToolAnnotations {
+  title?: string;
+  readOnlyHint?: boolean;
+  destructiveHint?: boolean;
+  idempotentHint?: boolean;
+  openWorldHint?: boolean;
+}
+
 export interface ToolDef {
   name: string;
   description: string;
   inputSchema: JsonSchema;
+  /** Optional per-tool annotation overrides (merged over the safe defaults). */
+  annotations?: ToolAnnotations;
   /**
    * Tool handler. `env` is optional and only consumed by the Growth & Automation
    * tools (e.g. NECTARIN_BOOKING_URL); the original intelligence tools ignore it.
@@ -372,3 +386,70 @@ export const ALL_TOOLS: ToolDef[] = [...INTELLIGENCE_TOOLS, ...GROWTH_TOOLS, ...
 export const TOOLS_BY_NAME: Record<string, ToolDef> = Object.fromEntries(
   ALL_TOOLS.map((t) => [t.name, t])
 );
+
+// ── Tool annotations (MCP `tools/list` hints) ────────────────────────────────
+
+/**
+ * Safe defaults: every tool is a pure, read-only computation over MOCK/benchmark
+ * data — no side effects, no external state mutation, deterministic & idempotent.
+ * Tools that call an external LLM or reference NECTARIN's funnel override below.
+ */
+const DEFAULT_ANNOTATIONS: ToolAnnotations = {
+  readOnlyHint: true,
+  destructiveHint: false,
+  idempotentHint: true,
+  openWorldHint: false,
+};
+
+/**
+ * Per-tool overrides. LLM-backed tools are non-deterministic (idempotentHint
+ * false) and reach an external model (openWorldHint true). The proposal tool
+ * semantically RECORDS a brief (would POST to a CRM in prod) ⇒ not read-only.
+ */
+const ANNOTATION_OVERRIDES: Record<string, ToolAnnotations> = {
+  creative_variants: { idempotentHint: false, openWorldHint: true },
+  localize: { idempotentHint: false, openWorldHint: true },
+  request_nectarin_proposal: { readOnlyHint: false, idempotentHint: false, openWorldHint: true },
+  book_consultation: { openWorldHint: true },
+};
+
+const ACRONYMS = new Set([
+  "ru", "cis", "roi", "ltv", "cac", "cpa", "cpm", "ctr", "vtr", "utm",
+  "ab", "aeo", "geo", "kpi", "npv", "fz", "ord",
+]);
+
+/** snake_case → "Title Case" with marketing acronyms upper-cased (display name). */
+export function humanizeTitle(name: string): string {
+  return name
+    .split("_")
+    .map((w) => (ACRONYMS.has(w) ? w.toUpperCase() : w.charAt(0).toUpperCase() + w.slice(1)))
+    .join(" ");
+}
+
+/** Resolve the full annotation set for a tool (defaults ← per-tool override ← title). */
+export function annotationsFor(t: ToolDef): ToolAnnotations {
+  return {
+    ...DEFAULT_ANNOTATIONS,
+    ...ANNOTATION_OVERRIDES[t.name],
+    ...t.annotations,
+    title: t.annotations?.title ?? humanizeTitle(t.name),
+  };
+}
+
+/** Build the MCP `tools/list` entry for a tool (name, title, schema, annotations). */
+export function describeTool(t: ToolDef): {
+  name: string;
+  title: string;
+  description: string;
+  inputSchema: JsonSchema;
+  annotations: ToolAnnotations;
+} {
+  const annotations = annotationsFor(t);
+  return {
+    name: t.name,
+    title: annotations.title!,
+    description: t.description,
+    inputSchema: t.inputSchema,
+    annotations,
+  };
+}

@@ -397,7 +397,14 @@ interface, so going real is a one-line wiring change — no upstream edits.
 
 ## Resources & prompts exposed
 
-- Resources: `nectarin://methodology`, `nectarin://glossary`.
+- Resources: `nectarin://methodology`, `nectarin://glossary`, and
+  **`nectarin://catalog`** — a live `application/json` catalog of every tool
+  (title, description, input schema, behavioral annotations) + prompts, generated
+  from the registry on read so it never drifts.
+- **Tool annotations**: `tools/list` returns MCP `ToolAnnotations` hints + a
+  display `title` per tool. Pure tools are `readOnlyHint`/`idempotentHint` true,
+  `openWorldHint` false; LLM-backed (`creative_variants`, `localize`) are
+  non-idempotent/open-world; `request_nectarin_proposal` is not read-only.
 - Prompts (9): `build_media_plan`, **`full_strategy`** (one-shot flagship via
   `strategy_orchestrate`), `competitor_teardown`, the two funnel
   orchestrators **`sell_nectarin_services`** (roi_calculator → value_forecast →

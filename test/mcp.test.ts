@@ -39,6 +39,13 @@ describe("tools/list", () => {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
       expect(t.inputSchema.type).toBe("object");
+      // Every tool advertises a display title + behavioral annotations (MCP hints).
+      expect(typeof t.title).toBe("string");
+      expect(t.title.length).toBeGreaterThan(0);
+      expect(typeof t.annotations.readOnlyHint).toBe("boolean");
+      expect(typeof t.annotations.idempotentHint).toBe("boolean");
+      expect(typeof t.annotations.openWorldHint).toBe("boolean");
+      expect(t.annotations.destructiveHint).toBe(false);
     }
     // Spot-check a couple of expected names from each group.
     const names = tools.map((t: any) => t.name);
@@ -63,6 +70,68 @@ describe("tools/list", () => {
     expect(names).toContain("cohort_ltv");
     expect(names).toContain("utm_builder");
     expect(names).toContain("pacing_monitor");
+  });
+
+  it("annotations: pure tools are read-only/idempotent; LLM & funnel tools are flagged", async () => {
+    const { json } = await rpc({ jsonrpc: "2.0", id: 21, method: "tools/list" });
+    const byName: Record<string, any> = Object.fromEntries(
+      json.result.tools.map((t: any) => [t.name, t])
+    );
+    // Pure computation over mock data → read-only + idempotent + closed-world.
+    expect(byName.ru_benchmarks.annotations).toMatchObject({
+      readOnlyHint: true,
+      idempotentHint: true,
+      openWorldHint: false,
+    });
+    // LLM-backed → non-idempotent + open-world (reaches an external model).
+    expect(byName.creative_variants.annotations).toMatchObject({
+      idempotentHint: false,
+      openWorldHint: true,
+    });
+    // Records a brief (would POST to a CRM in prod) → not read-only.
+    expect(byName.request_nectarin_proposal.annotations.readOnlyHint).toBe(false);
+    // Acronyms are upper-cased in the generated title.
+    expect(byName.roi_calculator.title).toBe("ROI Calculator");
+    expect(byName.utm_builder.title).toBe("UTM Builder");
+  });
+});
+
+describe("resources", () => {
+  it("resources/list returns the methodology, glossary and live catalog", async () => {
+    const { json } = await rpc({ jsonrpc: "2.0", id: 30, method: "resources/list" });
+    const uris = json.result.resources.map((r: any) => r.uri);
+    expect(uris).toContain("nectarin://methodology");
+    expect(uris).toContain("nectarin://glossary");
+    expect(uris).toContain("nectarin://catalog");
+  });
+
+  it("resources/read nectarin://catalog returns a live JSON tool+prompt catalog", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 31,
+      method: "resources/read",
+      params: { uri: "nectarin://catalog" },
+    });
+    const c = json.result.contents[0];
+    expect(c.mimeType).toBe("application/json");
+    const catalog = JSON.parse(c.text);
+    expect(catalog.counts.tools).toBe(32);
+    expect(catalog.tools).toHaveLength(32);
+    // Catalog entries carry the same annotations as tools/list.
+    const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
+    expect(ru.annotations.readOnlyHint).toBe(true);
+    expect(ru.title).toBe("RU Benchmarks");
+    expect(catalog.prompts.length).toBeGreaterThanOrEqual(9);
+  });
+
+  it("resources/read rejects an unknown uri", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 32,
+      method: "resources/read",
+      params: { uri: "nectarin://nope" },
+    });
+    expect(json.error).toBeDefined();
   });
 });
 

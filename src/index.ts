@@ -26,7 +26,7 @@
  * messages (no stack leakage).
  */
 
-import { ALL_TOOLS, TOOLS_BY_NAME } from "./tools.js";
+import { ALL_TOOLS, TOOLS_BY_NAME, describeTool } from "./tools.js";
 import {
   CATEGORIES,
   setDataSource,
@@ -99,7 +99,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.7.0";
+const SERVER_VERSION = "2.8.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -245,7 +245,38 @@ const RESOURCES = [
     mimeType: "text/markdown",
     text: GLOSSARY_MD,
   },
+  {
+    // Generated on read from the live registry (see buildCatalogJson) — never drifts.
+    uri: "nectarin://catalog",
+    name: "catalog",
+    title: "NECTARIN Intelligence — Tool & Prompt Catalog",
+    description:
+      "Machine-readable JSON catalog: every tool with its title, description, input schema and behavioral annotations, plus the built-in prompts. Generated live from the registry.",
+    mimeType: "application/json",
+    text: "",
+  },
 ];
+
+/** Live JSON catalog of tools (with annotations) + prompts — generated on read. */
+function buildCatalogJson(): string {
+  return JSON.stringify(
+    {
+      server: SERVER_NAME,
+      version: SERVER_VERSION,
+      protocolVersion: PROTOCOL_VERSION,
+      counts: { tools: ALL_TOOLS.length, prompts: PROMPTS.length },
+      tools: ALL_TOOLS.map(describeTool),
+      prompts: PROMPTS.map((p) => ({
+        name: p.name,
+        title: p.title,
+        description: p.description,
+        arguments: p.arguments,
+      })),
+    },
+    null,
+    2
+  );
+}
 
 // ── Prompts ──────────────────────────────────────────────────────────────────
 
@@ -480,11 +511,7 @@ async function handleRpc(rpc: JsonRpcRequest, env: Env, meta: RpcMeta = {}): Pro
 
     case "tools/list":
       return rpcResult(id ?? null, {
-        tools: ALL_TOOLS.map((t) => ({
-          name: t.name,
-          description: t.description,
-          inputSchema: t.inputSchema,
-        })),
+        tools: ALL_TOOLS.map(describeTool),
       });
 
     case "tools/call": {
@@ -574,8 +601,10 @@ async function handleRpc(rpc: JsonRpcRequest, env: Env, meta: RpcMeta = {}): Pro
       if (!r) {
         return rpcError(id ?? null, INVALID_PARAMS, `Unknown resource '${uri}'.`);
       }
+      // The catalog is generated live from the registry so it never goes stale.
+      const text = r.uri === "nectarin://catalog" ? buildCatalogJson() : r.text;
       return rpcResult(id ?? null, {
-        contents: [{ uri: r.uri, mimeType: r.mimeType, text: r.text }],
+        contents: [{ uri: r.uri, mimeType: r.mimeType, text }],
       });
     }
 
