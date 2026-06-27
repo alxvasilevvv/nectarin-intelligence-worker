@@ -35,6 +35,16 @@ RATE_LIMIT_PER_MIN = "60"
 # Build/commit identifier surfaced by GET /version (set at deploy time if desired).
 GIT_COMMIT = "dev"
 
+# ── LLM seam (real narrative) ──────────────────────────────────────────────
+# callLLM() uses the Anthropic-compatible protocol (/v1/messages). The API KEY
+# is a SECRET (NOT here): `npx wrangler secret put LLM_API_KEY`. Provider/model/
+# base are non-secret and live here. This deployment points at DeepSeek's
+# Anthropic-compatible endpoint (same wire format), model deepseek-chat. Any LLM
+# error degrades gracefully to the deterministic stub — a tool call never fails.
+LLM_PROVIDER = "anthropic"                       # Anthropic-compatible wire format
+LLM_MODEL = "deepseek-chat"                       # validated to return text on this endpoint
+LLM_BASE_URL = "https://api.deepseek.com/anthropic"
+
 # ── Growth & Automation (funnel) vars ──────────────────────────────────────
 # These drive the GROWTH & AUTOMATION tool group (roi_calculator, lead_qualify,
 # request_nectarin_proposal, book_consultation, automation_recipe, value_forecast).
