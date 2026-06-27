@@ -5,6 +5,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { callLLM, getLlmCacheStats } from "../src/orchestrator.js";
 import { LayeredKvDataSource } from "../src/data.js";
+import { KvRateLimiter } from "../src/ratelimit.js";
 
 /** In-memory KV double honoring the "text" | "json" type hint. */
 function fakeKv(initial: Record<string, unknown> = {}) {
@@ -104,5 +105,45 @@ describe("LayeredKvDataSource", () => {
     const ds = new LayeredKvDataSource(throwingKv as any);
     const bm = await ds.getCategoryBenchmarks("retail");
     expect(bm).toBeDefined(); // fell back to mock despite KV errors
+  });
+});
+
+describe("KvRateLimiter", () => {
+  it("enforces a global fixed-window limit across calls", async () => {
+    const kv = fakeKv();
+    const now = () => 1_000_000_000_000; // frozen → single window
+    const rl = new KvRateLimiter(kv as any, now);
+    const k = "sub:user-1";
+    const r1 = await rl.check(k, 3);
+    const r2 = await rl.check(k, 3);
+    const r3 = await rl.check(k, 3);
+    const r4 = await rl.check(k, 3);
+    expect(r1.allowed).toBe(true);
+    expect(r2.allowed).toBe(true);
+    expect(r3.allowed).toBe(true);
+    expect(r4.allowed).toBe(false);
+    expect(r4.retryAfterSec).toBeGreaterThan(0);
+    expect(r4.limit).toBe(3);
+  });
+
+  it("fails OPEN to a local limiter when KV errors (never hard-locks)", async () => {
+    const throwingKv = {
+      async get() {
+        throw new Error("kv down");
+      },
+      async put() {
+        throw new Error("kv down");
+      },
+    };
+    const rl = new KvRateLimiter(throwingKv as any);
+    // Generous limit ⇒ fallback memory limiter admits the request.
+    const r = await rl.check("sub:user-2", 1000);
+    expect(r.allowed).toBe(true);
+  });
+
+  it("treats a non-positive limit as disabled", async () => {
+    const rl = new KvRateLimiter(fakeKv() as any);
+    const r = await rl.check("sub:user-3", 0);
+    expect(r.allowed).toBe(true);
   });
 });

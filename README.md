@@ -333,10 +333,12 @@ error degrades gracefully back to the stub — a tool call never fails because o
    PKCE, issuance/rotation, per-tenant scopes); this Worker only validates.
 
 ### Rate limits
-- Default is an **in-memory token-bucket** per token/IP (`RATE_LIMIT_PER_MIN`).
-  It is per-isolate, so for hard global limits install a shared limiter: implement
-  `KvRateLimiter` or `DurableObjectRateLimiter` (stubs in `src/ratelimit.ts`) and
-  call `setRateLimiter(new KvRateLimiter(env.NECTARIN_KV))` at the top of `fetch()`.
+- When `NECTARIN_KV` is bound (it is in this deploy), the server uses a
+  **global, cross-isolate `KvRateLimiter`** (fixed-window, `RATE_LIMIT_PER_MIN`),
+  installed automatically in `fetch()`. It is **fail-open**: any KV error degrades
+  to a local token bucket, so a KV hiccup never hard-locks the public connector.
+- Without a KV binding it falls back to a per-isolate **in-memory token-bucket**.
+- The active backend is reported by `/health` and `/version` (`rateLimiter`).
 - Over-limit → JSON-RPC `-32029` + HTTP 429 with `Retry-After`/`X-RateLimit-*`.
 
 ### Swapping the data source (mock → real)

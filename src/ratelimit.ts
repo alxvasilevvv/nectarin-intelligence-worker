@@ -13,6 +13,7 @@
  */
 
 import type { Env } from "./index.js";
+import type { KvLike } from "./data.js";
 
 export interface RateLimitResult {
   allowed: boolean;
@@ -147,46 +148,58 @@ export async function enforceRateLimit(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// PRODUCTION HOOKS (stubs) — swap MemoryRateLimiter for one of these and call
-// `setRateLimiter(new KvRateLimiter(env.NECTARIN_KV))` (or the DO variant) at the
-// top of `fetch()`. Both give cross-isolate, globally-coordinated limits.
+// PRODUCTION limiter — KV-backed, globally coordinated across isolates, FAIL-OPEN.
+// Installed in fetch() when NECTARIN_KV is bound. A KV outage degrades to a local
+// MemoryRateLimiter (never a hard lock-out of the live connector).
 // ─────────────────────────────────────────────────────────────────────────────
 
-/*
-// KV-backed fixed-window limiter (eventually consistent; cheap, simple).
+/**
+ * Two-layer limiter: a per-isolate token bucket PLUS a KV fixed-window counter.
+ *
+ *   1. LOCAL token bucket (MemoryRateLimiter) — instant, strongly consistent
+ *      within an isolate. Catches bursts that hit the same isolate immediately
+ *      (KV alone can't: KV is eventually consistent, so a parallel burst all
+ *      reads the same stale count and over-admits).
+ *   2. KV fixed-window — cross-isolate coordination for sustained traffic, where
+ *      writes have time to propagate.
+ *
+ * A request is blocked if EITHER layer says so (the stricter wins). The whole
+ * KV layer is FAIL-OPEN: any KV error degrades to the local result, so a KV
+ * outage can never hard-lock the public connector. KV remains eventually
+ * consistent, so extreme cross-isolate bursts can still over-admit — for hard
+ * global burst limits use a Durable Object (strongly consistent).
+ */
 export class KvRateLimiter implements RateLimiter {
-  constructor(private kv: KVNamespace) {}
-  async check(key: string, limitPerMin: number): Promise<RateLimitResult> {
-    if (limitPerMin <= 0) {
-      return { allowed: true, limit: 0, remaining: Infinity, retryAfterSec: 0 };
-    }
-    const windowSec = 60;
-    const bucket = Math.floor(Date.now() / 1000 / windowSec);
-    const k = `rl:${key}:${bucket}`;
-    const current = Number((await this.kv.get(k)) ?? "0");
-    if (current >= limitPerMin) {
-      const retryAfterSec = windowSec - (Math.floor(Date.now() / 1000) % windowSec);
-      return { allowed: false, limit: limitPerMin, remaining: 0, retryAfterSec };
-    }
-    // NB: KV is eventually consistent — small over-admission under burst is possible.
-    await this.kv.put(k, String(current + 1), { expirationTtl: windowSec * 2 });
-    return { allowed: true, limit: limitPerMin, remaining: limitPerMin - current - 1, retryAfterSec: 0 };
-  }
-}
+  /** Per-isolate bucket — first line of defense and the fail-open fallback. */
+  private local = new MemoryRateLimiter();
+  private windowSec = 60;
+  constructor(private kv: KvLike, private now: () => number = () => Date.now()) {}
 
-// Durable-Object-backed limiter (strongly consistent; best for hard limits).
-// Define a `RateLimiterDO` Durable Object that owns a token bucket and forward
-// check() to it via a stub; bind it in wrangler.toml ([[durable_objects.bindings]]).
-export class DurableObjectRateLimiter implements RateLimiter {
-  constructor(private ns: DurableObjectNamespace) {}
   async check(key: string, limitPerMin: number): Promise<RateLimitResult> {
-    const id = this.ns.idFromName(key);
-    const stub = this.ns.get(id);
-    const res = await stub.fetch("https://do/check", {
-      method: "POST",
-      body: JSON.stringify({ limitPerMin }),
-    });
-    return (await res.json()) as RateLimitResult;
+    if (!Number.isFinite(limitPerMin) || limitPerMin <= 0) {
+      return { allowed: true, limit: 0, remaining: Number.POSITIVE_INFINITY, retryAfterSec: 0 };
+    }
+
+    // Layer 1: local bucket. If it blocks, we're done (burst caught in-isolate).
+    const local = this.local.check(key, limitPerMin);
+    if (!local.allowed) return local;
+
+    // Layer 2: KV global window (fail-open on any error).
+    const nowSec = Math.floor(this.now() / 1000);
+    const bucket = Math.floor(nowSec / this.windowSec);
+    const k = `rl:${key}:${bucket}`;
+    try {
+      const current = Number((await this.kv.get(k, "text")) ?? "0") || 0;
+      if (current >= limitPerMin) {
+        const retryAfterSec = this.windowSec - (nowSec % this.windowSec);
+        return { allowed: false, limit: limitPerMin, remaining: 0, retryAfterSec: Math.max(1, retryAfterSec) };
+      }
+      await this.kv.put(k, String(current + 1), { expirationTtl: this.windowSec * 2 });
+      const kvRemaining = limitPerMin - current - 1;
+      return { allowed: true, limit: limitPerMin, remaining: Math.min(local.remaining, kvRemaining), retryAfterSec: 0 };
+    } catch {
+      // FAIL-OPEN: KV unavailable → honor the local decision (already allowed).
+      return local;
+    }
   }
 }
-*/

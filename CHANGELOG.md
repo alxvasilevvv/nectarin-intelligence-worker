@@ -3,6 +3,22 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.3.0] — 2026-06-27
+
+Production hardening: globally-coordinated rate limiting. Backward-compatible.
+
+### Added
+- **`KvRateLimiter`** — KV-backed fixed-window limiter, coordinated across
+  isolates (the in-memory limiter only saw one isolate). **FAIL-OPEN**: any KV
+  error degrades to a local token bucket, so a KV hiccup can never hard-lock the
+  public connector. Installed automatically in `fetch()` when `NECTARIN_KV` is
+  bound; otherwise the per-isolate `MemoryRateLimiter` is used.
+- `/health` and `/version` now report the active `rateLimiter` backend.
+
+### Changed
+- `version` `2.2.0` → `2.3.0`. Suite **64 tests** (limit enforcement, fail-open,
+  disabled-limit coverage).
+
 ## [2.2.0] — 2026-06-27
 
 Two guided **prompts** that surface the v2.1 Premium tools in the Claude

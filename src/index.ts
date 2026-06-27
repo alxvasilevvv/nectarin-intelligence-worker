@@ -29,7 +29,7 @@
 import { ALL_TOOLS, TOOLS_BY_NAME } from "./tools.js";
 import { CATEGORIES, setDataSource, LayeredKvDataSource, MockDataSource } from "./data.js";
 import { authenticate, unauthorizedResponse, authMode } from "./auth.js";
-import { enforceRateLimit } from "./ratelimit.js";
+import { enforceRateLimit, setRateLimiter, KvRateLimiter, MemoryRateLimiter } from "./ratelimit.js";
 import { validateInput, formatErrors } from "./validate.js";
 import { getLlmCacheStats, type KvLike } from "./orchestrator.js";
 
@@ -79,7 +79,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.2.0";
+const SERVER_VERSION = "2.3.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -551,7 +551,10 @@ let installedFor: unknown = Symbol("uninstalled");
 function ensureDataSource(env: Env): void {
   const target: unknown = env.NECTARIN_KV ?? "mock";
   if (installedFor === target) return;
+  // Data source: KV-layered real/override data over mock, or pure mock.
   setDataSource(env.NECTARIN_KV ? new LayeredKvDataSource(env.NECTARIN_KV) : new MockDataSource());
+  // Rate limiter: global KV-backed (fail-open) when bound, else per-isolate memory.
+  setRateLimiter(env.NECTARIN_KV ? new KvRateLimiter(env.NECTARIN_KV) : new MemoryRateLimiter());
   installedFor = target;
 }
 
@@ -579,6 +582,7 @@ export default {
         tools: ALL_TOOLS.length,
         kv: env.NECTARIN_KV ? "bound" : "unbound",
         dataSource: env.NECTARIN_KV ? "kv-layered" : "mock",
+        rateLimiter: env.NECTARIN_KV ? "kv-global(fail-open)" : "memory",
         llmCache: getLlmCacheStats(),
       });
     }
@@ -593,6 +597,7 @@ export default {
         commit: (env.GIT_COMMIT && env.GIT_COMMIT.trim()) || "dev",
         authMode: authMode(env),
         kv: env.NECTARIN_KV ? "bound" : "unbound",
+        rateLimiter: env.NECTARIN_KV ? "kv-global(fail-open)" : "memory",
         llmCache: getLlmCacheStats(),
       });
     }
