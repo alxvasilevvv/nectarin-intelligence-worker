@@ -1,5 +1,15 @@
 # NECTARIN Intelligence — remote MCP on Cloudflare Workers
 
+[![Install with Unyly](https://img.shields.io/badge/Install%20with-Unyly-ff2d9b?style=for-the-badge)](https://unyly.org/ru/mcp/nectarin-intelligence)
+&nbsp;
+![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
+![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
+![Tools](https://img.shields.io/badge/Tools-17-22c55e?style=for-the-badge)
+
+> **Install with Unyly** opens the listing once the review is approved
+> (`https://unyly.org/ru/mcp/nectarin-intelligence`). Until then, add it manually as a
+> custom connector with the `/mcp` URL (see [Add to Claude](#add-to-claude-custom-connector)).
+
 A **deploy-ready** remote [Model Context Protocol](https://modelcontextprotocol.io)
 server for **NECTARIN Intelligence** — an orchestrator-worker AI marketing agent
 for the RU/CIS market. It runs entirely on a single Cloudflare Worker, serves MCP
