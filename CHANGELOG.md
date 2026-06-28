@@ -3,6 +3,27 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.21.0] — 2026-06-28
+
+Маркетинг влияния: an influencer/KOL roster evaluator & mix optimizer (42nd tool).
+First feature of a site-aligned wave that closes gaps vs. nectarin.ru's named
+services (influence, OLV/display reach, branding).
+
+### Added
+- **`influencer_planner`** (new **Influence** group) — for each creator (followers,
+  price, optional avgViews, ER%, audience match) computes reach, CPM/CPV/CPE,
+  estimated target reach & conversions, eCPA and a value score; **flags suspicious
+  engagement** (likely inflated/bot or dead audience vs. the typical ER band for the
+  follower tier — nano/micro/macro/mega). With a `budget` it greedily builds the
+  best mix (by eCPA for conversions or CPM for reach) and reports blended
+  reach/conversions/CPA/CPM. Deterministic, on the operator's own roster.
+  41 → **42 tools**.
+- **`influencer_plan`** guided prompt (**19 prompts** total).
+
+### Changed
+- `server.json` description + version, README (Tools badge 42, new Influence group),
+  USAGE (catalogue 42, prompts 19), test counts (42 tools / 19 prompts).
+
 ## [2.20.0] — 2026-06-28
 
 Pricing science: a profit-maximizing price optimizer with demand elasticity (41st tool).

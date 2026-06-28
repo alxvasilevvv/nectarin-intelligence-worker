@@ -37,7 +37,7 @@ stays on JSON, so existing clients are unaffected.
 
 ---
 
-## 2. Tool catalogue (41)
+## 2. Tool catalogue (42)
 
 ### Intelligence (11)
 | Tool | What it does |
@@ -120,11 +120,16 @@ stays on JSON, so existing clients are unaffected.
 |---|---|
 | `creative_fatigue` | From each creative's daily CTR series (or impressions+clicks), finds peak CTR, decline from peak, trend, a 0–100 **fatigue score** + stage, and **days-to-refresh-threshold**; ranks worst-first and flags which to refresh now / prepare / monitor. |
 
-Built‑in **prompts** (18): `build_media_plan`, `full_strategy`, `competitor_teardown`,
+### Influence (1) — Маркетинг влияния
+| Tool | What it does |
+|---|---|
+| `influencer_planner` | Evaluates an influencer/KOL roster: per-creator reach, CPM/CPV/CPE, estimated target reach & conversions, eCPA, value score and **fraud flags** (ER vs. typical band for the follower tier). With a `budget`, greedily builds the best mix and reports blended reach/conversions/CPA/CPM. |
+
+Built‑in **prompts** (19): `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`,
 `launch_flight`, `performance_review`, `saturation_reallocation`, `mmm_planning`,
 `quarter_plan`, `account_audit`, `scenario_review`, `promo_review`, `exec_report`,
-`creative_fatigue_check`, `price_optimization`.
+`creative_fatigue_check`, `price_optimization`, `influencer_plan`.
 **Resources:** `nectarin://methodology`, `nectarin://glossary`, `nectarin://catalog`
 (live JSON catalog of all tools + annotations + prompts). `tools/list` also
 returns a `title` and behavioral `annotations` (read-only / idempotent / open-world) per tool.

@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.20.0";
+const SERVER_VERSION = "2.21.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -732,6 +732,36 @@ const PROMPTS = [
       `3) Объясни эластичность e и режим (elastic/inelastic): что значит для ценовой политики.\n` +
       `4) Назови оптимальную цену, прогноз объёма/выручки/прибыли и прирост к текущей цене.\n` +
       `5) Дай рекомендацию и предупреди: проверяйте ценовое изменение A/B-тестом; конкуренция/восприятие не моделируются.`,
+  },
+  {
+    name: "influencer_plan",
+    title: "Influencer / KOL mix plan (Маркетинг влияния)",
+    description:
+      "Evaluate an influencer roster and build the best mix (influencer_planner): reach, CPM/CPV/CPE, eCPA, fraud flags, and a budget-constrained recommendation.",
+    arguments: [
+      {
+        name: "influencers",
+        description:
+          "Roster as 'name|followers|price[|ER%][|avgViews][|match%]' separated by ';', e.g. 'Блогер A|250000|180000|3.2; Блогер B|1200000|600000|0.9'",
+        required: true,
+      },
+      { name: "budget", description: "Total budget (RUB) to optimize the mix within (optional)", required: false },
+      { name: "goal", description: "reach | conversions (optional; default conversions)", required: false },
+      { name: "expectedCvrPct", description: "Expected conversion rate of target reach, % (optional; default 1.0)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, эксперт по маркетингу влияния RU/CIS.\n` +
+      `Собери эффективный микс блогеров и оцени риски.\n` +
+      `Ростер (name|followers|price[|ER%][|avgViews][|match%]): ${a.influencers}\n` +
+      (a.budget ? `Бюджет: ${a.budget} ₽.\n` : ``) +
+      (a.goal ? `Цель: ${a.goal}.\n` : `Цель: conversions.\n`) +
+      (a.expectedCvrPct ? `Ожидаемый CVR: ${a.expectedCvrPct}%.\n` : ``) +
+      `\nШаги:\n` +
+      `1) Распарси ростер в массив {name, followers, price, erPct?, avgViews?, audienceMatchPct?}.\n` +
+      `2) Вызови influencer_planner(influencers${a.budget ? ", budget" : ""}${a.goal ? ", goal" : ""}${a.expectedCvrPct ? ", expectedCvrPct" : ""}).\n` +
+      `3) Разбери топ по value-скору: охват, CPM/CPV, eCPA. Назови фрод-флаги (накрутка/мёртвая аудитория).\n` +
+      `4) Дай рекомендованный микс под бюджет: список, суммарный охват, blended CPA/CPM.\n` +
+      `5) Next-step по сделкам и обязательно: подтвердить тестовым размещением, пересечение аудиторий не вычтено.`,
   },
 ];
 

@@ -24,6 +24,7 @@ import { PROMO_TOOLS } from "./promo.js";
 import { AUDIT_TOOLS } from "./audit.js";
 import { BOARD_TOOLS } from "./board.js";
 import { CREATIVE_OPS_TOOLS } from "./fatigue.js";
+import { INFLUENCE_TOOLS } from "./influence.js";
 import type { Env } from "./index.js";
 
 export interface JsonSchema {
@@ -400,6 +401,7 @@ export const ALL_TOOLS: ToolDef[] = [
   ...AUDIT_TOOLS,
   ...BOARD_TOOLS,
   ...CREATIVE_OPS_TOOLS,
+  ...INFLUENCE_TOOLS,
 ];
 
 export const TOOLS_BY_NAME: Record<string, ToolDef> = Object.fromEntries(
