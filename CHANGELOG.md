@@ -3,6 +3,27 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.18.0] — 2026-06-28
+
+Executive composition: a one-call board one-pager that orchestrates two tools (39th tool).
+
+### Added
+- **`board_report`** (new **Executive** group) — a one-call executive one-pager that
+  ORCHESTRATES `marketing_audit` (health score, channel verdicts, concentration/
+  untracked risks, prioritized actions) and `scenario_planner` (a **+15% budget
+  upside** scenario), then folds their structured output into a board-ready brief:
+  status + grade, headline metrics (spend, conversions, blended CPA, and
+  revenue/profit/ROI when `revenuePerConversion` is supplied), best/worst channel,
+  live risks, top recommendations, the budget upside and a single next step.
+  Composition over duplication — reuses the deterministic sub-tools verbatim. Honors
+  optional `company`/`period`/`targetCpa`. 38 → **39 tools**.
+- **`exec_report`** guided prompt (**16 prompts** total) — one-click board one-pager
+  via `board_report`.
+
+### Changed
+- `server.json` description + version, README (Tools badge 39, new Executive group),
+  USAGE (catalogue 39, prompts 16), test counts (39 tools / 16 prompts).
+
 ## [2.17.0] — 2026-06-28
 
 Trade-marketing economics: a promo/discount break-even & ROI calculator (38th tool).

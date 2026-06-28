@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-38-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-39-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -182,6 +182,11 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 |---|---|
 | `marketing_audit` | **Senior account health audit.** Takes current per-channel spend & conversions, scores each channel's CPA against RU/CIS benchmarks (p25/p50/p75), flags **concentration risk** and **untracked** spend, computes an overall **health score (0-100) + grade A–D**, and returns a **prioritized action plan** with a concrete budget reallocation and projected extra conversions / saved spend. Optional `targetCpa` vs blended CPA. Deterministic; data-aware (KV / per-tenant). |
 
+### Executive group (v2.18+ — board one-pager)
+| Tool | What it does |
+|---|---|
+| `board_report` | **Executive one-pager (orchestrator).** Composes `marketing_audit` (health score, channel verdicts, risks, prioritized actions) + `scenario_planner` (a **+15% budget upside** scenario) into a board-ready brief: status + grade, headline metrics (spend, conversions, blended CPA, and **revenue/profit/ROI** with `revenuePerConversion`), best/worst channel, live risks, top recommendations, the budget upside and a single **next step**. Reuses the deterministic sub-tools verbatim — stays consistent with them. |
+
 > **Funnel logic & safety.** All Growth figures are synthetic/illustrative and
 > anchored to the same mock RU/CIS benchmarks (`src/data.ts`) — internally
 > consistent, but not guarantees. No tool transmits PII or makes a real network
@@ -261,7 +266,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 38 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 6 Premium + 1 MMM + 2 Planning + 1 Promo + 1 Audit);
+`tools/list` returns all 39 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 6 Premium + 1 MMM + 2 Planning + 1 Promo + 1 Audit + 1 Executive);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -304,7 +309,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (38 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (39 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit
@@ -446,4 +451,5 @@ interface, so going real is a one-line wiring change — no upstream edits.
   (marketing_audit) for a health-scored account diagnostic + action plan, and
   **`scenario_review`** (scenario_planner) to compare conservative/base/aggressive
   budget scenarios head-to-head and recommend one by conversions, CPA or ROI, and
-  **`promo_review`** (promo_planner) for discount break-even & promo ROI.
+  **`promo_review`** (promo_planner) for discount break-even & promo ROI, and
+  **`exec_report`** (board_report) for a board-ready one-pager (audit + upside).

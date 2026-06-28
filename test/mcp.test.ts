@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(38);
+    expect(json.toolCount).toBe(39);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(38);
+    expect(tools).toHaveLength(39);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -75,6 +75,7 @@ describe("tools/list", () => {
     expect(names).toContain("gtm_calendar");
     expect(names).toContain("scenario_planner");
     expect(names).toContain("promo_planner");
+    expect(names).toContain("board_report");
     expect(names).toContain("marketing_audit");
   });
 
@@ -170,8 +171,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(38);
-    expect(catalog.tools).toHaveLength(38);
+    expect(catalog.counts.tools).toBe(39);
+    expect(catalog.tools).toHaveLength(39);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -954,6 +955,44 @@ describe("premium tools (v2.1)", () => {
     expect(sc.warnings.length).toBeGreaterThan(0);
   });
 
+  it("board_report orchestrates audit + scenario into an executive one-pager", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 77,
+      method: "tools/call",
+      params: {
+        name: "board_report",
+        arguments: {
+          category: "ecom",
+          company: "Acme",
+          period: "Q3 2026",
+          channels: [
+            { name: "Yandex Direct", spend: 900000, conversions: 900 },
+            { name: "VK Ads", spend: 600000, conversions: 60 },
+            { name: "Telegram Ads", spend: 200000, conversions: 0 },
+          ],
+          targetCpa: 1500,
+          revenuePerConversion: 4000,
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.header.category).toBe("ecom");
+    expect(["A", "B", "C", "D"]).toContain(sc.status.grade);
+    expect(typeof sc.status.healthScore).toBe("number");
+    // Metrics carry revenue/ROI when revenuePerConversion is supplied.
+    expect(typeof sc.metrics.roiPct).toBe("number");
+    expect(sc.metrics.revenue).toBeGreaterThan(0);
+    // Composed from the two sub-tools.
+    expect(sc.composedFrom).toEqual(["marketing_audit", "scenario_planner"]);
+    // Risks surface the untracked Telegram channel.
+    expect(sc.risks.join(" ")).toContain("Telegram Ads");
+    // +15% budget upside computed (diminishing returns ⇒ positive but bounded).
+    expect(sc.upside.projectedExtraConversions).toBeGreaterThan(0);
+    expect(typeof sc.nextStep).toBe("string");
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -1035,7 +1074,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(38);
+    expect(parsed.result.tools.length).toBe(39);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -1118,7 +1157,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(38);
+    expect(json.result.tools).toHaveLength(39);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -1146,7 +1185,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(38);
+    expect(json.result.tools).toHaveLength(39);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -1156,10 +1195,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 15 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 16 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(15);
+    expect(json.result.prompts).toHaveLength(16);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -1171,6 +1210,7 @@ describe("prompts", () => {
     expect(names).toContain("account_audit");
     expect(names).toContain("scenario_review");
     expect(names).toContain("promo_review");
+    expect(names).toContain("exec_report");
   });
 
   it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
@@ -1242,6 +1282,27 @@ describe("prompts", () => {
     expect(text).toContain("promo_planner");
     expect(text).toContain("Подписка PRO");
     expect(text).toContain("20%");
+  });
+
+  it("prompts/get exec_report embeds the inputs and calls board_report", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 72,
+      method: "prompts/get",
+      params: {
+        name: "exec_report",
+        arguments: {
+          category: "ecom",
+          company: "Acme",
+          channels: "Yandex Direct:900000:900, VK Ads:600000:60, Telegram Ads:200000:0",
+          targetCpa: "1500",
+        },
+      },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("board_report");
+    expect(text).toContain("Acme");
+    expect(text).toContain("Yandex Direct:900000:900");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {

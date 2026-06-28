@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.17.0";
+const SERVER_VERSION = "2.18.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -645,6 +645,38 @@ const PROMPTS = [
       `3) Назови break-even аплифт — рост объёма, нужный, чтобы не уйти в минус.\n` +
       (a.expectedUpliftPct ? `4) Сравни ожидаемый аплифт с break-even: доп. прибыль, ROI на скидку, бьёт ли порог.\n` : `4) Дай ориентир: какой аплифт сделает промо безубыточным/прибыльным.\n`) +
       `5) Дай вердикт и риск (каннибализация/перенос спроса). Предупреди: эластичность спроса и долгосрочные эффекты не моделируются.`,
+  },
+  {
+    name: "exec_report",
+    title: "Executive one-pager (audit + upside)",
+    description:
+      "Produce a board-ready one-pager (board_report): orchestrates marketing_audit + scenario_planner into status/grade, headline metrics, best/worst channel, risks, top recommendations, a +15% budget upside and a single next step.",
+    arguments: [
+      { name: "category", description: "Industry category (realty, finance, ecom, retail, fmcg, auto, pharma, edtech)", required: true },
+      {
+        name: "channels",
+        description:
+          "Current spend & conversions per channel as 'name:spend:conversions', e.g. 'Yandex Direct:900000:600, VK Ads:600000:120, Telegram Ads:200000:0'",
+        required: true,
+      },
+      { name: "company", description: "Company / brand name for the header (optional)", required: false },
+      { name: "period", description: "Reporting period label, e.g. 'Q3 2026' (optional)", required: false },
+      { name: "targetCpa", description: "Business target CPA in RUB to compare blended CPA against (optional)", required: false },
+      { name: "revenuePerConversion", description: "Average revenue per conversion in RUB (optional; enables revenue/profit/ROI)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, директор по маркетингу. Подготовь исполнительный one-pager для совета директоров.\n` +
+      (a.company ? `Компания: ${a.company}.\n` : ``) +
+      `Категория: ${a.category}.${a.period ? ` Период: ${a.period}.` : ``}\n` +
+      `Каналы (name:spend:conversions): ${a.channels}\n` +
+      (a.targetCpa ? `Целевой CPA: ${a.targetCpa} ₽.\n` : ``) +
+      (a.revenuePerConversion ? `Выручка за конверсию: ${a.revenuePerConversion} ₽.\n` : ``) +
+      `\nШаги:\n` +
+      `1) Распарси каналы в массив {name, spend, conversions}.\n` +
+      `2) Вызови board_report(category, channels${a.company ? ", company" : ""}${a.period ? ", period" : ""}${a.targetCpa ? ", targetCpa" : ""}${a.revenuePerConversion ? ", revenuePerConversion" : ""}).\n` +
+      `3) Изложи как one-pager: статус+грейд, ключевые метрики (спенд/конверсии/blended CPA${a.revenuePerConversion ? "/выручка/ROI" : ""}), лучший/худший канал.\n` +
+      `4) Выдели риски и топ-рекомендации с цифрами, покажи апсайд «+15% бюджета».\n` +
+      `5) Заверши одним чётким next-step. Кратко, по-деловому, без воды. Бенчмарки иллюстративные, если нет реальных данных.`,
   },
 ];
 
