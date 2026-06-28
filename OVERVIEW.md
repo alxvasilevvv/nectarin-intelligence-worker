@@ -1,7 +1,7 @@
 # NECTARIN Intelligence — что умеет
 
-**AI-маркетинг-директор для рынка RU/CIS прямо в Claude.** MCP-коннектор с **62
-детерминированными инструментами** и **39 готовыми сценариями (prompts)**, которые
+**AI-маркетинг-директор для рынка RU/CIS прямо в Claude.** MCP-коннектор с **63
+детерминированными инструментами** и **40 готовыми сценариями (prompts)**, которые
 закрывают полный цикл услуг агентства — от стратегии и медиапланирования до
 измеримости, брендинга и производства. Без галлюцинаций: каждый расчёт делает
 инструмент, а не модель.
@@ -29,6 +29,7 @@
 | **Производство** | «Оцени бюджет и сроки продакшна» | `production_estimator` (диапазон бюджета ±20%, критический путь по срокам) |
 | **Измеримость** | «Спроектируй, замерь и объедини инкремент-тесты» | `geo_holdout` (MDE, нужный объём → инкремент, значимость), `incrementality_meta` (мета-анализ нескольких тестов), `ab_test_planner` |
 | **Тесты креативов / лендингов** | «Спланируй A/B и разбери результаты» | `ab_test_planner` (дизайн и размер выборки), `creative_testing_matrix` (разбор результатов мульти-вариантного теста: победитель/значимость/дотест) |
+| **Конверсия / CRO** | «Проведи CRO-аудит лендинга и оцени потенциал роста» | `landing_cro_audit` (0-100 оценка, приоритет проблем, прогноз роста конверсии и выручки), `funnel_model` (где течёт воронка) |
 | **Качество трафика** | «Оцени качество доставки площадки» | `media_quality_score` (viewability/IVT/brand-safety → 0–100, грейд A–F), `supplier_quality` |
 | **Комплаенс и локализация** | «Проверь рекламу pharma/finance, локализуй» | `compliance_check` (ОРД/ЕРИР, ПСК, STOP-GATE), `localize`, `geo_aeo_audit` |
 | **Конкуренты** | «Разбери конкурента, смоделируй его ход» | `competitor_scan`, `category_playbook`, `competitive_response` (SOV-эрозия, CPM-инфляция, защитный бюджет) |
@@ -45,7 +46,7 @@
   OLV, Avito; комплаенс ОРД/ЕРИР; рубли по умолчанию.
 - **Полный цикл за один разговор.** От `strategy_orchestrate` одним вызовом до
   выгрузки презентации `report_export` и записи на консультацию.
-- **39 готовых сценариев.** Нажал prompt — Claude сам вызывает нужные инструменты в
+- **40 готовых сценариев.** Нажал prompt — Claude сам вызывает нужные инструменты в
   правильном порядке (медиаплан, brand lift, гео-тест, флайтинг, доля голоса и т.д.).
 
 ---
@@ -60,10 +61,11 @@
 - **Контекст/SEM:** `search_planner` → `bid_simulator` → `utm_builder`.
 - **Маркетплейсы:** `retail_media_planner` → `price_optimizer` → `unit_economics`.
 - **Удержание:** `churn_predictor` → `cohort_ltv` → `unit_economics`.
+- **Конверсия/CRO:** `funnel_model` → `landing_cro_audit` → `ab_test_planner` → `creative_testing_matrix`.
 - **Цена и промо:** `price_optimizer` → `promo_planner` → `unit_economics`.
 - **Конкурентная война:** `competitive_response` → `budget_optimizer` / `sov_tracker`.
 
 ---
 
-*NECTARIN Intelligence · 62 инструмента · 39 сценариев · Cloudflare Workers (edge,
+*NECTARIN Intelligence · 63 инструмента · 40 сценариев · Cloudflare Workers (edge,
 MCP Streamable HTTP). Подробности — в `README.md` и `USAGE.md`.*

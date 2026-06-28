@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.41.0";
+const SERVER_VERSION = "2.42.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1283,6 +1283,36 @@ const PROMPTS = [
       `3) Покажи по каждому арму CR, прирост к контролю, z/p и значимость (с поправкой на множественность).\n` +
       `4) Назови решение по каждому (WINNER/LOSER/KEEP_TESTING/INSUFFICIENT_DATA) и сколько ещё выборки нужно.\n` +
       `5) Дай рекомендацию по раскату и гардрейлы (no peeking, SRM); дисклеймер про частотную статистику.`,
+  },
+  {
+    name: "landing_cro_audit_run",
+    title: "Landing-page CRO audit",
+    description:
+      "Run a heuristic CRO audit of a landing page (landing_cro_audit): weighted 0-100 score, prioritized issues with fixes and a projected conversion uplift.",
+    arguments: [
+      { name: "conversionRatePct", description: "Current page conversion rate % (optional but recommended)", required: false },
+      { name: "loadTimeSec", description: "Page load time / LCP in seconds (optional)", required: false },
+      { name: "bounceRatePct", description: "Bounce rate % (optional)", required: false },
+      { name: "formFields", description: "Number of fields in the primary form (optional)", required: false },
+      { name: "monthlyVisitors", description: "Monthly visitors (optional, to monetize uplift)", required: false },
+      { name: "aov", description: "Average order value ₽ (optional, to monetize uplift)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, CRO-специалист по лендингам и конверсии RU/CIS.\n` +
+      `Проведи эвристический CRO-аудит лендинга.\n` +
+      (a.conversionRatePct ? `Текущая конверсия: ${a.conversionRatePct}%.\n` : "") +
+      (a.loadTimeSec ? `Время загрузки: ${a.loadTimeSec}с.\n` : "") +
+      (a.bounceRatePct ? `Отказы: ${a.bounceRatePct}%.\n` : "") +
+      (a.formFields ? `Полей в форме: ${a.formFields}.\n` : "") +
+      (a.monthlyVisitors ? `Визитов/мес: ${a.monthlyVisitors}.\n` : "") +
+      (a.aov ? `Средний чек: ${a.aov} ₽.\n` : "") +
+      `Уточни у пользователя недостающие сигналы (мобильная конверсия, наличие чёткого CTA на первом экране, отзывов и гарантий, шаги до конверсии).\n` +
+      `\nШаги:\n` +
+      `1) Собери доступные сигналы и вызови landing_cro_audit(...).\n` +
+      `2) Покажи CRO-оценку и грейд, разбивку по измерениям с весами.\n` +
+      `3) Дай приоритизированный список проблем (вес × разрыв) с конкретными правками.\n` +
+      `4) Назови прогноз роста конверсии и, если заданы визиты/чек, прирост заказов и выручки.\n` +
+      `5) Подчеркни, что гипотезы нужно подтвердить A/B-тестом (ab_test_planner → creative_testing_matrix); дисклеймер про эвристику.`,
   },
 ];
 

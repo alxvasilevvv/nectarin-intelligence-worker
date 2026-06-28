@@ -3,6 +3,27 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.42.0] — 2026-06-28
+
+Seventh wave (4/4) — a heuristic landing-page CRO audit (**63rd tool**).
+NECTARIN Intelligence now ships **63 tools / 40 guided prompts**.
+
+### Added
+- **`landing_cro_audit`** (Audit group, now 2 tools) — scores up to seven UX/performance
+  dimensions you provide (page speed, bounce, mobile parity, form friction, CTA clarity,
+  trust/social proof, CR vs benchmark) into a weighted **0-100 CRO score + grade**,
+  with weights renormalised to the data supplied. Returns a **prioritized issue list**
+  (weight × gap) with concrete fixes and a **projected CR uplift** (multiplicative with
+  diminishing returns: `1 − Π(1 − maxUplift·(1−score))`) that, given `monthlyVisitors`
+  + `aov`, becomes incremental conversions & revenue per month/year. Points to
+  `ab_test_planner` → `creative_testing_matrix` for validation. 62 → **63 tools**.
+- **`landing_cro_audit_run`** guided prompt (**40 prompts** total).
+
+### Changed
+- `tools/list` now advertises **63 tools**; the Audit group grows to 2. Catalog
+  resource, `/version` `toolCount`, README/USAGE/OVERVIEW counts and the test suite
+  updated accordingly.
+
 ## [2.41.0] — 2026-06-28
 
 Seventh wave (3/4) — a multi-variant test results analyzer (**62nd tool**).

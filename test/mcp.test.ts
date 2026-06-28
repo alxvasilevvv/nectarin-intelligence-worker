@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(62);
+    expect(json.toolCount).toBe(63);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(62);
+    expect(tools).toHaveLength(63);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -100,6 +100,7 @@ describe("tools/list", () => {
     expect(names).toContain("frequency_cap_optimizer");
     expect(names).toContain("creative_testing_matrix");
     expect(names).toContain("marketing_audit");
+    expect(names).toContain("landing_cro_audit");
   });
 
   it("annotations: pure tools are read-only/idempotent; LLM & funnel tools are flagged", async () => {
@@ -194,8 +195,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(62);
-    expect(catalog.tools).toHaveLength(62);
+    expect(catalog.counts.tools).toBe(63);
+    expect(catalog.tools).toHaveLength(63);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -1805,6 +1806,48 @@ describe("premium tools (v2.1)", () => {
     if (b.decision === "KEEP_TESTING") expect(b.additionalSamplePerArm).toBeGreaterThan(0);
   });
 
+  it("landing_cro_audit scores a weak page, lists issues and projects uplift", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 112,
+      method: "tools/call",
+      params: {
+        name: "landing_cro_audit",
+        arguments: {
+          conversionRatePct: 1.5,
+          loadTimeSec: 5.5,
+          bounceRatePct: 72,
+          mobileConversionRatePct: 0.6,
+          formFields: 11,
+          hasClearCta: false,
+          aboveFoldCta: false,
+          hasSocialProof: false,
+          hasTrustSignals: false,
+          monthlyVisitors: 100000,
+          aov: 4000,
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.croScore).toBeLessThan(60); // a clearly weak page
+    expect(["D", "F"]).toContain(sc.grade);
+    expect(sc.prioritizedIssues.length).toBeGreaterThan(0);
+    expect(sc.projectedRelativeUpliftPct).toBeGreaterThan(0);
+    expect(sc.projection.projectedCRPct).toBeGreaterThan(sc.projection.currentCRPct);
+    expect(sc.projection.incrementalRevenuePerMonth).toBeGreaterThan(0);
+  });
+
+  it("landing_cro_audit errors when no signals are supplied", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 113,
+      method: "tools/call",
+      params: { name: "landing_cro_audit", arguments: {} },
+    });
+    expect(json.result.isError).toBe(true);
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -1886,7 +1929,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(62);
+    expect(parsed.result.tools.length).toBe(63);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -1969,7 +2012,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(62);
+    expect(json.result.tools).toHaveLength(63);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -1997,7 +2040,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(62);
+    expect(json.result.tools).toHaveLength(63);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -2007,10 +2050,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 39 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 40 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(39);
+    expect(json.result.prompts).toHaveLength(40);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -2046,6 +2089,7 @@ describe("prompts", () => {
     expect(names).toContain("churn_analysis");
     expect(names).toContain("frequency_cap_plan");
     expect(names).toContain("creative_test_readout");
+    expect(names).toContain("landing_cro_audit_run");
   });
 
   it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
@@ -2489,6 +2533,22 @@ describe("prompts", () => {
     const text = json.result.messages[0].content.text;
     expect(text).toContain("creative_testing_matrix");
     expect(text).toContain("Контроль:10000:320");
+  });
+
+  it("prompts/get landing_cro_audit_run embeds inputs and calls landing_cro_audit", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 107,
+      method: "prompts/get",
+      params: {
+        name: "landing_cro_audit_run",
+        arguments: { conversionRatePct: "1.5", loadTimeSec: "5.5", monthlyVisitors: "100000" },
+      },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("landing_cro_audit");
+    expect(text).toContain("1.5");
+    expect(text).toContain("100000");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {

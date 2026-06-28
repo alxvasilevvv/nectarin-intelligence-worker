@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-62-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-63-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -185,6 +185,7 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 | Tool | What it does |
 |---|---|
 | `marketing_audit` | **Senior account health audit.** Takes current per-channel spend & conversions, scores each channel's CPA against RU/CIS benchmarks (p25/p50/p75), flags **concentration risk** and **untracked** spend, computes an overall **health score (0-100) + grade A–D**, and returns a **prioritized action plan** with a concrete budget reallocation and projected extra conversions / saved spend. Optional `targetCpa` vs blended CPA. Deterministic; data-aware (KV / per-tenant). |
+| `landing_cro_audit` | **Heuristic landing-page CRO audit.** Scores up to seven UX/performance dimensions you provide — page speed, bounce, mobile parity, form friction, CTA clarity, trust/social proof, CR vs benchmark — into a weighted **0-100 CRO score + grade**, returns a **prioritized issue list** (weight × gap) with concrete fixes, and a **projected CR uplift** (multiplicative, diminishing returns) that, given `monthlyVisitors` + `aov`, becomes incremental conversions & revenue. Validate with `ab_test_planner` → `creative_testing_matrix`. |
 
 ### Executive group (v2.18+ — board one-pager)
 | Tool | What it does |
@@ -330,7 +331,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 62 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 1 Retention/CRM);
+`tools/list` returns all 63 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 2 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 1 Retention/CRM);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -373,7 +374,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (62 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (63 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit

@@ -262,4 +262,197 @@ const marketingAudit: ToolDef = {
   },
 };
 
-export const AUDIT_TOOLS: ToolDef[] = [marketingAudit];
+// ── landing_cro_audit ─────────────────────────────────────────────────────────
+
+interface CroDim {
+  key: string;
+  label: string;
+  weight: number;
+  score: number | null; // 0..100, null when no data supplied
+  maxRelUplift: number; // relative CR uplift unlocked if this dimension is fixed (0..1)
+  note: string;
+}
+
+const landingCroAudit: ToolDef = {
+  name: "landing_cro_audit",
+  description:
+    "Heuristic conversion-rate-optimization (CRO) audit for a landing page. Scores up to seven UX/performance dimensions you provide — page speed (loadTimeSec), bounce rate, mobile parity (mobile vs overall CR), form friction (formFields + stepsToConvert), CTA clarity (hasClearCta + aboveFoldCta), trust & social proof (hasSocialProof + hasTrustSignals), and CR vs an industry benchmark — into a weighted 0-100 CRO score with a letter grade. Returns a prioritized issue list (by weight × gap), concrete fixes, and a projected CR uplift (multiplicative, with diminishing returns) that, given monthlyVisitors + AOV, is translated into incremental conversions & revenue. Heuristic decision support — validate with a real A/B test (see ab_test_planner / creative_testing_matrix), not a guarantee.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      conversionRatePct: { type: "number", minimum: 0, maximum: 100, description: "Current overall landing-page conversion rate %" },
+      bounceRatePct: { type: "number", minimum: 0, maximum: 100, description: "Bounce rate %" },
+      loadTimeSec: { type: "number", exclusiveMinimum: 0, description: "Page load time / LCP, seconds" },
+      mobileConversionRatePct: { type: "number", minimum: 0, maximum: 100, description: "Mobile conversion rate % (compared to overall for parity)" },
+      mobileSharePct: { type: "number", minimum: 0, maximum: 100, description: "Share of traffic on mobile % (context)" },
+      formFields: { type: "number", minimum: 0, description: "Number of fields in the primary form" },
+      stepsToConvert: { type: "number", minimum: 1, description: "Number of steps/clicks to convert (default 1)" },
+      hasClearCta: { type: "boolean", description: "Is there a single, clear primary CTA?" },
+      aboveFoldCta: { type: "boolean", description: "Is the primary CTA visible above the fold?" },
+      hasSocialProof: { type: "boolean", description: "Reviews / testimonials / client logos present?" },
+      hasTrustSignals: { type: "boolean", description: "Guarantees / security / returns / contacts present?" },
+      industryBenchmarkCRPct: { type: "number", exclusiveMinimum: 0, maximum: 100, description: "Industry benchmark CR % to compare against" },
+      monthlyVisitors: { type: "number", minimum: 0, description: "Monthly visitors (to monetize the uplift)" },
+      aov: { type: "number", minimum: 0, description: "Average order value, ₽ (to monetize the uplift)" },
+    },
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const dims: CroDim[] = [];
+
+    // 1) Page speed — 20%
+    if (typeof input.loadTimeSec === "number" && input.loadTimeSec > 0) {
+      const t = input.loadTimeSec;
+      const score = clamp(100 - Math.max(0, t - 1.5) * 18, 0, 100);
+      dims.push({
+        key: "speed", label: "Скорость загрузки", weight: 0.2, score, maxRelUplift: 0.18,
+        note: t <= 2 ? "Быстро (≤2с)." : t <= 3 ? `Средне (${t}с) — цель ≤2.5с (каждая сек. >3с режет конверсию).` : `Медленно (${t}с) — критично: сожми изображения, lazy-load, CDN, цель ≤2.5с.`,
+      });
+    }
+    // 2) Bounce — 15%
+    if (typeof input.bounceRatePct === "number") {
+      const b = input.bounceRatePct;
+      const score = clamp(100 - Math.max(0, b - 30) * 1.6, 0, 100);
+      dims.push({
+        key: "bounce", label: "Показатель отказов", weight: 0.15, score, maxRelUplift: 0.1,
+        note: b <= 40 ? "В норме." : b <= 60 ? `Повышен (${b}%) — усиль соответствие оффера запросу и первый экран.` : `Высокий (${b}%) — проверь релевантность трафика, скорость и первый экран.`,
+      });
+    }
+    // 3) Mobile parity — 15%
+    if (typeof input.mobileConversionRatePct === "number" && typeof input.conversionRatePct === "number" && input.conversionRatePct > 0) {
+      const parity = input.mobileConversionRatePct / input.conversionRatePct;
+      const score = clamp(parity * 100, 0, 100);
+      dims.push({
+        key: "mobile", label: "Мобильный паритет", weight: 0.15, score, maxRelUplift: 0.2,
+        note: parity >= 0.9 ? "Мобайл не отстаёт." : `Мобильная конверсия ${round(parity * 100, 0)}% от общей — оптимизируй мобильный UX, формы, скорость${typeof input.mobileSharePct === "number" ? ` (мобайл — ${input.mobileSharePct}% трафика)` : ""}.`,
+      });
+    }
+    // 4) Form friction — 15%
+    if (typeof input.formFields === "number") {
+      const f = input.formFields;
+      const steps = typeof input.stepsToConvert === "number" && input.stepsToConvert >= 1 ? input.stepsToConvert : 1;
+      const fieldScore = clamp(100 - Math.max(0, f - 3) * 9, 0, 100);
+      const stepScore = clamp(100 - Math.max(0, steps - 1) * 18, 0, 100);
+      const score = Math.round(fieldScore * 0.65 + stepScore * 0.35);
+      dims.push({
+        key: "form", label: "Трение формы", weight: 0.15, score, maxRelUplift: 0.15,
+        note: f <= 3 && steps <= 2 ? "Минимум трения." : `${f} пол${f === 1 ? "е" : "ей"} / ${steps} шаг(ов) — убери необязательные поля, объедини шаги, добавь автозаполнение.`,
+      });
+    }
+    // 5) CTA clarity — 15%
+    if (typeof input.hasClearCta === "boolean" || typeof input.aboveFoldCta === "boolean") {
+      const clear = input.hasClearCta === true;
+      const fold = input.aboveFoldCta === true;
+      const score = (clear ? 50 : 0) + (fold ? 50 : 0);
+      dims.push({
+        key: "cta", label: "Ясность CTA", weight: 0.15, score, maxRelUplift: 0.12,
+        note: clear && fold ? "Чёткий CTA на первом экране." : `${clear ? "" : "Сделай один основной CTA с глаголом действия. "}${fold ? "" : "Подними CTA на первый экран."}`.trim() || "Усиль CTA.",
+      });
+    }
+    // 6) Trust & social proof — 10%
+    if (typeof input.hasSocialProof === "boolean" || typeof input.hasTrustSignals === "boolean") {
+      const sp = input.hasSocialProof === true;
+      const ts = input.hasTrustSignals === true;
+      const score = (sp ? 50 : 0) + (ts ? 50 : 0);
+      dims.push({
+        key: "trust", label: "Доверие и соц. доказательства", weight: 0.1, score, maxRelUplift: 0.1,
+        note: sp && ts ? "Есть отзывы и сигналы доверия." : `${sp ? "" : "Добавь отзывы/кейсы/логотипы. "}${ts ? "" : "Добавь гарантии, безопасность оплаты, контакты."}`.trim() || "Усиль доверие.",
+      });
+    }
+    // 7) CR vs benchmark — 10%
+    if (typeof input.conversionRatePct === "number" && typeof input.industryBenchmarkCRPct === "number" && input.industryBenchmarkCRPct > 0) {
+      const ratio = input.conversionRatePct / input.industryBenchmarkCRPct;
+      const score = clamp(ratio * 70, 0, 100); // at benchmark → 70 (room above), 1.43× → 100
+      dims.push({
+        key: "benchmark", label: "CR против бенчмарка", weight: 0.1, score, maxRelUplift: 0.12,
+        note: ratio >= 1 ? `Выше бенчмарка (${round(ratio, 2)}×).` : `Ниже бенчмарка (${round(ratio * 100, 0)}% от ${input.industryBenchmarkCRPct}%) — есть потенциал роста.`,
+      });
+    }
+
+    if (dims.length === 0) {
+      return {
+        content: [{ type: "text", text: "Ошибка: задай хотя бы один сигнал (loadTimeSec, bounceRatePct, formFields, hasClearCta, conversionRatePct+industryBenchmarkCRPct и т.д.)." }],
+        isError: true,
+      };
+    }
+
+    // Weighted score over the dimensions actually provided (renormalised weights).
+    const totalWeight = dims.reduce((s, d) => s + d.weight, 0);
+    const overall = dims.reduce((s, d) => s + (d.score as number) * (d.weight / totalWeight), 0);
+    const grade = overall >= 90 ? "A" : overall >= 80 ? "B" : overall >= 70 ? "C" : overall >= 60 ? "D" : "F";
+
+    // Prioritised issues (score < 75), ranked by weight × gap.
+    const issues = dims
+      .filter((d) => (d.score as number) < 75)
+      .map((d) => ({
+        dimension: d.label,
+        score: round(d.score as number, 0),
+        priority: round(d.weight * (100 - (d.score as number)), 1),
+        fix: d.note,
+      }))
+      .sort((a, b) => b.priority - a.priority);
+
+    // Projected uplift — multiplicative with diminishing returns: 1 − Π(1 − contrib_i).
+    let prod = 1;
+    for (const d of dims) {
+      const contrib = d.maxRelUplift * (1 - (d.score as number) / 100);
+      prod *= 1 - contrib;
+    }
+    const projectedRelUpliftPct = (1 - prod) * 100;
+
+    let monetised: Record<string, unknown> | null = null;
+    if (typeof input.conversionRatePct === "number") {
+      const curCR = input.conversionRatePct / 100;
+      const newCR = clamp(curCR * (1 + projectedRelUpliftPct / 100), 0, 1);
+      const block: Record<string, unknown> = {
+        currentCRPct: round(curCR * 100, 2),
+        projectedCRPct: round(newCR * 100, 2),
+      };
+      if (typeof input.monthlyVisitors === "number" && input.monthlyVisitors > 0) {
+        const curConv = input.monthlyVisitors * curCR;
+        const newConv = input.monthlyVisitors * newCR;
+        block.incrementalConversionsPerMonth = round(newConv - curConv);
+        if (typeof input.aov === "number" && input.aov > 0) {
+          block.incrementalRevenuePerMonth = round((newConv - curConv) * input.aov);
+          block.incrementalRevenuePerYear = round((newConv - curConv) * input.aov * 12);
+        }
+      }
+      monetised = block;
+    }
+
+    const top = issues.slice(0, 3).map((i) => i.dimension);
+    const payload = {
+      croScore: round(overall, 0),
+      grade,
+      dimensionsScored: dims.length,
+      dimensions: dims.map((d) => ({ dimension: d.label, weightPct: round((d.weight / totalWeight) * 100, 0), score: round(d.score as number, 0), note: d.note })),
+      prioritizedIssues: issues,
+      projectedRelativeUpliftPct: round(projectedRelUpliftPct, 1),
+      projection: monetised,
+      verdict:
+        `CRO-оценка ${round(overall, 0)}/100 (${grade}). ` +
+        (issues.length ? `Главные точки роста: ${top.join(", ")}. ` : "Базовая гигиена в норме. ") +
+        `Потенциал роста конверсии ~${round(projectedRelUpliftPct, 0)}% относительно текущей` +
+        (monetised && (monetised as any).incrementalRevenuePerMonth != null ? ` (≈${ru((monetised as any).incrementalRevenuePerMonth)} ₽/мес).` : "."),
+      methodology:
+        "Каждое измерение оценивается 0-100 по эвристическим порогам и взвешивается (скорость 20%, отказы 15%, мобайл 15%, форма 15%, CTA 15%, доверие 10%, бенчмарк 10%); веса перенормируются по предоставленным данным. " +
+        "Приоритет проблемы = вес × (100−оценка). Прогноз роста = 1 − Π(1 − maxUplift_i·(1−оценка_i/100)) — мультипликативно, с затуханием.",
+      assumptions: [
+        "Эвристические пороги — ориентир, не отраслевой стандарт для вашей ниши.",
+        "Потенциал роста — верхняя оценка при качественном исполнении правок; фактический эффект подтверждается тестом.",
+        "Измерения независимы (на практике частично коррелируют).",
+      ],
+      disclaimer: "Эвристический аудит — decision support. Подтверждайте гипотезы A/B-тестом (ab_test_planner → creative_testing_matrix), не гарантия.",
+    };
+
+    const summary =
+      `CRO-аудит: ${round(overall, 0)}/100 (${grade}), оценено измерений: ${dims.length}. ` +
+      (issues.length ? `Приоритет: ${top.join(", ")}. ` : "") +
+      `Потенциал ~+${round(projectedRelUpliftPct, 0)}% к конверсии` +
+      (monetised && (monetised as any).incrementalRevenuePerMonth != null ? ` (≈${ru((monetised as any).incrementalRevenuePerMonth)} ₽/мес).` : ".");
+
+    return toContent(summary, payload);
+  },
+};
+
+export const AUDIT_TOOLS: ToolDef[] = [marketingAudit, landingCroAudit];
