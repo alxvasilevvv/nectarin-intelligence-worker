@@ -3,6 +3,32 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.16.0] — 2026-06-28
+
+Boardroom what-if planning: compare candidate budget scenarios head-to-head (37th tool).
+
+### Added
+- **`scenario_planner`** (added to the **Planning** group) — a what-if budget
+  scenario comparator. Takes current per-channel spend & conversions plus named
+  scenarios (conservative / base / aggressive via a `budgetMultiplier` and/or
+  absolute per-channel spend `overrides`) and projects each plan's conversions,
+  blended CPA, incremental lift vs. today and — when `revenuePerConversion` is
+  supplied — revenue, profit, ROAS and ROI%. Each channel uses a constant-elasticity
+  diminishing-returns curve `conversions = conv₀·(spend/spend₀)^b` calibrated to its
+  own current point (`b` default 0.7, per-channel overridable). **Ranks** scenarios
+  by objective (`max_conversions` / `min_cpa` / `max_roi`) and recommends one with a
+  rationale + an elasticity-sensitivity note (b=0.5 vs 0.9). Deterministic; uses the
+  operator's own numbers, not benchmarks. Complements `mmm_optimize` (fitted optimum)
+  and `budget_optimizer` (single-budget allocation) by comparing the operator's OWN
+  candidate plans head-to-head. 36 → **37 tools**.
+- **`scenario_review`** guided prompt (**14 prompts** total) — one-click scenario
+  comparison via `scenario_planner` with a ranking table, recommendation rationale
+  and elasticity sensitivity.
+
+### Changed
+- `server.json` description + version, README (Tools badge 37, Planning group now 2
+  tools), USAGE (catalogue 37, prompts 14), test counts (37 tools / 14 prompts).
+
 ## [2.15.0] — 2026-06-28
 
 The premium "AI CMO" diagnostic: a full account health audit (36th tool).

@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.15.0";
+const SERVER_VERSION = "2.16.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -582,6 +582,41 @@ const PROMPTS = [
       `3) Объясни health-скор и грейд: какие каналы лучше/хуже бенчмарка (p25/p50/p75), где риск концентрации и непрослеженный бюджет.\n` +
       `4) Разверни приоритетные рекомендации с цифрами: сколько и откуда перелить, ожидаемый прирост конверсий и экономия.\n` +
       `5) Дай чёткий next-step на ближайшую неделю. Предупреди, что бенчмарки иллюстративные, если не загружены реальные данные.`,
+  },
+  {
+    name: "scenario_review",
+    title: "Budget scenario review (conservative / base / aggressive)",
+    description:
+      "Compare candidate budget scenarios head-to-head (scenario_planner): projects conversions, blended CPA, incremental lift vs. today and (with revenue) ROI for each plan, then ranks and recommends one.",
+    arguments: [
+      {
+        name: "channels",
+        description:
+          "Current state per channel as 'name:currentSpend:currentConversions', e.g. 'Yandex Direct:900000:520, VK Ads:600000:180, Telegram Ads:300000:40'",
+        required: true,
+      },
+      {
+        name: "scenarios",
+        description:
+          "Candidate plans as 'name:budgetMultiplier', e.g. 'Консервативный:0.8, Базовый:1.0, Агрессивный:1.5' (или опиши абсолютные бюджеты по каналам)",
+        required: true,
+      },
+      { name: "objective", description: "max_conversions | min_cpa | max_roi (optional; default max_conversions)", required: false },
+      { name: "revenuePerConversion", description: "Average revenue per conversion in RUB (optional; enables ROI and max_roi)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, финансовый партнёр маркетинга в RU/CIS.\n` +
+      `Сравни бюджетные сценарии и порекомендуй лучший под цель.\n` +
+      `Текущие каналы (name:spend:conversions): ${a.channels}\n` +
+      `Сценарии (name:budgetMultiplier): ${a.scenarios}\n` +
+      (a.objective ? `Цель ранжирования: ${a.objective}.\n` : `Цель ранжирования: max_conversions.\n`) +
+      (a.revenuePerConversion ? `Выручка за конверсию: ${a.revenuePerConversion} ₽.\n` : ``) +
+      `\nШаги:\n` +
+      `1) Распарси каналы в массив {name, currentSpend, currentConversions} и сценарии в массив {name, budgetMultiplier} (или overrides по каналам).\n` +
+      `2) Вызови scenario_planner(channels, scenarios${a.objective ? ", objective" : ""}${a.revenuePerConversion ? ", revenuePerConversion" : ""}).\n` +
+      `3) Покажи таблицу-ранжирование: бюджет, конверсии, blended CPA, прирост к текущему${a.revenuePerConversion ? ", прибыль/ROI" : ""} по каждому сценарию.\n` +
+      `4) Объясни рекомендацию: почему этот сценарий лучший под цель, какой предельный CPA у доп.объёма, где риск переинвестирования (убывающая отдача).\n` +
+      `5) Покажи чувствительность к эластичности (b=0.5 vs 0.9) и предупреди: прогноз экстраполирован от одной текущей точки, не гарантия.`,
   },
 ];
 

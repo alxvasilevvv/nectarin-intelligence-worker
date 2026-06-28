@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(36);
+    expect(json.toolCount).toBe(37);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(36);
+    expect(tools).toHaveLength(37);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -73,6 +73,7 @@ describe("tools/list", () => {
     expect(names).toContain("response_curve");
     expect(names).toContain("mmm_optimize");
     expect(names).toContain("gtm_calendar");
+    expect(names).toContain("scenario_planner");
     expect(names).toContain("marketing_audit");
   });
 
@@ -168,8 +169,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(36);
-    expect(catalog.tools).toHaveLength(36);
+    expect(catalog.counts.tools).toBe(37);
+    expect(catalog.tools).toHaveLength(37);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -864,6 +865,44 @@ describe("premium tools (v2.1)", () => {
     expect(sc.recommendations[0].priority).toBe(1);
   });
 
+  it("scenario_planner ranks what-if scenarios and recommends one (with ROI)", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 74,
+      method: "tools/call",
+      params: {
+        name: "scenario_planner",
+        arguments: {
+          channels: [
+            { name: "Yandex Direct", currentSpend: 900000, currentConversions: 600 },
+            { name: "VK Ads", currentSpend: 600000, currentConversions: 180 },
+          ],
+          scenarios: [
+            { name: "Консервативный", budgetMultiplier: 0.8 },
+            { name: "Агрессивный", budgetMultiplier: 1.5 },
+          ],
+          objective: "max_roi",
+          revenuePerConversion: 4000,
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    // Baseline ("Текущий") + 2 user scenarios = 3 candidates ranked.
+    expect(sc.scenarios).toHaveLength(3);
+    expect(sc.ranking).toHaveLength(3);
+    expect(sc.ranking[0].recommended).toBe(true);
+    expect(sc.recommendation.scenario).toBe(sc.ranking[0].name);
+    // Diminishing returns: aggressive (×1.5) yields fewer than 1.5× the conversions.
+    const baseline = sc.scenarios.find((s: any) => s.isBaseline);
+    const aggressive = sc.scenarios.find((s: any) => s.name === "Агрессивный");
+    expect(aggressive.totalConversions).toBeLessThan(baseline.totalConversions * 1.5);
+    expect(aggressive.totalConversions).toBeGreaterThan(baseline.totalConversions);
+    // ROI fields populated when revenuePerConversion is supplied.
+    expect(typeof aggressive.roiPct).toBe("number");
+    expect(sc.recommendation.elasticitySensitivity).toHaveLength(2);
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -945,7 +984,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(36);
+    expect(parsed.result.tools.length).toBe(37);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -1028,7 +1067,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(36);
+    expect(json.result.tools).toHaveLength(37);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -1056,7 +1095,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(36);
+    expect(json.result.tools).toHaveLength(37);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -1066,10 +1105,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 13 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 14 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(13);
+    expect(json.result.prompts).toHaveLength(14);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -1079,6 +1118,7 @@ describe("prompts", () => {
     expect(names).toContain("mmm_planning");
     expect(names).toContain("quarter_plan");
     expect(names).toContain("account_audit");
+    expect(names).toContain("scenario_review");
   });
 
   it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
@@ -1105,6 +1145,28 @@ describe("prompts", () => {
     expect(text).toContain("marketing_audit");
     expect(text).toContain("Yandex Direct:900000:520");
     expect(text).toContain("1500");
+  });
+
+  it("prompts/get scenario_review embeds the inputs and calls scenario_planner", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 70,
+      method: "prompts/get",
+      params: {
+        name: "scenario_review",
+        arguments: {
+          channels: "Yandex Direct:900000:600, VK Ads:600000:180",
+          scenarios: "Консервативный:0.8, Базовый:1.0, Агрессивный:1.5",
+          objective: "max_roi",
+          revenuePerConversion: "4000",
+        },
+      },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("scenario_planner");
+    expect(text).toContain("Yandex Direct:900000:600");
+    expect(text).toContain("Агрессивный:1.5");
+    expect(text).toContain("4000");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {

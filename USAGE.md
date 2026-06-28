@@ -37,7 +37,7 @@ stays on JSON, so existing clients are unaffected.
 
 ---
 
-## 2. Tool catalogue (36)
+## 2. Tool catalogue (37)
 
 ### Intelligence (11)
 | Tool | What it does |
@@ -93,20 +93,21 @@ stays on JSON, so existing clients are unaffected.
 |---|---|
 | `mmm_optimize` | MMM‑lite: fits adstock (carryover) + saturation per channel from spend/conversions **time series**, then computes the conversion‑maximizing steady‑state budget split (Lagrange bisection, marginal CPA equalized) with fit R²/confidence. |
 
-### Planning (1) — go-to-market roadmap
+### Planning (2) — roadmap & budget scenarios
 | Tool | What it does |
 |---|---|
 | `gtm_calendar` | Phased **Test → Scale → Optimize** roadmap with goal-driven budget weights & channel emphasis, plus a **week-by-week budget pacing** curve weighted by the category's monthly seasonality. Returns per-phase objectives/KPIs/exit-criteria, peak/soft seasonal windows and milestones. Answers *when & in what order* (vs. `media_plan`/`budget_optimizer` for *where*). |
+| `scenario_planner` | **What-if comparator**: takes current per-channel spend & conversions + named scenarios (conservative/base/aggressive via `budgetMultiplier` and/or spend overrides), projects conversions, blended CPA, lift vs. today and (with `revenuePerConversion`) revenue/profit/ROAS/ROI via a per-channel diminishing-returns curve, then **ranks** by `max_conversions`/`min_cpa`/`max_roi` and recommends one + elasticity sensitivity. Compares *your* candidate plans head-to-head. |
 
 ### Audit (1) — account health diagnostic
 | Tool | What it does |
 |---|---|
 | `marketing_audit` | Scores current per-channel CPA vs RU/CIS benchmarks (p25/p50/p75), flags concentration risk & untracked spend, gives an overall **health score + grade A–D** and a **prioritized action plan** with a projected reallocation impact (extra conversions / saved budget). Optional `targetCpa`. |
 
-Built‑in **prompts** (13): `build_media_plan`, `full_strategy`, `competitor_teardown`,
+Built‑in **prompts** (14): `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`,
 `launch_flight`, `performance_review`, `saturation_reallocation`, `mmm_planning`,
-`quarter_plan`, `account_audit`.
+`quarter_plan`, `account_audit`, `scenario_review`.
 **Resources:** `nectarin://methodology`, `nectarin://glossary`, `nectarin://catalog`
 (live JSON catalog of all tools + annotations + prompts). `tools/list` also
 returns a `title` and behavioral `annotations` (read-only / idempotent / open-world) per tool.

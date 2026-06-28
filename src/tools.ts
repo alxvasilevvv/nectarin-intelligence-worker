@@ -19,6 +19,7 @@ import { ANALYTICS_TOOLS } from "./analytics.js";
 import { PREMIUM_TOOLS } from "./premium.js";
 import { MMM_TOOLS } from "./mmm.js";
 import { PLANNING_TOOLS } from "./planning.js";
+import { SCENARIO_TOOLS } from "./scenario.js";
 import { AUDIT_TOOLS } from "./audit.js";
 import type { Env } from "./index.js";
 
@@ -391,6 +392,7 @@ export const ALL_TOOLS: ToolDef[] = [
   ...PREMIUM_TOOLS,
   ...MMM_TOOLS,
   ...PLANNING_TOOLS,
+  ...SCENARIO_TOOLS,
   ...AUDIT_TOOLS,
 ];
 
