@@ -17,6 +17,11 @@ over **Streamable HTTP (JSON-RPC 2.0)** with an **opt-in SSE** transport, ships
 with **mock/synthetic RU data** plus **KV real-data layering**, and a
 **KV-cached, model-agnostic LLM narrative** (DeepSeek wired in this deploy).
 
+> **New in 2.50 — consumption transparency:** `tools/call` now returns **quota headers**
+> (`X-Plan`, `X-Quota-Limit/Used/Remaining/Period`) so clients see their allowance inline, plus
+> a visual **`GET /dashboard`** HTML page over `/usage`. See **[ROADMAP.md](./ROADMAP.md)** for
+> the global plan (Marketing-OS, phases A–D, MCP federation via Unyly).
+
 > **New in 2.49 — metered free tier + usage dashboard:** a per-tenant **monthly quota**
 > (free = 100 calls/mo; paid tiers unlimited) creates the concrete free→paid upsell, and a
 > read-only **`GET /usage`** endpoint reports `{used, quota, remaining, plan}` per tenant for
@@ -121,6 +126,7 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
 | GET | `/health` | Liveness probe |
 | GET | `/version` | name + version + toolCount + commit + authMode |
 | GET | `/usage` | per-tenant monthly usage `{used, quota, remaining, plan}` (auth like `/mcp`) |
+| GET | `/dashboard` | HTML usage dashboard (reads `/usage` same-origin) |
 | GET | `/` | Friendly index (endpoint URLs) |
 
 ### JSON-RPC error codes

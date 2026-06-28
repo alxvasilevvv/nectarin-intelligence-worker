@@ -3256,4 +3256,24 @@ describe("Monthly quota + /usage dashboard", () => {
     const stored = await kv.get(`usage:acme:${ym}`);
     expect(Number(stored)).toBe(1);
   });
+
+  it("tools/call response carries X-Plan; unlimited owner ⇒ no quota-limit header", async () => {
+    const { res } = await rpc({
+      jsonrpc: "2.0",
+      id: 730,
+      method: "tools/call",
+      params: { name: "budget_optimizer", arguments: { category: "retail", budget: 4_000_000, goal: "performance" } },
+    });
+    expect(res.headers.get("X-Plan")).toBe("owner");
+    expect(res.headers.get("X-Quota-Limit")).toBeNull();
+  });
+
+  it("GET /dashboard returns the HTML usage page", async () => {
+    const { status, res } = await get("/dashboard");
+    expect(status).toBe(200);
+    expect(res.headers.get("content-type")).toContain("text/html");
+    const html = await res.text();
+    expect(html).toContain("NECTARIN Intelligence");
+    expect(html).toContain("Потребление");
+  });
 });

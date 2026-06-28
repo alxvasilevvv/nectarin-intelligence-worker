@@ -3,6 +3,28 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.50.0] — 2026-06-29
+
+Thirteenth wave — **consumption transparency** (Phase A of the global roadmap, see
+`ROADMAP.md`): surface plan & quota state to clients inline, and ship a visual usage
+dashboard for leadership. Non-breaking; counts unchanged (**74 tools / 51 prompts**).
+
+### Added
+- **Quota headers** on `tools/call` responses: `X-Plan`, and for finite-quota plans
+  `X-Quota-Limit` / `X-Quota-Used` / `X-Quota-Remaining` / `X-Quota-Period` — so a client
+  sees its remaining allowance without a separate `/usage` call. Unlimited/`owner` callers
+  get only `X-Plan` (no extra KV read), keeping the authless deploy read-light. Headers are
+  also added to gating/quota upsell responses; exposed via CORS for browser clients.
+- **`GET /dashboard`** — a self-contained HTML usage dashboard (gold-on-dark) that reads
+  `/usage` same-origin and shows plan, used, limit, remaining + a progress bar per tenant.
+- **`ROADMAP.md`** — the global plan: Marketing-OS vision, phases A–D, and the MCP
+  **federation** design (NECTARIN as hub; Unyly as the gateway/marketplace/billing point
+  through which external specialist MCPs are added so all traffic stays on unyly.org).
+
+### Changed
+- `rpcResult` accepts optional response headers; CORS `Expose-Headers`/`Allow-Headers`
+  updated for the quota headers and `X-Tenant-Id`. Tests: +3 (headers + dashboard). 196 pass.
+
 ## [2.49.0] — 2026-06-29
 
 Twelfth wave — **metered free tier + usage dashboard**: build on the monetization seam

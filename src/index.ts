@@ -109,7 +109,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.49.0";
+const SERVER_VERSION = "2.50.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -133,8 +133,9 @@ interface JsonRpcRequest {
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "content-type, authorization, mcp-session-id, mcp-protocol-version",
-  "Access-Control-Expose-Headers": "mcp-session-id",
+  "Access-Control-Allow-Headers": "content-type, authorization, mcp-session-id, mcp-protocol-version, x-tenant-id",
+  "Access-Control-Expose-Headers":
+    "mcp-session-id, X-Plan, X-Quota-Limit, X-Quota-Used, X-Quota-Remaining, X-Quota-Period",
   "Access-Control-Max-Age": "86400",
 };
 
@@ -145,8 +146,8 @@ function json(body: unknown, status = 200, extra: Record<string, string> = {}): 
   });
 }
 
-function rpcResult(id: JsonRpcId, result: unknown): Response {
-  return json({ jsonrpc: "2.0", id, result });
+function rpcResult(id: JsonRpcId, result: unknown, extra: Record<string, string> = {}): Response {
+  return json({ jsonrpc: "2.0", id, result }, 200, extra);
 }
 
 /**
@@ -1680,14 +1681,18 @@ async function handleRpc(rpc: JsonRpcRequest, env: Env, meta: RpcMeta = {}): Pro
           upgradeUrl,
           message: `Инструмент «${name}» доступен на тарифе «${need}» и выше. Ваш тариф — «${effectivePlan}». Обновитесь через Unyly.`,
         };
-        return rpcResult(id ?? null, {
-          content: [
-            { type: "text", text: `🔒 «${name}» требует тариф «${need}» (у вас «${effectivePlan}»). Обновитесь через Unyly: ${upgradeUrl}` },
-            { type: "text", text: "```json\n" + JSON.stringify(payload, null, 2) + "\n```" },
-          ],
-          structuredContent: payload,
-          isError: true,
-        });
+        return rpcResult(
+          id ?? null,
+          {
+            content: [
+              { type: "text", text: `🔒 «${name}» требует тариф «${need}» (у вас «${effectivePlan}»). Обновитесь через Unyly: ${upgradeUrl}` },
+              { type: "text", text: "```json\n" + JSON.stringify(payload, null, 2) + "\n```" },
+            ],
+            structuredContent: payload,
+            isError: true,
+          },
+          { "X-Plan": effectivePlan }
+        );
       }
       // ── Monthly quota (free-tier upsell) ─────────────────────────────────────
       // Only enforced when the plan has a finite quota AND KV is bound to count.
@@ -1711,14 +1716,24 @@ async function handleRpc(rpc: JsonRpcRequest, env: Env, meta: RpcMeta = {}): Pro
             upgradeUrl,
             message: `Лимит тарифа «${effectivePlan}» исчерпан (${used}/${quota} запросов за ${usageMonth()}). Обновитесь через Unyly для снятия лимита.`,
           };
-          return rpcResult(id ?? null, {
-            content: [
-              { type: "text", text: `🔒 Лимит тарифа «${effectivePlan}» исчерпан (${used}/${quota}). Обновитесь через Unyly: ${upgradeUrl}` },
-              { type: "text", text: "```json\n" + JSON.stringify(payload, null, 2) + "\n```" },
-            ],
-            structuredContent: payload,
-            isError: true,
-          });
+          return rpcResult(
+            id ?? null,
+            {
+              content: [
+                { type: "text", text: `🔒 Лимит тарифа «${effectivePlan}» исчерпан (${used}/${quota}). Обновитесь через Unyly: ${upgradeUrl}` },
+                { type: "text", text: "```json\n" + JSON.stringify(payload, null, 2) + "\n```" },
+              ],
+              structuredContent: payload,
+              isError: true,
+            },
+            {
+              "X-Plan": effectivePlan,
+              "X-Quota-Limit": String(quota),
+              "X-Quota-Used": String(used),
+              "X-Quota-Remaining": "0",
+              "X-Quota-Period": usageMonth(),
+            }
+          );
         }
       }
       // Validate arguments against the tool's JSON Schema → -32602 on failure.
@@ -1736,11 +1751,15 @@ async function handleRpc(rpc: JsonRpcRequest, env: Env, meta: RpcMeta = {}): Pro
         // Viral attribution: append a subtle "powered by · install via Unyly" footer
         // to successful outputs (env-gated; default OFF so dev/tests are unchanged).
         const withAttr = applyUnylyAttribution(result, env, name);
-        return rpcResult(id ?? null, {
-          content: withAttr.content,
-          ...(withAttr.structuredContent ? { structuredContent: withAttr.structuredContent } : {}),
-          ...(withAttr.isError ? { isError: true } : {}),
-        });
+        return rpcResult(
+          id ?? null,
+          {
+            content: withAttr.content,
+            ...(withAttr.structuredContent ? { structuredContent: withAttr.structuredContent } : {}),
+            ...(withAttr.isError ? { isError: true } : {}),
+          },
+          await quotaHeaders(env, meta)
+        );
       } catch (err) {
         // Tool errors are reported as a successful result with isError=true,
         // per MCP guidance (so the model can see and recover from them). The
@@ -1883,6 +1902,29 @@ async function readUsage(env: Env, tenant: string): Promise<number> {
 }
 
 /**
+ * Quota/plan headers for a tools/call response — so clients see their remaining
+ * allowance without a separate /usage call. Always sets `X-Plan`; adds the quota
+ * trio only for finite-quota plans (unlimited/owner ⇒ no KV read, no quota headers,
+ * so the authless deploy stays read-light). `used`/`remaining` are best-effort and
+ * may lag the in-flight call by one (the counter increments after the response).
+ */
+async function quotaHeaders(env: Env, meta: RpcMeta): Promise<Record<string, string>> {
+  const plan = normalizePlan(meta.plan);
+  const headers: Record<string, string> = { "X-Plan": plan };
+  const quota = monthlyQuota(plan);
+  if (Number.isFinite(quota)) {
+    headers["X-Quota-Limit"] = String(quota);
+    headers["X-Quota-Period"] = usageMonth();
+    if (env.NECTARIN_KV && meta.tenantId) {
+      const used = await readUsage(env, meta.tenantId);
+      headers["X-Quota-Used"] = String(used);
+      headers["X-Quota-Remaining"] = String(Math.max(0, quota - used));
+    }
+  }
+  return headers;
+}
+
+/**
  * Record a tool-call usage event. This is the metering SEAM Unyly bills on:
  *   • always: a structured `usage` log line (zero-infra; aggregate downstream).
  *   • best-effort: a monthly KV counter per tenant (and per tool) when KV is bound.
@@ -1983,6 +2025,89 @@ function resolveTenantDataSource(request: Request, env: Env): DataSource | undef
   return new LayeredKvDataSource(env.NECTARIN_KV, globalDataSource, `tenant:${id}:`);
 }
 
+/** Self-contained HTML usage dashboard served at GET /dashboard. */
+const DASHBOARD_HTML = `<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>NECTARIN Intelligence — потребление</title>
+<style>
+  :root { --bg:#1a1206; --card:#241a0b; --line:#3a2c12; --gold:#f5b942; --gold2:#ffd479; --text:#f3e9d6; --muted:#b39d76; --green:#3ddc84; --blue:#5aa9ff; }
+  * { box-sizing:border-box; }
+  body { margin:0; font:15px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; color:var(--text);
+    background:radial-gradient(1200px 600px at 50% -10%, #4a3208 0%, var(--bg) 55%) fixed; min-height:100vh; }
+  .wrap { max-width:880px; margin:0 auto; padding:32px 20px 64px; }
+  .brand { display:flex; align-items:center; gap:10px; font-weight:700; letter-spacing:.5px; }
+  .dot { width:12px; height:12px; border-radius:50%; background:radial-gradient(circle at 30% 30%, var(--gold2), #c77f12); box-shadow:0 0 16px var(--gold); }
+  h1 { font-size:26px; margin:18px 0 4px; }
+  .sub { color:var(--muted); margin:0 0 24px; }
+  .controls { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:24px; }
+  input { background:var(--card); border:1px solid var(--line); color:var(--text); padding:11px 14px; border-radius:12px; min-width:220px; outline:none; }
+  input:focus { border-color:var(--gold); }
+  button { background:linear-gradient(180deg,var(--gold2),var(--gold)); color:#3a2a06; border:0; padding:11px 18px; border-radius:12px; font-weight:700; cursor:pointer; }
+  button:active { transform:translateY(1px); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; }
+  .card { background:linear-gradient(180deg,#2a1f0c,#211809); border:1px solid var(--line); border-radius:18px; padding:18px 20px; }
+  .card .k { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.8px; }
+  .card .v { font-size:30px; font-weight:800; margin-top:6px; }
+  .v.green { color:var(--green); } .v.blue { color:var(--blue); } .v.gold { color:var(--gold2); }
+  .bar { height:12px; background:#160f04; border:1px solid var(--line); border-radius:99px; overflow:hidden; margin-top:22px; }
+  .bar > span { display:block; height:100%; background:linear-gradient(90deg,var(--gold),var(--gold2)); width:0%; transition:width .5s ease; }
+  .meta { color:var(--muted); font-size:13px; margin-top:10px; }
+  .foot { color:var(--muted); font-size:13px; margin-top:32px; }
+  a { color:var(--gold2); }
+  .err { color:#ff7a7a; margin-top:14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand"><span class="dot"></span> NECTARIN Intelligence</div>
+  <h1>Потребление</h1>
+  <p class="sub">Учёт запросов по тенанту за текущий месяц. Установка и тарифы — через
+    <a href="https://unyly.org/ru/mcp/nectarin-intelligence-worker" target="_blank" rel="noopener">Unyly</a>.</p>
+  <div class="controls">
+    <input id="tenant" placeholder="tenant id (X-Tenant-Id), напр. acme" />
+    <button id="load">Показать</button>
+  </div>
+  <div class="grid">
+    <div class="card"><div class="k">Тариф</div><div class="v gold" id="plan">—</div></div>
+    <div class="card"><div class="k">Использовано</div><div class="v" id="used">—</div></div>
+    <div class="card"><div class="k">Лимит</div><div class="v blue" id="quota">—</div></div>
+    <div class="card"><div class="k">Осталось</div><div class="v green" id="remaining">—</div></div>
+  </div>
+  <div class="bar"><span id="barfill"></span></div>
+  <div class="meta" id="meta">Месяц: — · метеринг: —</div>
+  <div class="err" id="err"></div>
+  <div class="foot">Данные read-only. Безлимитные тарифы показывают «∞». Источник: <code>GET /usage</code>.</div>
+</div>
+<script>
+  const $ = (id) => document.getElementById(id);
+  async function load() {
+    $('err').textContent = '';
+    const t = $('tenant').value.trim();
+    const url = '/usage' + (t ? ('?tenant=' + encodeURIComponent(t)) : '');
+    try {
+      const r = await fetch(url, { headers: t ? { 'X-Tenant-Id': t } : {} });
+      if (!r.ok) { $('err').textContent = 'Ошибка ' + r.status + ' (нужна авторизация?)'; return; }
+      const d = await r.json();
+      $('plan').textContent = d.plan ?? '—';
+      $('used').textContent = (d.used ?? 0).toLocaleString('ru-RU');
+      const unlimited = d.quota == null;
+      $('quota').textContent = unlimited ? '∞' : d.quota.toLocaleString('ru-RU');
+      $('remaining').textContent = unlimited ? '∞' : (d.remaining ?? 0).toLocaleString('ru-RU');
+      const pct = unlimited ? 6 : Math.min(100, Math.round((d.used / Math.max(1, d.quota)) * 100));
+      $('barfill').style.width = pct + '%';
+      $('meta').textContent = 'Тенант: ' + (d.tenant ?? '—') + ' · Месяц: ' + (d.month ?? '—') + ' · метеринг: ' + (d.metering ?? '—');
+    } catch (e) { $('err').textContent = 'Не удалось загрузить данные.'; }
+  }
+  $('load').addEventListener('click', load);
+  $('tenant').addEventListener('keydown', (e) => { if (e.key === 'Enter') load(); });
+  load();
+</script>
+</body>
+</html>`;
+
 export default {
   async fetch(request: Request, env: Env, ctx?: ExecutionContextLike): Promise<Response> {
     const url = new URL(request.url);
@@ -2049,6 +2174,15 @@ export default {
         quota: finite ? quota : null,
         remaining: finite ? Math.max(0, quota - used) : null,
         metering: env.NECTARIN_KV ? "kv" : "none",
+      });
+    }
+
+    // HTML usage dashboard (reads /usage same-origin). Public page; the data call
+    // it makes inherits the same auth posture as /mcp.
+    if (url.pathname === "/dashboard" && request.method === "GET") {
+      return new Response(DASHBOARD_HTML, {
+        status: 200,
+        headers: { "content-type": "text/html; charset=utf-8", ...CORS_HEADERS },
       });
     }
 
