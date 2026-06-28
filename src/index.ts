@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.18.0";
+const SERVER_VERSION = "2.19.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -677,6 +677,32 @@ const PROMPTS = [
       `3) Изложи как one-pager: статус+грейд, ключевые метрики (спенд/конверсии/blended CPA${a.revenuePerConversion ? "/выручка/ROI" : ""}), лучший/худший канал.\n` +
       `4) Выдели риски и топ-рекомендации с цифрами, покажи апсайд «+15% бюджета».\n` +
       `5) Заверши одним чётким next-step. Кратко, по-деловому, без воды. Бенчмарки иллюстративные, если нет реальных данных.`,
+  },
+  {
+    name: "creative_fatigue_check",
+    title: "Creative fatigue / burnout check",
+    description:
+      "Detect ad-creative burnout (creative_fatigue): from daily CTR series, find peak decline, fatigue score & stage, days-to-refresh-threshold, and which creatives to refresh now.",
+    arguments: [
+      {
+        name: "creatives",
+        description:
+          "Per-creative daily CTR series (%, oldest→newest) as 'name:ctr1,ctr2,…', e.g. 'Видео A:2.1,2.0,1.7,1.4,1.1; Карусель B:1.3,1.35,1.3,1.28'",
+        required: true,
+      },
+      { name: "refreshThresholdPct", description: "Refresh when CTR < this % of peak (optional; default 70)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, performance-аналитик по креативам RU/CIS.\n` +
+      `Оцени выгорание креативов и скажи, что обновлять.\n` +
+      `Креативы (name:ctr через запятую): ${a.creatives}\n` +
+      (a.refreshThresholdPct ? `Порог обновления: ${a.refreshThresholdPct}% от пика.\n` : `Порог обновления: 70% от пика.\n`) +
+      `\nШаги:\n` +
+      `1) Распарси каждый креатив в {name, ctr:[...]} (ряд ≥3 точек, oldest→newest).\n` +
+      `2) Вызови creative_fatigue(creatives${a.refreshThresholdPct ? ", refreshThresholdPct" : ""}).\n` +
+      `3) По каждому креативу: пик CTR, падение от пика, тренд, fatigue-скор и стадия (fresh/maturing/fatigued/burnt).\n` +
+      `4) Назови, что обновлять СЕЙЧАС и что готовить к замене (с днями до порога).\n` +
+      `5) Дай next-step по ротации. Предупреди: оценка только по динамике CTR, внешние факторы не разделяются.`,
   },
 ];
 

@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(39);
+    expect(json.toolCount).toBe(40);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(39);
+    expect(tools).toHaveLength(40);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -76,6 +76,7 @@ describe("tools/list", () => {
     expect(names).toContain("scenario_planner");
     expect(names).toContain("promo_planner");
     expect(names).toContain("board_report");
+    expect(names).toContain("creative_fatigue");
     expect(names).toContain("marketing_audit");
   });
 
@@ -171,8 +172,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(39);
-    expect(catalog.tools).toHaveLength(39);
+    expect(catalog.counts.tools).toBe(40);
+    expect(catalog.tools).toHaveLength(40);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -993,6 +994,36 @@ describe("premium tools (v2.1)", () => {
     expect(typeof sc.nextStep).toBe("string");
   });
 
+  it("creative_fatigue flags a burning-out creative and ranks worst-first", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 78,
+      method: "tools/call",
+      params: {
+        name: "creative_fatigue",
+        arguments: {
+          creatives: [
+            { name: "Видео A", ctr: [2.1, 2.0, 1.7, 1.4, 1.1, 0.9] },
+            { name: "Карусель B", ctr: [1.3, 1.35, 1.3, 1.28, 1.32, 1.3] },
+          ],
+          refreshThresholdPct: 70,
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.creatives).toHaveLength(2);
+    // Видео A peaked at 2.1, now 0.9 (~43% of peak < 70%) ⇒ refresh now, worst-first.
+    const worst = sc.creatives[0];
+    expect(worst.name).toBe("Видео A");
+    expect(worst.recommendation).toBe("refresh_now");
+    expect(worst.declineFromPeakPct).toBeGreaterThan(30);
+    expect(sc.summary.refreshNow).toContain("Видео A");
+    // Карусель B is roughly flat ⇒ not a refresh-now candidate.
+    const flat = sc.creatives.find((c: any) => c.name === "Карусель B");
+    expect(flat.recommendation).not.toBe("refresh_now");
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -1074,7 +1105,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(39);
+    expect(parsed.result.tools.length).toBe(40);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -1157,7 +1188,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(39);
+    expect(json.result.tools).toHaveLength(40);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -1185,7 +1216,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(39);
+    expect(json.result.tools).toHaveLength(40);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -1195,10 +1226,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 16 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 17 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(16);
+    expect(json.result.prompts).toHaveLength(17);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -1211,6 +1242,7 @@ describe("prompts", () => {
     expect(names).toContain("scenario_review");
     expect(names).toContain("promo_review");
     expect(names).toContain("exec_report");
+    expect(names).toContain("creative_fatigue_check");
   });
 
   it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
@@ -1303,6 +1335,21 @@ describe("prompts", () => {
     expect(text).toContain("board_report");
     expect(text).toContain("Acme");
     expect(text).toContain("Yandex Direct:900000:900");
+  });
+
+  it("prompts/get creative_fatigue_check embeds the series and calls creative_fatigue", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 73,
+      method: "prompts/get",
+      params: {
+        name: "creative_fatigue_check",
+        arguments: { creatives: "Видео A:2.1,2.0,1.7,1.4,1.1; Карусель B:1.3,1.35,1.3,1.28" },
+      },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("creative_fatigue");
+    expect(text).toContain("Видео A:2.1,2.0,1.7,1.4,1.1");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {

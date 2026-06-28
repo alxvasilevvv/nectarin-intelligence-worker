@@ -37,7 +37,7 @@ stays on JSON, so existing clients are unaffected.
 
 ---
 
-## 2. Tool catalogue (39)
+## 2. Tool catalogue (40)
 
 ### Intelligence (11)
 | Tool | What it does |
@@ -114,10 +114,16 @@ stays on JSON, so existing clients are unaffected.
 |---|---|
 | `board_report` | **Orchestrator one-pager**: runs `marketing_audit` + `scenario_planner` and folds them into a board-ready brief — status + grade, headline metrics (spend/conversions/blended CPA, plus revenue/profit/ROI with `revenuePerConversion`), best/worst channel, risks, top recommendations, a **+15% budget upside** and a single next step. |
 
-Built‑in **prompts** (16): `build_media_plan`, `full_strategy`, `competitor_teardown`,
+### Creative Ops (1) — burnout detection
+| Tool | What it does |
+|---|---|
+| `creative_fatigue` | From each creative's daily CTR series (or impressions+clicks), finds peak CTR, decline from peak, trend, a 0–100 **fatigue score** + stage, and **days-to-refresh-threshold**; ranks worst-first and flags which to refresh now / prepare / monitor. |
+
+Built‑in **prompts** (17): `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`,
 `launch_flight`, `performance_review`, `saturation_reallocation`, `mmm_planning`,
-`quarter_plan`, `account_audit`, `scenario_review`, `promo_review`, `exec_report`.
+`quarter_plan`, `account_audit`, `scenario_review`, `promo_review`, `exec_report`,
+`creative_fatigue_check`.
 **Resources:** `nectarin://methodology`, `nectarin://glossary`, `nectarin://catalog`
 (live JSON catalog of all tools + annotations + prompts). `tools/list` also
 returns a `title` and behavioral `annotations` (read-only / idempotent / open-world) per tool.

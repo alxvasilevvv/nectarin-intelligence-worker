@@ -3,6 +3,26 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.19.0] — 2026-06-28
+
+Creative ops: a CTR-based creative burnout/fatigue detector (40th tool).
+
+### Added
+- **`creative_fatigue`** (new **Creative Ops** group) — a creative burnout detector.
+  From each creative's daily CTR series (`ctr[]` in %, or `impressions[]`+`clicks[]`),
+  it finds the peak CTR, the decline from peak, the recent least-squares trend, a
+  0–100 **fatigue score** + stage (fresh/maturing/fatigued/burnt), and — while CTR is
+  still falling — the estimated **days until it crosses the refresh threshold**
+  (default 70% of peak). Ranks creatives worst-first and recommends refresh_now /
+  prepare_refresh / monitor / healthy. Deterministic, on the operator's own series.
+  39 → **40 tools**.
+- **`creative_fatigue_check`** guided prompt (**17 prompts** total) — one-click
+  burnout check via `creative_fatigue`.
+
+### Changed
+- `server.json` description + version, README (Tools badge 40, new Creative Ops
+  group), USAGE (catalogue 40, prompts 17), test counts (40 tools / 17 prompts).
+
 ## [2.18.0] — 2026-06-28
 
 Executive composition: a one-call board one-pager that orchestrates two tools (39th tool).
