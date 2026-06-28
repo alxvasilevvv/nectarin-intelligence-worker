@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(56);
+    expect(json.toolCount).toBe(57);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(56);
+    expect(tools).toHaveLength(57);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -93,6 +93,7 @@ describe("tools/list", () => {
     expect(names).toContain("creative_rotation");
     expect(names).toContain("utm_taxonomy_qa");
     expect(names).toContain("incrementality_meta");
+    expect(names).toContain("search_planner");
     expect(names).toContain("marketing_audit");
   });
 
@@ -188,8 +189,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(56);
-    expect(catalog.tools).toHaveLength(56);
+    expect(catalog.counts.tools).toBe(57);
+    expect(catalog.tools).toHaveLength(57);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -1540,6 +1541,50 @@ describe("premium tools (v2.1)", () => {
     expect(wSum).toBeCloseTo(100, 0);
   });
 
+  it("search_planner allocates a budget to the most efficient keywords first", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 101,
+      method: "tools/call",
+      params: {
+        name: "search_planner",
+        arguments: {
+          keywords: [
+            { term: "купить диван", volume: 40000, cpc: 35, ctr: 5, cvr: 3 },
+            { term: "диван цена", volume: 12000, cpc: 28, ctr: 4, cvr: 1 },
+          ],
+          monthlyBudget: 100000,
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.keywordsCount).toBe(2);
+    // Total allocated spend cannot exceed the budget.
+    expect(sc.totals.spend).toBeLessThanOrEqual(100000);
+    expect(sc.totals.conversions).toBeGreaterThan(0);
+    expect(sc.totals.blendedCpa).toBeGreaterThan(0);
+    // The high-CVR keyword should be flagged the higher priority.
+    const buy = sc.keywords.find((k) => k.term === "купить диван");
+    expect(buy.priority).toBe("high");
+  });
+
+  it("search_planner falls back to default CTR/CVR and notes it", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 102,
+      method: "tools/call",
+      params: {
+        name: "search_planner",
+        arguments: { keywords: [{ term: "ключ", volume: 10000, cpc: 30 }] },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.keywords[0].ctrPct).toBe(4);
+    expect(sc.keywords[0].cvrPct).toBe(2);
+    expect(sc.assumptions.some((a: string) => a.includes("дефолт"))).toBe(true);
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -1621,7 +1666,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(56);
+    expect(parsed.result.tools.length).toBe(57);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -1704,7 +1749,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(56);
+    expect(json.result.tools).toHaveLength(57);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -1732,7 +1777,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(56);
+    expect(json.result.tools).toHaveLength(57);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -1742,10 +1787,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 33 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 34 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(33);
+    expect(json.result.prompts).toHaveLength(34);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -1775,6 +1820,7 @@ describe("prompts", () => {
     expect(names).toContain("creative_rotation_plan");
     expect(names).toContain("utm_audit");
     expect(names).toContain("meta_analysis");
+    expect(names).toContain("search_plan");
   });
 
   it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
@@ -2123,6 +2169,22 @@ describe("prompts", () => {
     const text = json.result.messages[0].content.text;
     expect(text).toContain("incrementality_meta");
     expect(text).toContain("Geo Q1:8:3");
+  });
+
+  it("prompts/get search_plan embeds the keywords and calls search_planner", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 101,
+      method: "prompts/get",
+      params: {
+        name: "search_plan",
+        arguments: { keywords: "купить диван:40000:35:5:3; диван цена:12000:28", monthlyBudget: "100000" },
+      },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("search_planner");
+    expect(text).toContain("купить диван:40000:35:5:3");
+    expect(text).toContain("100000");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {

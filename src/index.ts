@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.35.0";
+const SERVER_VERSION = "2.36.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1135,6 +1135,27 @@ const PROMPTS = [
       `3) Покажи сводный лифт (fixed- и random-effects), 95% ДИ, p-value и значимость.\n` +
       `4) Объясни гетерогенность (Q, I²): согласуются ли тесты; какую модель предпочесть.\n` +
       `5) Вывод: насколько надёжен общий эффект; дисклеймер про осторожность при высокой гетерогенности.`,
+  },
+  {
+    name: "search_plan",
+    title: "Paid-search / SEM keyword plan",
+    description:
+      "Build a Yandex Direct / контекст keyword-portfolio plan (search_planner): per-keyword clicks/conversions/CPA, efficiency-ranked budget allocation and portfolio totals.",
+    arguments: [
+      { name: "keywords", description: "Keywords as 'term:volume:cpc[:ctr%][:cvr%]' separated by ';', e.g. 'купить диван:40000:35:5:3; диван цена:12000:28'", required: true },
+      { name: "monthlyBudget", description: "Optional monthly budget in ₽ to allocate", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, специалист по контекстной рекламе (Yandex Direct / поиск) RU/CIS.\n` +
+      `Собери план семантики и распредели бюджет.\n` +
+      `Ключи (term:volume:cpc[:ctr%][:cvr%]): ${a.keywords}\n` +
+      (a.monthlyBudget ? `Бюджет на месяц: ${a.monthlyBudget} ₽.\n` : "") +
+      `\nШаги:\n` +
+      `1) Распарси ключи в массив {term, volume, cpc, ctr?, cvr?}.\n` +
+      `2) Вызови search_planner(keywords${a.monthlyBudget ? ", monthlyBudget" : ""}).\n` +
+      `3) Покажи по ключам ожидаемые клики/конверсии/CPA и приоритет (high/medium/low).\n` +
+      `4) Назови итоги портфеля: клики, конверсии, blended CPA, покрытие спроса; на что хватает бюджета.\n` +
+      `5) Дай рекомендации: какие ключи масштабировать, где расширять семантику; дисклеймер про прогнозатор площадки и фактический аукцион.`,
   },
 ];
 

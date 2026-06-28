@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-56-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-57-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -227,6 +227,11 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 |---|---|
 | `competitive_response` | **Competitive war-game simulator.** Given your spend, current competitor spend and a move (spend escalation %, new entrant, or pullback), models the impact on your **Share of Voice**, **auction CPM inflation** and **effective impressions** at a fixed budget, then sizes the **defensive budget** needed to hold a target SOV and recommends a posture (hold / partial match / defend or pivot). Deterministic auction-share dynamics. |
 
+### Search & SEM group (v2.36+ — paid search)
+| Tool | What it does |
+|---|---|
+| `search_planner` | **Paid-search / SEM keyword-portfolio planner** for Yandex Direct & контекст. From keywords (monthly **volume** + **CPC**, optional CTR%/CVR%/intent) and an optional monthly budget, estimates per-keyword **clicks, conversions, CPA** and the **max addressable spend**, ranks keywords by efficiency (conversions per ₽), greedily **allocates the budget** to the lowest-CPA keywords first, and returns portfolio totals — clicks, conversions, **blended CPA** and demand **coverage**. Defaults CTR 4% / CVR 2% when missing (flagged). Deterministic media math on your inputs. |
+
 ### Brand group (v2.23+ — brand lift)
 | Tool | What it does |
 |---|---|
@@ -312,7 +317,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 56 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 5 Media + 2 Brand + 1 Production + 2 Experimentation + 1 Competitive);
+`tools/list` returns all 57 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 5 Media + 2 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -355,7 +360,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (56 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (57 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit

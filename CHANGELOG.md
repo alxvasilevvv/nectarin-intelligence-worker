@@ -3,6 +3,29 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.36.0] — 2026-06-28
+
+Sixth wave (1/3) — a paid-search / SEM keyword-portfolio planner (**57th tool**).
+NECTARIN Intelligence now ships **57 tools / 34 guided prompts**.
+
+### Added
+- **`search_planner`** (new **Search & SEM** group) — a Yandex Direct / контекст
+  keyword-portfolio planner. From keywords (monthly **volume** + **CPC**, optional
+  CTR%/CVR%/intent) and an optional monthly budget it estimates per-keyword **clicks,
+  conversions, CPA** and the **max addressable spend**, ranks keywords by efficiency
+  (conversions per ₽), then greedily **allocates the budget** to the lowest-CPA
+  keywords first. Returns portfolio totals — clicks, conversions, **blended CPA**,
+  total spend and demand **coverage %** — plus per-keyword priority tiers
+  (high/medium/low). Defaults CTR 4% / CVR 2% when missing (flagged). Deterministic
+  media math on the operator's own inputs; planning estimate, not a guarantee.
+  56 → **57 tools**.
+- **`search_plan`** guided prompt (**34 prompts** total) — parse `term:volume:cpc[:ctr][:cvr]`
+  rows + optional budget → `search_planner` → priority-ranked plan and totals.
+
+### Changed
+- `tools/list` now advertises **57 tools**; catalog resource, `/version` `toolCount`,
+  README/USAGE/OVERVIEW counts and the integration test suite updated accordingly.
+
 ## [2.35.0] — 2026-06-28
 
 Fifth wave complete (3/3) — an incrementality meta-analysis tool (**56th tool**).

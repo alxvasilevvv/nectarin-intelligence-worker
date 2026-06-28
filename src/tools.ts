@@ -30,6 +30,7 @@ import { BRAND_TOOLS } from "./brand.js";
 import { PRODUCTION_TOOLS } from "./production.js";
 import { EXPERIMENTATION_TOOLS } from "./geo.js";
 import { COMPETITIVE_TOOLS } from "./competitive.js";
+import { SEARCH_TOOLS } from "./search.js";
 import type { Env } from "./index.js";
 
 export interface JsonSchema {
@@ -412,6 +413,7 @@ export const ALL_TOOLS: ToolDef[] = [
   ...PRODUCTION_TOOLS,
   ...EXPERIMENTATION_TOOLS,
   ...COMPETITIVE_TOOLS,
+  ...SEARCH_TOOLS,
 ];
 
 export const TOOLS_BY_NAME: Record<string, ToolDef> = Object.fromEntries(

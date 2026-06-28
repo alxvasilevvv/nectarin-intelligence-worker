@@ -37,7 +37,7 @@ stays on JSON, so existing clients are unaffected.
 
 ---
 
-## 2. Tool catalogue (56)
+## 2. Tool catalogue (57)
 
 ### Intelligence (11)
 | Tool | What it does |
@@ -159,7 +159,12 @@ stays on JSON, so existing clients are unaffected.
 |---|---|
 | `competitive_response` | From your spend + competitor spend + a move (escalation %, new entrant, pullback) → **SOV erosion**, **CPM inflation**, effective-impression impact, the **defensive budget** to hold a target SOV, and a recommended posture (hold / partial match / defend or pivot). |
 
-Built‑in **prompts** (33): `build_media_plan`, `full_strategy`, `competitor_teardown`,
+### Search & SEM (1) — paid search
+| Tool | What it does |
+|---|---|
+| `search_planner` | Keyword portfolio for Yandex Direct / контекст. From keywords (volume + CPC, optional CTR%/CVR%/intent) + optional budget → per-keyword **clicks, conversions, CPA**, max addressable spend, efficiency-ranked **budget allocation** (lowest-CPA first) and portfolio totals (clicks, conversions, **blended CPA**, demand **coverage %**). Defaults CTR 4% / CVR 2% (flagged). |
+
+Built‑in **prompts** (34): `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`,
 `launch_flight`, `performance_review`, `saturation_reallocation`, `mmm_planning`,
 `quarter_plan`, `account_audit`, `scenario_review`, `promo_review`, `exec_report`,
@@ -167,7 +172,7 @@ Built‑in **prompts** (33): `build_media_plan`, `full_strategy`, `competitor_te
 `brand_lift_study`, `omnichannel_reach`, `production_budget`, `flighting_plan`,
 `geo_test`, `sov_analysis`, `media_quality_check`, `competitive_wargame`,
 `pacing_forecast`, `audience_dedup`, `creative_rotation_plan`, `utm_audit`,
-`meta_analysis`.
+`meta_analysis`, `search_plan`.
 **Resources:** `nectarin://methodology`, `nectarin://glossary`, `nectarin://catalog`
 (live JSON catalog of all tools + annotations + prompts). `tools/list` also
 returns a `title` and behavioral `annotations` (read-only / idempotent / open-world) per tool.
@@ -223,6 +228,10 @@ share growth) → size the media pressure needed → `report_export`.
 `production_estimator` (cost range + critical-path timeline) → `creative_variants`
 for the brief → `compliance_check` for regulated assets.
 
+**Paid search / SEM (Контекст, Yandex Direct):**
+`search_planner` (keyword portfolio → clicks/conversions/CPA, efficiency-ranked budget
+allocation) → `bid_simulator` (tune bids) → `utm_builder` (tag) → `pacing_monitor`.
+
 **Pricing & promo (Performance/eCom):**
 `price_optimizer` (elasticity → profit-max price) → `promo_planner` (mechanics,
 margin, breakeven uplift) → `unit_economics` to confirm.
@@ -249,12 +258,13 @@ margin, breakeven uplift) → `unit_economics` to confirm.
 
 ```
 Ты — NECTARIN Intelligence, старший медиа-стратег и маркетинг-директор для рынка
-RU/CIS. У тебя подключён MCP-коннектор NECTARIN с 50 инструментами под полный
+RU/CIS. У тебя подключён MCP-коннектор NECTARIN с 57 инструментами под полный
 цикл услуг агентства: бенчмарки и медиапланирование, оптимизация бюджета и MMM,
-performance-аналитика и атрибуция, креатив и борьба с выгоранием, маркетинг влияния
-(инфлюенсеры), OLV / охват-частота и омниканальный дедуп-охват, брендинг (brand lift
-и доля голоса SOV/ESOV), ценообразование и промо, производство креатива, гео-
-инкрементальные тесты, оценка качества медиа-трафика, комплаенс, ROI и локализация.
+performance-аналитика и атрибуция, контекст/SEM (планирование семантики Yandex
+Direct), креатив и борьба с выгоранием, маркетинг влияния (инфлюенсеры), OLV /
+охват-частота и омниканальный дедуп-охват, брендинг (brand lift и доля голоса
+SOV/ESOV), ценообразование и промо, производство креатива, гео-инкрементальные
+тесты и мета-анализ, оценка качества медиа-трафика, комплаенс, ROI и локализация.
 
 ПРИНЦИПЫ
 1. Всегда опирайся на инструменты, а не на догадки. Прежде чем давать числа —
@@ -267,9 +277,10 @@ performance-аналитика и атрибуция, креатив и борь
    • Инфлюенсеры → influencer_planner · OLV/видео → reach_frequency, channel_overlap,
      media_flowchart · Брендинг → brand_lift, sov_tracker · Производство →
      production_estimator · Ценообразование/промо → price_optimizer, promo_planner ·
-     Креатив → creative_variants, creative_fatigue · Измеримость → geo_holdout,
-     ab_test_planner, attribution_model · Качество трафика → media_quality_score,
-     supplier_quality.
+     Контекст/SEM → search_planner, bid_simulator · Креатив → creative_variants,
+     creative_fatigue, creative_rotation · Измеримость → geo_holdout,
+     incrementality_meta, ab_test_planner, attribution_model · Качество трафика →
+     media_quality_score, supplier_quality.
 4. Для регулируемых категорий (pharma/finance) ОБЯЗАТЕЛЬНО вызови
    compliance_check и явно покажи STOP-GATE и требования ОРД/ЕРИР, ПСК и пр.
 5. Деньги считай в рублях. Прогнозы давай диапазоном (P10/P50/P90), а не точкой.
