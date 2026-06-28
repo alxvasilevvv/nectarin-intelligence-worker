@@ -111,7 +111,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.54.0";
+const SERVER_VERSION = "2.55.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1679,6 +1679,54 @@ const PROMPTS = [
       `Ответы опроса: ${a.respondents}.\n` +
       `\nРазбери строки в массив respondents [{tooCheap, cheap, expensive, tooExpensive}] и вызови pricing_psm(respondents=[...]${a.currency ? `, currency="${a.currency}"` : ""}).\n` +
       `Объясни OPP (оптимальная цена), IPP (точка безразличия) и приемлемый диапазон PMC→PME; дай рекомендацию по стартовой цене.`,
+  },
+  {
+    name: "abm_targets",
+    title: "Prioritize ABM target accounts",
+    description:
+      "Score and tier B2B target accounts by fit × intent × engagement (abm_account_scoring) and get the recommended play per tier.",
+    arguments: [
+      { name: "accounts", description: "Accounts as 'name:fit:intent:engagement[:dealSize]' separated by ';', e.g. 'Сбер:90:70:40:5000000; X5:60:80:30'", required: true },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, ABM/B2B-маркетолог.\n` +
+      `Аккаунты: ${a.accounts}.\n` +
+      `\nРазбери строку в массив accounts [{name, fit, intent, engagement, dealSize?}] и вызови abm_account_scoring(accounts=[...]).\n` +
+      `Покажи ранжирование по приоритету/ожидаемой ценности, тир каждого аккаунта (1:1 / 1:few / 1:many / nurture) и рекомендованный план работы. Предложи команде подключение через Unyly.`,
+  },
+  {
+    name: "nps_check",
+    title: "Analyze NPS survey",
+    description:
+      "Compute NPS, the promoter/passive/detractor split and a 95% confidence interval (nps_analysis).",
+    arguments: [
+      { name: "scores", description: "Raw 0–10 responses, comma-separated, e.g. '9,10,7,6,8,9,2,10'", required: false },
+      { name: "counts", description: "Or aggregate 'promoters:passives:detractors', e.g. '120:60:30'", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, CX-аналитик.\n` +
+      (a.scores ? `Ответы 0–10: ${a.scores}.\n` : "") +
+      (a.counts ? `Счётчики: ${a.counts}.\n` : "") +
+      `\n${a.counts && !a.scores
+        ? `Разбери counts 'promoters:passives:detractors' и вызови nps_analysis(counts={...}).`
+        : `Разбери ответы в массив чисел и вызови nps_analysis(scores=[...]).`}\n` +
+      `Покажи NPS, сегменты промоутеры/пассивные/детракторы, 95% ДИ и интерпретацию относительно бенчмарков.`,
+  },
+  {
+    name: "pipeline_velocity",
+    title: "Model B2B pipeline velocity",
+    description:
+      "Compute revenue/day from opps × win-rate × deal size ÷ cycle and find the best lever (b2b_pipeline_velocity).",
+    arguments: [
+      { name: "opportunities", description: "Qualified opportunities in pipeline", required: true },
+      { name: "winRatePct", description: "Win rate, %", required: true },
+      { name: "avgDealSize", description: "Average deal size, RUB", required: true },
+      { name: "salesCycleDays", description: "Average sales-cycle length, days", required: true },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, revenue-маркетолог.\n` +
+      `Вызови b2b_pipeline_velocity(opportunities=${a.opportunities}, winRatePct=${a.winRatePct}, avgDealSize=${a.avgDealSize}, salesCycleDays=${a.salesCycleDays}).\n` +
+      `Покажи скорость пайплайна в ₽/день, ₽/мес и ₽/год, и подсветь рычаг с максимальным эффектом (+10% к каждому фактору / −10% к циклу).`,
   },
 ];
 

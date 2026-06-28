@@ -3,6 +3,26 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.55.0] — 2026-06-29
+
+Eighteenth wave — **B2B & CX coverage** (Phase D of `ROADMAP.md`): fills two under-served
+profession clusters — B2B / demand-gen / revenue marketing, and customer experience / loyalty.
+**85 tools / 60 prompts.**
+
+### Added
+- **`abm_account_scoring`** (new **B2B & CX** group, pro+) — ABM account prioritization.
+  Weights fit × intent × engagement into a 0–100 score (default .40/.35/.25, overridable),
+  assigns a tier (1:1 / 1:few / 1:many / nurture) with a recommended play, and ranks by
+  expected value when deal size is given.
+- **`nps_analysis`** (B2B & CX) — NPS from raw 0–10 scores or promoter/passive/detractor
+  counts: segment split, NPS, a 95% confidence interval (SE) and a benchmark band.
+- **`b2b_pipeline_velocity`** (B2B & CX, pro+) — velocity = (opps × win-rate × deal size) ÷
+  cycle days, daily/monthly/annual, plus a +10% lever sensitivity revealing the best lever.
+- Guided prompts **`abm_targets`**, **`nps_check`**, **`pipeline_velocity`** (**60 prompts**).
+
+### Changed
+- `tools/list`/catalog/`/version` advertise **85 tools**. Docs + tests updated (+9). 225 pass.
+
 ## [2.54.0] — 2026-06-29
 
 Seventeenth wave — **profession expansion** (Phase D groundwork of `ROADMAP.md`): three

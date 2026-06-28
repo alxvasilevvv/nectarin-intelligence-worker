@@ -24,7 +24,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(82);
+    expect(json.toolCount).toBe(85);
     expect(json.commit).toBeDefined();
   });
 });
@@ -35,7 +35,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(82);
+    expect(tools).toHaveLength(85);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -64,6 +64,9 @@ describe("tools/list", () => {
     expect(names).toContain("marketing_maturity_assessment");
     expect(names).toContain("martech_stack_roi");
     expect(names).toContain("pricing_psm");
+    expect(names).toContain("abm_account_scoring");
+    expect(names).toContain("nps_analysis");
+    expect(names).toContain("b2b_pipeline_velocity");
     expect(names).toContain("compliance_check");
     expect(names).toContain("ab_test_planner");
     expect(names).toContain("unit_economics");
@@ -215,8 +218,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(82);
-    expect(catalog.tools).toHaveLength(82);
+    expect(catalog.counts.tools).toBe(85);
+    expect(catalog.tools).toHaveLength(85);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -2332,7 +2335,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(82);
+    expect(parsed.result.tools.length).toBe(85);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -2415,7 +2418,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(82);
+    expect(json.result.tools).toHaveLength(85);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -2443,7 +2446,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(82);
+    expect(json.result.tools).toHaveLength(85);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -2453,12 +2456,15 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 57 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 60 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(57);
+    expect(json.result.prompts).toHaveLength(60);
     expect(names).toContain("maturity_check");
     expect(names).toContain("pricing_research");
+    expect(names).toContain("abm_targets");
+    expect(names).toContain("nps_check");
+    expect(names).toContain("pipeline_velocity");
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -3154,6 +3160,42 @@ describe("prompts", () => {
     expect(text).toContain("pricing_psm");
     expect(text).toContain("100/200/400/600");
   });
+
+  it("prompts/get abm_targets embeds accounts and calls abm_account_scoring", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 70,
+      method: "prompts/get",
+      params: { name: "abm_targets", arguments: { accounts: "Сбер:90:70:40:5000000; X5:60:80:30" } },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("abm_account_scoring");
+    expect(text).toContain("Сбер:90:70:40:5000000");
+  });
+
+  it("prompts/get nps_check embeds counts and calls nps_analysis", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 71,
+      method: "prompts/get",
+      params: { name: "nps_check", arguments: { counts: "120:60:30" } },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("nps_analysis");
+    expect(text).toContain("120:60:30");
+  });
+
+  it("prompts/get pipeline_velocity embeds inputs and calls b2b_pipeline_velocity", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 72,
+      method: "prompts/get",
+      params: { name: "pipeline_velocity", arguments: { opportunities: "50", winRatePct: "25", avgDealSize: "800000", salesCycleDays: "60" } },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("b2b_pipeline_velocity");
+    expect(text).toContain("opportunities=50");
+  });
 });
 
 describe("Plan gating (monetization seam)", () => {
@@ -3635,5 +3677,118 @@ describe("expansion tools (v2.54)", () => {
     });
     expect(json.result.isError).toBe(true);
     expect(json.result.structuredContent.dropped).toBeGreaterThanOrEqual(1);
+  });
+});
+
+describe("B2B & CX tools (v2.55)", () => {
+  it("abm_account_scoring tiers accounts and ranks by expected value", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 850,
+      method: "tools/call",
+      params: {
+        name: "abm_account_scoring",
+        arguments: {
+          accounts: [
+            { name: "Сбер", fit: 90, intent: 85, engagement: 70, dealSize: 5_000_000 },
+            { name: "X5", fit: 60, intent: 40, engagement: 30, dealSize: 1_000_000 },
+            { name: "Стартап", fit: 30, intent: 20, engagement: 10 },
+          ],
+        },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.accounts).toHaveLength(3);
+    expect(sc.accounts[0].name).toBe("Сбер"); // highest expected value
+    expect(sc.accounts[0].rank).toBe(1);
+    expect(sc.accounts[0].score).toBeGreaterThan(sc.accounts[2].score);
+    expect(typeof sc.accounts[0].tier).toBe("string");
+    expect(sc.accounts[0].expectedValue).toBeGreaterThan(0);
+  });
+
+  it("abm_account_scoring normalizes custom weights and errors on empty", async () => {
+    const { json: weighted } = await rpc({
+      jsonrpc: "2.0",
+      id: 851,
+      method: "tools/call",
+      params: {
+        name: "abm_account_scoring",
+        arguments: { accounts: [{ name: "A", fit: 100, intent: 0, engagement: 0 }], weights: { fit: 1, intent: 1, engagement: 2 } },
+      },
+    });
+    // weights normalize to sum 1
+    const w = weighted.result.structuredContent.weights;
+    expect(Math.round((w.fit + w.intent + w.engagement) * 1000) / 1000).toBe(1);
+
+    const { json: empty } = await rpc({
+      jsonrpc: "2.0",
+      id: 852,
+      method: "tools/call",
+      params: { name: "abm_account_scoring", arguments: { accounts: [] } },
+    });
+    expect(empty.result.isError).toBe(true);
+  });
+
+  it("nps_analysis from raw scores: NPS, segments and 95% CI", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 853,
+      method: "tools/call",
+      params: { name: "nps_analysis", arguments: { scores: [10, 9, 9, 8, 7, 6, 10, 9, 2, 5] } },
+    });
+    const sc = json.result.structuredContent;
+    // promoters 9-10: {10,9,9,10,9}=5; passives 7-8: {8,7}=2; detractors: {6,2,5}=3 ⇒ NPS = 50-30 = 20
+    expect(sc.n).toBe(10);
+    expect(sc.segments.promoters).toBe(5);
+    expect(sc.segments.detractors).toBe(3);
+    expect(sc.nps).toBe(20);
+    expect(sc.ci95[0]).toBeLessThanOrEqual(sc.nps);
+    expect(sc.ci95[1]).toBeGreaterThanOrEqual(sc.nps);
+  });
+
+  it("nps_analysis from counts and errors without input", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 854,
+      method: "tools/call",
+      params: { name: "nps_analysis", arguments: { counts: { promoters: 120, passives: 60, detractors: 30 } } },
+    });
+    expect(json.result.structuredContent.n).toBe(210);
+    expect(json.result.structuredContent.nps).toBe(42.9); // (90/210)*100 = 42.857 ⇒ 42.9
+
+    const { json: empty } = await rpc({
+      jsonrpc: "2.0",
+      id: 855,
+      method: "tools/call",
+      params: { name: "nps_analysis", arguments: {} },
+    });
+    expect(empty.result.isError).toBe(true);
+  });
+
+  it("b2b_pipeline_velocity computes revenue/day and the best lever", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 856,
+      method: "tools/call",
+      params: { name: "b2b_pipeline_velocity", arguments: { opportunities: 50, winRatePct: 25, avgDealSize: 800_000, salesCycleDays: 60 } },
+    });
+    const sc = json.result.structuredContent;
+    // (50 * 0.25 * 800000) / 60 = 166666.67 ⇒ rounded 166667
+    expect(sc.velocityPerDay).toBe(166667);
+    expect(sc.velocityPerYear).toBe(166667 * 365);
+    expect(sc.sensitivity).toHaveLength(4);
+    expect(typeof sc.bestLever).toBe("string");
+  });
+
+  it("b2b_pipeline_velocity validates positive inputs", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 857,
+      method: "tools/call",
+      params: { name: "b2b_pipeline_velocity", arguments: { opportunities: 0, winRatePct: 25, avgDealSize: 800_000, salesCycleDays: 60 } },
+    });
+    // opportunities=0 violates schema (exclusiveMinimum) ⇒ RPC-level error, not a tool result
+    expect(json.error ?? json.result?.isError).toBeTruthy();
+    expect(json.result).toBeUndefined();
   });
 });

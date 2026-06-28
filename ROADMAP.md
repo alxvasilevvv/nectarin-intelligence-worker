@@ -27,7 +27,7 @@
 
 ## 2. Текущее состояние (готово)
 
-- **82 инструмента / 57 промптов**, 22 профессии, `role_playbook`.
+- **85 инструментов / 60 промптов**, 22 профессии, `role_playbook`.
 - **Дистрибуция через Unyly**: `connect_via_unyly` (трекнутые установки, UTM, `via=`).
 - **Монетизация (реальная, не нарратив)**:
   - plan-gating флагманских инструментов по тарифу (claim `plan` от Unyly Connect);
@@ -73,6 +73,8 @@
 - **v2.54 — расширение профессий** (готово): `marketing_maturity_assessment` (CMO/
   трансформация), `martech_stack_roi` (marketing-ops/RevOps), `pricing_psm` (Van
   Westendorp для продакт/прайсинг-ресёрча).
+- **v2.55 — B2B & CX** (готово): `abm_account_scoring` (ABM/demand-gen),
+  `nps_analysis` (CX/лояльность), `b2b_pipeline_velocity` (revenue-маркетинг).
 - Подключение данных клиента (KV/D1/коннекторы рекламных кабинетов) без переделки тулов.
 - Автономные сценарии/алёрты (anomaly → действие), отчётность для правления.
 
@@ -88,7 +90,7 @@
 Пользователь (Claude/Cursor)
         │
         ▼
-NECTARIN Intelligence (хаб)  ──►  собственные 82 инструмента
+NECTARIN Intelligence (хаб)  ──►  собственные 85 инструментов
         │
         └─►  Unyly gateway  ──►  внешние MCP (SEO-данные, биржи, креатив, аналитика…)
                    │
