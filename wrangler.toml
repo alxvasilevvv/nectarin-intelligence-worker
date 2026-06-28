@@ -64,6 +64,9 @@ NECTARIN_CRM_WEBHOOK_URL = ""
 # is folded into the link's `via=` param for traffic attribution.
 UNYLY_LISTING_URL = "https://unyly.org/ru/mcp/nectarin-intelligence-worker"
 UNYLY_PARTNER_ID = "nectarin"
+# "1" appends a tracked "Сделано в NECTARIN · подключить через Unyly" footer to
+# successful tool outputs (viral distribution loop). Off by default in code.
+UNYLY_ATTRIBUTION = "1"
 
 # ── KV namespace (LLM response cache + real/override benchmark data) ─────────
 # Used by:

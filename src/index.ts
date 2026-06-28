@@ -26,7 +26,7 @@
  * messages (no stack leakage).
  */
 
-import { ALL_TOOLS, TOOLS_BY_NAME, describeTool } from "./tools.js";
+import { ALL_TOOLS, TOOLS_BY_NAME, describeTool, type ToolResult } from "./tools.js";
 import {
   CATEGORIES,
   KPIS,
@@ -38,6 +38,7 @@ import {
   type DataSource,
 } from "./data.js";
 import { authenticate, unauthorizedResponse, authMode } from "./auth.js";
+import { normalizePlan, planAllows, requiredPlan, unylyUpgradeUrl, type Plan } from "./plan.js";
 import {
   enforceRateLimit,
   setRateLimiter,
@@ -89,6 +90,8 @@ export interface Env {
   UNYLY_LISTING_URL?: string;
   /** Partner/attribution id folded into the install link's `via=` param. */
   UNYLY_PARTNER_ID?: string;
+  /** "1" appends a tracked "install via Unyly" footer to successful tool outputs. */
+  UNYLY_ATTRIBUTION?: string;
   /**
    * KV namespace binding. Two uses (both optional / graceful):
    *   • callLLM() narrative response cache (cache:llm:<hash>).
@@ -106,7 +109,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.47.0";
+const SERVER_VERSION = "2.48.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1580,6 +1583,10 @@ const PROMPTS = [
 interface RpcMeta {
   /** Set by handleRpc so the request logger can record which tool ran. */
   tool?: string;
+  /** Caller's subscription tier (from the token `plan` claim); undefined ⇒ owner. */
+  plan?: string;
+  /** True when a tools/call was blocked by plan gating (for usage logging). */
+  gated?: boolean;
 }
 
 /** Candidate values for `completion/complete`, keyed by argument name. */
@@ -1651,6 +1658,35 @@ async function handleRpc(rpc: JsonRpcRequest, env: Env, meta: RpcMeta = {}): Pro
           `Unknown tool '${name}'. Known tools: ${ALL_TOOLS.map((t) => t.name).join(", ")}.`
         );
       }
+      // ── Plan gating (monetization seam) ──────────────────────────────────────
+      // Effective plan = the token's `plan` claim, or `owner` (full access) when no
+      // claim is present (dev-bypass / shared-token / claimless). So this is a
+      // NO-OP for the current authless deploy and only upsells when Unyly Connect
+      // issues a lower tier than a flagship tool requires.
+      const effectivePlan: Plan = normalizePlan(meta.plan);
+      if (!planAllows(effectivePlan, name)) {
+        meta.gated = true;
+        const need = requiredPlan(name)!;
+        const base = env.UNYLY_LISTING_URL || "https://unyly.org/ru/mcp/nectarin-intelligence-worker";
+        const upgradeUrl = unylyUpgradeUrl(base, env.UNYLY_PARTNER_ID || "nectarin", need, name);
+        const payload = {
+          tool: name,
+          gated: true,
+          requiredPlan: need,
+          yourPlan: effectivePlan,
+          upgradeVia: "unyly",
+          upgradeUrl,
+          message: `Инструмент «${name}» доступен на тарифе «${need}» и выше. Ваш тариф — «${effectivePlan}». Обновитесь через Unyly.`,
+        };
+        return rpcResult(id ?? null, {
+          content: [
+            { type: "text", text: `🔒 «${name}» требует тариф «${need}» (у вас «${effectivePlan}»). Обновитесь через Unyly: ${upgradeUrl}` },
+            { type: "text", text: "```json\n" + JSON.stringify(payload, null, 2) + "\n```" },
+          ],
+          structuredContent: payload,
+          isError: true,
+        });
+      }
       // Validate arguments against the tool's JSON Schema → -32602 on failure.
       const validation = validateInput(args, tool.inputSchema);
       if (!validation.valid) {
@@ -1663,10 +1699,13 @@ async function handleRpc(rpc: JsonRpcRequest, env: Env, meta: RpcMeta = {}): Pro
       }
       try {
         const result = await tool.handler(args, env);
+        // Viral attribution: append a subtle "powered by · install via Unyly" footer
+        // to successful outputs (env-gated; default OFF so dev/tests are unchanged).
+        const withAttr = applyUnylyAttribution(result, env, name);
         return rpcResult(id ?? null, {
-          content: result.content,
-          ...(result.structuredContent ? { structuredContent: result.structuredContent } : {}),
-          ...(result.isError ? { isError: true } : {}),
+          content: withAttr.content,
+          ...(withAttr.structuredContent ? { structuredContent: withAttr.structuredContent } : {}),
+          ...(withAttr.isError ? { isError: true } : {}),
         });
       } catch (err) {
         // Tool errors are reported as a successful result with isError=true,
@@ -1733,6 +1772,87 @@ async function handleRpc(rpc: JsonRpcRequest, env: Env, meta: RpcMeta = {}): Pro
       if (!hasId) return null; // unknown notification → ignore.
       return rpcError(id ?? null, METHOD_NOT_FOUND, `Method not found: ${method}`);
   }
+}
+
+// ── Unyly attribution (viral distribution loop) ──────────────────────────────
+
+/** Tools that already drive to Unyly / the funnel — skip the footer to avoid noise. */
+const ATTRIBUTION_SKIP = new Set([
+  "connect_via_unyly",
+  "request_nectarin_proposal",
+  "book_consultation",
+]);
+
+function isTruthyEnv(v: string | undefined): boolean {
+  if (!v) return false;
+  const s = v.trim().toLowerCase();
+  return s === "1" || s === "true" || s === "yes";
+}
+
+/**
+ * Append a subtle "Сделано в NECTARIN · подключить через Unyly" footer (tracked
+ * link) to a successful tool result. Env-gated via UNYLY_ATTRIBUTION so the
+ * dev/test output is byte-for-byte unchanged unless explicitly enabled in prod.
+ */
+function applyUnylyAttribution(result: ToolResult, env: Env, tool: string): ToolResult {
+  if (!isTruthyEnv(env.UNYLY_ATTRIBUTION)) return result;
+  if (result.isError || ATTRIBUTION_SKIP.has(tool)) return result;
+  const base = env.UNYLY_LISTING_URL || "https://unyly.org/ru/mcp/nectarin-intelligence-worker";
+  const partner = env.UNYLY_PARTNER_ID || "nectarin";
+  const sep = base.includes("?") ? "&" : "?";
+  const url = `${base}${sep}utm_source=tool_footer&utm_medium=mcp_connector&utm_campaign=nectarin_intelligence&via=${encodeURIComponent(partner)}&tool=${encodeURIComponent(tool)}`;
+  const footer = `— Сделано в NECTARIN Intelligence. Подключить для своей команды через Unyly: ${url}`;
+  const content = [...result.content, { type: "text" as const, text: footer }];
+  const structuredContent =
+    result.structuredContent && typeof result.structuredContent === "object"
+      ? { ...result.structuredContent, poweredBy: { product: "NECTARIN Intelligence", installVia: "unyly", url } }
+      : result.structuredContent;
+  return { ...result, content, structuredContent };
+}
+
+// ── Usage metering (monetization seam) ───────────────────────────────────────
+
+/** Minimal ExecutionContext shape (Workers passes one; tests don't) — for waitUntil. */
+interface ExecutionContextLike {
+  waitUntil?: (p: Promise<unknown>) => void;
+}
+
+/** Read + lightly sanitize the tenant id from the X-Tenant-Id header (or "anon"). */
+function tenantIdFrom(req: Request): string {
+  const raw = (req.headers.get("X-Tenant-Id") ?? "").trim();
+  const safe = raw.replace(/[^a-zA-Z0-9_.:-]/g, "").slice(0, 64);
+  return safe || "anon";
+}
+
+/**
+ * Record a tool-call usage event. This is the metering SEAM Unyly bills on:
+ *   • always: a structured `usage` log line (zero-infra; aggregate downstream).
+ *   • best-effort: a monthly KV counter per tenant (and per tool) when KV is bound.
+ * Never throws, never blocks the response (KV write runs via waitUntil when present).
+ * KV counters are approximate (eventual consistency) — exact billing should
+ * aggregate the usage logs / move to a Durable Object. Intentionally lightweight.
+ */
+function recordUsage(env: Env, ctx: ExecutionContextLike | undefined, req: Request, meta: RpcMeta): void {
+  const tenant = tenantIdFrom(req);
+  const plan = normalizePlan(meta.plan);
+  const tool = meta.tool ?? "unknown";
+  console.log(
+    JSON.stringify({ level: "info", scope: "usage", tool, tenant, plan, gated: Boolean(meta.gated) })
+  );
+  if (meta.gated || !env.NECTARIN_KV) return; // don't meter blocked calls; need KV to persist
+  const kv = env.NECTARIN_KV;
+  const ym = new Date().toISOString().slice(0, 7).replace("-", ""); // YYYYMM
+  const bump = async () => {
+    try {
+      const key = `usage:${tenant}:${ym}`;
+      const cur = Number((await kv.get(key)) ?? "0") || 0;
+      await kv.put(key, String(cur + 1), { expirationTtl: 60 * 60 * 24 * 400 });
+    } catch {
+      /* best-effort: metering must never affect a tool call */
+    }
+  };
+  if (ctx?.waitUntil) ctx.waitUntil(bump());
+  else void bump();
 }
 
 // ── Observability helpers ────────────────────────────────────────────────────
@@ -1807,7 +1927,7 @@ function resolveTenantDataSource(request: Request, env: Env): DataSource | undef
 }
 
 export default {
-  async fetch(request: Request, env: Env): Promise<Response> {
+  async fetch(request: Request, env: Env, ctx?: ExecutionContextLike): Promise<Response> {
     const url = new URL(request.url);
     const origin = `${url.protocol}//${url.host}`;
     const resourceMetadataUrl = `${origin}/.well-known/oauth-protected-resource`;
@@ -1939,7 +2059,9 @@ export default {
             continue;
           }
           try {
-            const res = await withTenant(() => handleRpc(item as JsonRpcRequest, env));
+            const itemMeta: RpcMeta = { plan: auth.plan };
+            const res = await withTenant(() => handleRpc(item as JsonRpcRequest, env, itemMeta));
+            if (itemMeta.tool) recordUsage(env, ctx, request, itemMeta);
             if (res) responses.push(await res.json());
           } catch (err) {
             console.error(JSON.stringify({ level: "error", scope: "mcp", message: safeMessage(err) }));
@@ -1961,11 +2083,12 @@ export default {
         return rpcError(null, INVALID_REQUEST, "Invalid Request");
       }
 
-      const meta: RpcMeta = {};
+      const meta: RpcMeta = { plan: auth.plan };
       const method = (payload as JsonRpcRequest).method;
       const sse = wantsSse(url, request);
       try {
         const res = await withTenant(() => handleRpc(payload as JsonRpcRequest, env, meta));
+        if (meta.tool) recordUsage(env, ctx, request, meta);
         // Notification → no response body.
         if (!res) {
           logRequest({ method, tool: meta.tool, ms: Date.now() - started, status: 202 });

@@ -21,6 +21,9 @@ RATE_LIMIT_PER_MIN="60"
 # ── Distribution / Unyly (single front door used by connect_via_unyly) ──
 UNYLY_LISTING_URL="https://unyly.org/ru/mcp/nectarin-intelligence-worker"
 UNYLY_PARTNER_ID="nectarin"
+# UNYLY_ATTRIBUTION=1 appends a tracked "Сделано в NECTARIN · подключить через
+# Unyly" footer to successful tool outputs (viral loop). Off unless set.
+UNYLY_ATTRIBUTION="1"
 
 # ── Optional, for when callLLM() is wired to a real model (production: use
 #    `wrangler secret put LLM_API_KEY` instead of putting it here) ──

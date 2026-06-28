@@ -38,6 +38,12 @@ export interface AuthContext {
   authenticated: boolean;
   subject?: string;
   scopes: string[];
+  /**
+   * Subscription tier from the token's `plan` claim (issued by Unyly Connect).
+   * Undefined for dev-bypass / shared-token / claimless tokens ⇒ treated as full
+   * access (`owner`) downstream, so gating never breaks existing access.
+   */
+  plan?: string;
   /** True when running in permissive dev mode (no real verification). */
   devBypass: boolean;
   /** Failure reason for logging / WWW-Authenticate (never leaked verbatim to client body). */
@@ -173,6 +179,7 @@ async function verifyToken(token: string, env: Env): Promise<AuthContext> {
       authenticated: true,
       subject: typeof payload.sub === "string" ? payload.sub : undefined,
       scopes: extractScopes(payload),
+      plan: extractPlan(payload),
       devBypass: false,
     };
   } catch (err) {
@@ -181,6 +188,14 @@ async function verifyToken(token: string, env: Env): Promise<AuthContext> {
     const code = (err as { code?: string }).code ?? "invalid_token";
     return { authenticated: false, scopes: [], devBypass: false, error: code };
   }
+}
+
+/** Subscription tier from a `plan` claim (Unyly Connect). Falls back to `tier`. */
+function extractPlan(payload: JWTPayload): string | undefined {
+  const rec = payload as Record<string, unknown>;
+  if (typeof rec.plan === "string") return rec.plan;
+  if (typeof rec.tier === "string") return rec.tier;
+  return undefined;
 }
 
 /** OAuth scopes can arrive as space-delimited `scope` or an array `scp`/`permissions`. */

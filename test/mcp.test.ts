@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { rpc, get, devEnv, authEnv } from "./helpers.js";
+import { normalizePlan, planAllows, requiredPlan, unylyUpgradeUrl } from "../src/plan.js";
 
 describe("MCP handshake & discovery", () => {
   it("initialize returns serverInfo + protocolVersion + capabilities", async () => {
@@ -3101,5 +3102,92 @@ describe("prompts", () => {
     const text = json.result.messages[0].content.text;
     expect(text).toContain("anomaly_detector");
     expect(text).toContain("100,102,98,480");
+  });
+});
+
+describe("Plan gating (monetization seam)", () => {
+  it("normalizePlan: claimless ⇒ owner; known tiers pass through; unknown ⇒ owner", () => {
+    expect(normalizePlan(undefined)).toBe("owner");
+    expect(normalizePlan("")).toBe("owner");
+    expect(normalizePlan("PRO")).toBe("pro");
+    expect(normalizePlan("team")).toBe("team");
+    expect(normalizePlan("enterprise")).toBe("owner");
+  });
+
+  it("requiredPlan: flagship tools gated, free tools open", () => {
+    expect(requiredPlan("strategy_orchestrate")).toBe("pro");
+    expect(requiredPlan("board_report")).toBe("team");
+    expect(requiredPlan("budget_optimizer")).toBeNull();
+  });
+
+  it("planAllows: free blocked from pro tool, team allowed, owner always", () => {
+    expect(planAllows("free", "strategy_orchestrate")).toBe(false);
+    expect(planAllows("pro", "strategy_orchestrate")).toBe(true);
+    expect(planAllows("pro", "board_report")).toBe(false);
+    expect(planAllows("team", "board_report")).toBe(true);
+    expect(planAllows("owner", "board_report")).toBe(true);
+    expect(planAllows("free", "budget_optimizer")).toBe(true);
+  });
+
+  it("unylyUpgradeUrl carries plan, tool, via + utm params", () => {
+    const url = unylyUpgradeUrl("https://unyly.org/ru/mcp/x", "nectarin", "team", "board_report");
+    expect(url).toContain("plan=team");
+    expect(url).toContain("tool=board_report");
+    expect(url).toContain("via=nectarin");
+    expect(url).toContain("utm_source=mcp_gate");
+  });
+
+  it("claimless caller (dev-bypass) keeps full access to a flagship tool", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 700,
+      method: "tools/call",
+      params: { name: "strategy_orchestrate", arguments: { brand: "Acme", category: "finance", budget: 8_000_000, goal: "performance", geo: "РФ" } },
+    });
+    expect(json.result).toBeDefined();
+    expect(json.result.isError).toBeFalsy();
+  });
+});
+
+describe("Unyly attribution footer (viral loop)", () => {
+  it("is OFF by default (no footer, no poweredBy)", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 710,
+      method: "tools/call",
+      params: { name: "budget_optimizer", arguments: { category: "retail", budget: 4_000_000, goal: "performance" } },
+    });
+    const text = json.result.content.map((c: any) => c.text).join("\n");
+    expect(text).not.toContain("через Unyly");
+    expect(json.result.structuredContent?.poweredBy).toBeUndefined();
+  });
+
+  it("appends a tracked footer + poweredBy when UNYLY_ATTRIBUTION=1", async () => {
+    const { json } = await rpc(
+      {
+        jsonrpc: "2.0",
+        id: 711,
+        method: "tools/call",
+        params: { name: "budget_optimizer", arguments: { category: "retail", budget: 4_000_000, goal: "performance" } },
+      },
+      devEnv({ UNYLY_ATTRIBUTION: "1" })
+    );
+    const text = json.result.content.map((c: any) => c.text).join("\n");
+    expect(text).toContain("через Unyly");
+    expect(text).toContain("utm_source=tool_footer");
+    expect(json.result.structuredContent?.poweredBy?.installVia).toBe("unyly");
+  });
+
+  it("does not add a footer to connect_via_unyly even when enabled", async () => {
+    const { json } = await rpc(
+      {
+        jsonrpc: "2.0",
+        id: 712,
+        method: "tools/call",
+        params: { name: "connect_via_unyly", arguments: {} },
+      },
+      devEnv({ UNYLY_ATTRIBUTION: "1" })
+    );
+    expect(json.result.structuredContent?.poweredBy).toBeUndefined();
   });
 });

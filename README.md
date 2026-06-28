@@ -17,6 +17,15 @@ over **Streamable HTTP (JSON-RPC 2.0)** with an **opt-in SSE** transport, ships
 with **mock/synthetic RU data** plus **KV real-data layering**, and a
 **KV-cached, model-agnostic LLM narrative** (DeepSeek wired in this deploy).
 
+> **New in 2.48 — monetization seam:** the Unyly access tiers are now **real**. A small set
+> of flagship tools (`strategy_orchestrate`, `mmm_optimize`, `incrementality_meta`,
+> `geo_holdout`, `competitive_response`, `report_export` → **pro**; `board_report` → **team**)
+> require a minimum plan, read from the token's `plan` claim (issued by Unyly Connect);
+> below-tier calls return an upgrade CTA with a tracked Unyly link. Every `tools/call` emits a
+> structured **usage** event (the billing seam Unyly aggregates), and with
+> `UNYLY_ATTRIBUTION=1` successful outputs carry a tracked "install via Unyly" footer.
+> Non-breaking: claimless tokens get full access, so the authless deploy is unchanged.
+
 > **New in 2.47 — distribution through Unyly:** `connect_via_unyly` makes the connector
 > self-distribute — every install/onboarding/upgrade returns a **tracked Unyly link**
 > (UTM-attributed) so consumption, requests and installs all flow through the single

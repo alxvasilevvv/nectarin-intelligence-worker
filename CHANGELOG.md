@@ -3,6 +3,38 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.48.0] — 2026-06-29
+
+Eleventh wave — **monetization seam**: turn the Unyly access tiers from narrative into
+real, enforceable product value, add a usage-metering event Unyly can bill on, and make
+every successful tool output carry a tracked "install via Unyly" footer so the connector
+distributes itself. Non-breaking: gating and the footer are inert until Unyly Connect
+issues a `plan` claim / the footer is enabled, so the current authless deploy and the
+test-suite are unchanged. Tool/prompt counts are unchanged (**74 tools / 51 prompts**).
+
+### Added
+- **Plan gating** (`src/plan.ts`) — a small set of flagship / compute-heavy tools
+  (`strategy_orchestrate`, `mmm_optimize`, `incrementality_meta`, `geo_holdout`,
+  `competitive_response`, `report_export` → `pro`; `board_report` → `team`) now require a
+  minimum tier. The caller's tier comes from the token's **`plan` claim** (issued by Unyly
+  Connect); a claimless token (dev-bypass / shared-token) is treated as `owner` ⇒ full
+  access. Below-tier calls return a friendly **upgrade CTA** with a tracked Unyly link
+  instead of running. The free tier stays deliberately generous to drive adoption.
+- **Usage metering** — every `tools/call` now emits a structured `usage` log
+  (`{scope:"usage", tool, tenant, plan, gated}`) as the zero-infra billing seam, plus a
+  best-effort monthly KV counter per tenant (`usage:<tenant>:<YYYYMM>`) when KV is bound.
+  Never blocks the response (runs via `waitUntil` when available) and never throws.
+- **Unyly attribution footer** — when `UNYLY_ATTRIBUTION=1`, successful tool outputs get a
+  subtle "Сделано в NECTARIN · подключить через Unyly" line with a UTM-tracked link plus a
+  `poweredBy` field in `structuredContent`. Funnel tools (`connect_via_unyly`,
+  `request_nectarin_proposal`, `book_consultation`) are skipped to avoid noise.
+- Env var `UNYLY_ATTRIBUTION` in `Env`, `wrangler.toml` (on) and `.dev.vars.example`.
+
+### Changed
+- Token `plan`/`tier` claim is now extracted into `AuthContext.plan` and threaded into the
+  dispatcher. `src/index.ts` `fetch` now accepts the optional Workers `ExecutionContext`
+  (for `waitUntil`); tests calling `fetch(request, env)` are unaffected.
+
 ## [2.47.0] — 2026-06-29
 
 Tenth wave — **distribution through Unyly**: make the connector self-distribute and
