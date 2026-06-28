@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(43);
+    expect(json.toolCount).toBe(44);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(43);
+    expect(tools).toHaveLength(44);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -80,6 +80,7 @@ describe("tools/list", () => {
     expect(names).toContain("price_optimizer");
     expect(names).toContain("influencer_planner");
     expect(names).toContain("reach_frequency");
+    expect(names).toContain("brand_lift");
     expect(names).toContain("marketing_audit");
   });
 
@@ -175,8 +176,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(43);
-    expect(catalog.tools).toHaveLength(43);
+    expect(catalog.counts.tools).toBe(44);
+    expect(catalog.tools).toHaveLength(44);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -1111,6 +1112,49 @@ describe("premium tools (v2.1)", () => {
     expect(sc.frequencyCap.wastedImpressionsAboveCap).toBeGreaterThan(0);
   });
 
+  it("brand_lift (measure) computes a significant lift with z-test and CI", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 82,
+      method: "tools/call",
+      params: {
+        name: "brand_lift",
+        arguments: {
+          metric: "ad recall",
+          control: { n: 800, positive: 120 },
+          exposed: { n: 800, positive: 240 },
+          alpha: 0.05,
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.mode).toBe("measure");
+    expect(sc.control.ratePct).toBe(15);
+    expect(sc.exposed.ratePct).toBe(30);
+    expect(sc.absoluteLiftPp).toBeCloseTo(15, 1);
+    expect(sc.significant).toBe(true);
+    expect(sc.pValue).toBeLessThan(0.05);
+    expect(sc.absoluteLiftCiPp).toHaveLength(2);
+  });
+
+  it("brand_lift (design) returns a required sample size per cell", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 83,
+      method: "tools/call",
+      params: {
+        name: "brand_lift",
+        arguments: { metric: "awareness", baseRatePct: 20, targetAbsoluteLiftPp: 5, alpha: 0.05, power: 0.8 },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.mode).toBe("design");
+    expect(sc.requiredSamplePerCell).toBeGreaterThan(0);
+    expect(sc.requiredSampleTotal).toBe(sc.requiredSamplePerCell * 2);
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -1192,7 +1236,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(43);
+    expect(parsed.result.tools.length).toBe(44);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -1275,7 +1319,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(43);
+    expect(json.result.tools).toHaveLength(44);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -1303,7 +1347,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(43);
+    expect(json.result.tools).toHaveLength(44);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -1313,10 +1357,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 20 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 21 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(20);
+    expect(json.result.prompts).toHaveLength(21);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -1333,6 +1377,7 @@ describe("prompts", () => {
     expect(names).toContain("price_optimization");
     expect(names).toContain("influencer_plan");
     expect(names).toContain("olv_plan");
+    expect(names).toContain("brand_lift_study");
   });
 
   it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
@@ -1486,6 +1531,21 @@ describe("prompts", () => {
     const text = json.result.messages[0].content.text;
     expect(text).toContain("reach_frequency");
     expect(text).toContain("1000000");
+  });
+
+  it("prompts/get brand_lift_study (measure) embeds cells and calls brand_lift", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 77,
+      method: "prompts/get",
+      params: {
+        name: "brand_lift_study",
+        arguments: { metric: "ad recall", control: "600,90", exposed: "600,150" },
+      },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("brand_lift");
+    expect(text).toContain("600,90");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {

@@ -26,6 +26,7 @@ import { BOARD_TOOLS } from "./board.js";
 import { CREATIVE_OPS_TOOLS } from "./fatigue.js";
 import { INFLUENCE_TOOLS } from "./influence.js";
 import { MEDIA_TOOLS } from "./reach.js";
+import { BRAND_TOOLS } from "./brand.js";
 import type { Env } from "./index.js";
 
 export interface JsonSchema {
@@ -404,6 +405,7 @@ export const ALL_TOOLS: ToolDef[] = [
   ...CREATIVE_OPS_TOOLS,
   ...INFLUENCE_TOOLS,
   ...MEDIA_TOOLS,
+  ...BRAND_TOOLS,
 ];
 
 export const TOOLS_BY_NAME: Record<string, ToolDef> = Object.fromEntries(

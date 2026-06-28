@@ -3,6 +3,26 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.23.0] — 2026-06-28
+
+Branding measurement: a brand-lift study calculator (44th tool) — third feature of
+the site-aligned wave (closes the брендинг gap).
+
+### Added
+- **`brand_lift`** (new **Brand** group) — two modes, auto-detected.
+  *Measure*: from a control vs. exposed survey cell (n + positive answers for ad
+  recall / awareness / consideration / intent) computes both rates, the absolute
+  (pp) and relative lift, a pooled **two-proportion z-test** (z, two-tailed
+  p-value, significance at α) and a confidence interval for the absolute lift.
+  *Design*: from a base rate + target lift (absolute pp or relative %), α and power,
+  returns the **required sample size per cell** and total. Deterministic survey
+  statistics. 43 → **44 tools**.
+- **`brand_lift_study`** guided prompt (**21 prompts** total).
+
+### Changed
+- `server.json` description + version, README (Tools badge 44, new Brand group),
+  USAGE (catalogue 44, prompts 21), test counts (44 tools / 21 prompts).
+
 ## [2.22.0] — 2026-06-28
 
 OLV/display media science: a reach & frequency planner (43rd tool) — second feature

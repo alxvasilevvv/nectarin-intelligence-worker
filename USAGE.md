@@ -37,7 +37,7 @@ stays on JSON, so existing clients are unaffected.
 
 ---
 
-## 2. Tool catalogue (43)
+## 2. Tool catalogue (44)
 
 ### Intelligence (11)
 | Tool | What it does |
@@ -130,11 +130,17 @@ stays on JSON, so existing clients are unaffected.
 |---|---|
 | `reach_frequency` | From budget+CPM (or impressions) and the audience universe, gives gross impressions, GRPs, **net reach** (people & %), average frequency, contact distribution and **effective reach at ≥N exposures** (Poisson). Optional `frequencyCap` estimates over-cap waste and reallocatable reach; returns cost-per-reached-person + verdict. |
 
-Built‑in **prompts** (20): `build_media_plan`, `full_strategy`, `competitor_teardown`,
+### Brand (1) — brand lift
+| Tool | What it does |
+|---|---|
+| `brand_lift` | *Measure*: control vs exposed survey cells → rates, absolute (pp) & relative lift, pooled **two-proportion z-test** (z, p-value, significance) and a lift CI. *Design*: base rate + target lift + α + power → **required sample per cell** and total. Auto-detects mode. |
+
+Built‑in **prompts** (21): `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`,
 `launch_flight`, `performance_review`, `saturation_reallocation`, `mmm_planning`,
 `quarter_plan`, `account_audit`, `scenario_review`, `promo_review`, `exec_report`,
-`creative_fatigue_check`, `price_optimization`, `influencer_plan`, `olv_plan`.
+`creative_fatigue_check`, `price_optimization`, `influencer_plan`, `olv_plan`,
+`brand_lift_study`.
 **Resources:** `nectarin://methodology`, `nectarin://glossary`, `nectarin://catalog`
 (live JSON catalog of all tools + annotations + prompts). `tools/list` also
 returns a `title` and behavioral `annotations` (read-only / idempotent / open-world) per tool.

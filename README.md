@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-43-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-44-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -203,6 +203,11 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 |---|---|
 | `reach_frequency` | **OLV / display reach & frequency planner.** From a budget + CPM (or impressions directly) and the target audience universe, computes gross impressions, GRPs, **net reach** (people & %), average frequency, the full contact distribution, and **effective reach at ≥N exposures** (Poisson exposure model). With a `frequencyCap` it estimates impressions wasted above the cap and the potential reach gain from reallocating them, plus cost-per-reached-person and an under-/over-frequency verdict. Deterministic. |
 
+### Brand group (v2.23+ — brand lift)
+| Tool | What it does |
+|---|---|
+| `brand_lift` | **Brand-lift study calculator.** *Measure*: from a control vs. exposed survey cell (n + positive answers for ad recall / awareness / consideration / intent) computes both rates, the absolute (pp) & relative lift, a pooled **two-proportion z-test** (z, two-tailed p-value, significance at α) and a confidence interval for the lift. *Design*: from a base rate + target lift (absolute pp or relative %), α and power, returns the **required sample size per cell** (and total). Auto-detects mode. Deterministic. |
+
 > **Funnel logic & safety.** All Growth figures are synthetic/illustrative and
 > anchored to the same mock RU/CIS benchmarks (`src/data.ts`) — internally
 > consistent, but not guarantees. No tool transmits PII or makes a real network
@@ -282,7 +287,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 43 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 6 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 1 Creative Ops + 1 Influence + 1 Media);
+`tools/list` returns all 44 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 6 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 1 Creative Ops + 1 Influence + 1 Media + 1 Brand);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -325,7 +330,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (43 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (44 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit
@@ -471,5 +476,6 @@ interface, so going real is a one-line wiring change — no upstream edits.
   **`price_optimization`** (price_optimizer) for the profit-maximizing price,
   **`influencer_plan`** (influencer_planner) for the best influencer mix,
   **`olv_plan`** (reach_frequency) for OLV/media reach & frequency, and
+  **`brand_lift_study`** (brand_lift) to measure or size a brand-lift study, and
   **`exec_report`** (board_report) for a board-ready one-pager (audit + upside), and
   **`creative_fatigue_check`** (creative_fatigue) to spot burning-out creatives.

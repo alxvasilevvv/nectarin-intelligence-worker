@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.22.0";
+const SERVER_VERSION = "2.23.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -789,6 +789,43 @@ const PROMPTS = [
       `3) Дай эффективный охват ≥N и что он значит для запоминаемости.\n` +
       (a.frequencyCap ? `4) Покажи потери показов сверх cap и потенциальный прирост охвата.\n` : `4) Оцени, не идёт ли переконтакт; нужен ли frequency cap.\n`) +
       `5) Рекомендация по бюджету/частоте + дисклеймер: плановая оценка (Пуассон), сверяйте с post-buy.`,
+  },
+  {
+    name: "brand_lift_study",
+    title: "Brand lift: measure or design",
+    description:
+      "Measure or design a brand-lift study (brand_lift): control vs exposed significance, or required sample size for a target lift.",
+    arguments: [
+      { name: "metric", description: "Brand metric: ad recall / awareness / consideration / intent", required: true },
+      { name: "control", description: "MEASURE: control cell as 'n,positive' (e.g. '600,90')", required: false },
+      { name: "exposed", description: "MEASURE: exposed cell as 'n,positive' (e.g. '600,150')", required: false },
+      { name: "baseRatePct", description: "DESIGN: expected control rate, %", required: false },
+      { name: "targetAbsoluteLiftPp", description: "DESIGN: target absolute lift, percentage points", required: false },
+      { name: "alpha", description: "Significance level (optional; default 0.05)", required: false },
+      { name: "power", description: "DESIGN: power (optional; default 0.8)", required: false },
+    ],
+    build: (a: Record<string, string>) => {
+      const measure = a.control && a.exposed;
+      return (
+        `Ты — NECTARIN Intelligence, аналитик бренд-исследований RU/CIS.\n` +
+        `Метрика: ${a.metric}.\n` +
+        (measure
+          ? `Режим: ЗАМЕР. Контроль (n,positive): ${a.control}. Экспонированные (n,positive): ${a.exposed}.\n`
+          : `Режим: ДИЗАЙН. База: ${a.baseRatePct}%. Целевой прирост: ${a.targetAbsoluteLiftPp} п.п.${a.power ? ` Power: ${a.power}.` : ""}\n`) +
+        (a.alpha ? `α: ${a.alpha}.\n` : `α: 0.05.\n`) +
+        `\nШаги:\n` +
+        (measure
+          ? `1) Распарси ячейки в control{n,positive} и exposed{n,positive}.\n` +
+            `2) Вызови brand_lift(metric, control, exposed${a.alpha ? ", alpha" : ""}).\n` +
+            `3) Объясни: контрольный и экспонированный уровни, абсолютный (п.п.) и относительный lift.\n` +
+            `4) Дай z, p-value, значимость и доверительный интервал — что это значит бизнесу.\n` +
+            `5) Вывод: подтверждён ли бренд-эффект, и next-step.`
+          : `1) Вызови brand_lift(metric, baseRatePct, targetAbsoluteLiftPp${a.alpha ? ", alpha" : ""}${a.power ? ", power" : ""}).\n` +
+            `2) Назови нужный размер выборки на ячейку и суммарно.\n` +
+            `3) Дай практические советы по дизайну (контроль/экспонирование, неответы).\n` +
+            `4) Предупреди: реальная мощность зависит от фактической базы и эффекта.`)
+      );
+    },
   },
 ];
 
