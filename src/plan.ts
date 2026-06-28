@@ -31,6 +31,24 @@ export const TOOL_MIN_PLAN: Record<string, Plan> = {
   board_report: "team",
 };
 
+/**
+ * Monthly tool-call quota per plan. The free tier is capped to create a concrete
+ * upsell moment; paid tiers are effectively unlimited here (real billing is metered
+ * at the Unyly gateway, not gated in the worker). `owner` (claimless) is unlimited,
+ * so the current authless deploy enforces no quota.
+ */
+export const PLAN_MONTHLY_QUOTA: Record<Plan, number> = {
+  free: 100,
+  pro: Infinity,
+  team: Infinity,
+  agency: Infinity,
+  owner: Infinity,
+};
+
+export function monthlyQuota(plan: Plan): number {
+  return PLAN_MONTHLY_QUOTA[plan];
+}
+
 /** Map an arbitrary claim string to a known Plan; unknown/empty ⇒ `owner` (fail-open). */
 export function normalizePlan(plan?: string | null): Plan {
   if (!plan) return "owner";

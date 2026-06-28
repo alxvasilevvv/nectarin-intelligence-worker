@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { rpc, get, devEnv, authEnv } from "./helpers.js";
-import { normalizePlan, planAllows, requiredPlan, unylyUpgradeUrl } from "../src/plan.js";
+import { normalizePlan, planAllows, requiredPlan, monthlyQuota, unylyUpgradeUrl } from "../src/plan.js";
 
 describe("MCP handshake & discovery", () => {
   it("initialize returns serverInfo + protocolVersion + capabilities", async () => {
@@ -3189,5 +3189,71 @@ describe("Unyly attribution footer (viral loop)", () => {
       devEnv({ UNYLY_ATTRIBUTION: "1" })
     );
     expect(json.result.structuredContent?.poweredBy).toBeUndefined();
+  });
+});
+
+describe("Monthly quota + /usage dashboard", () => {
+  function fakeKv(initial: Record<string, unknown> = {}) {
+    const store = new Map<string, unknown>(Object.entries(initial));
+    return {
+      async get(key: string) {
+        const v = store.get(key);
+        return v == null ? null : typeof v === "string" ? v : JSON.stringify(v);
+      },
+      async put(key: string, value: string) {
+        store.set(key, value);
+      },
+    };
+  }
+  const ym = new Date().toISOString().slice(0, 7).replace("-", "");
+
+  it("monthlyQuota: free is finite (100), paid tiers + owner are unlimited", () => {
+    expect(monthlyQuota("free")).toBe(100);
+    expect(monthlyQuota("pro")).toBe(Infinity);
+    expect(monthlyQuota("team")).toBe(Infinity);
+    expect(monthlyQuota("owner")).toBe(Infinity);
+  });
+
+  it("GET /usage without KV ⇒ used 0, metering none, owner plan, null quota", async () => {
+    const { status, json } = await get("/usage");
+    expect(status).toBe(200);
+    expect(json.used).toBe(0);
+    expect(json.metering).toBe("none");
+    expect(json.plan).toBe("owner");
+    expect(json.quota).toBeNull();
+    expect(json.month).toBe(ym);
+  });
+
+  it("GET /usage reads the tenant's monthly counter from KV", async () => {
+    const env = devEnv({ NECTARIN_KV: fakeKv({ [`usage:acme:${ym}`]: "7" }) as any });
+    const { status, json } = await get(`/usage?tenant=acme`, env);
+    expect(status).toBe(200);
+    expect(json.tenant).toBe("acme");
+    expect(json.used).toBe(7);
+    expect(json.metering).toBe("kv");
+  });
+
+  it("GET /usage requires auth when OAuth is configured", async () => {
+    const { status } = await get("/usage", authEnv());
+    expect(status).toBe(401);
+  });
+
+  it("tools/call increments the tenant's monthly counter", async () => {
+    const kv = fakeKv();
+    const env = devEnv({ NECTARIN_KV: kv as any });
+    await rpc(
+      {
+        jsonrpc: "2.0",
+        id: 720,
+        method: "tools/call",
+        params: { name: "budget_optimizer", arguments: { category: "retail", budget: 4_000_000, goal: "performance" } },
+      },
+      env,
+      { "X-Tenant-Id": "acme" }
+    );
+    // Metering runs fire-and-forget (no ExecutionContext in tests) — flush microtasks.
+    await new Promise((r) => setTimeout(r, 0));
+    const stored = await kv.get(`usage:acme:${ym}`);
+    expect(Number(stored)).toBe(1);
   });
 });

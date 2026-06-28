@@ -38,7 +38,7 @@ import {
   type DataSource,
 } from "./data.js";
 import { authenticate, unauthorizedResponse, authMode } from "./auth.js";
-import { normalizePlan, planAllows, requiredPlan, unylyUpgradeUrl, type Plan } from "./plan.js";
+import { normalizePlan, planAllows, requiredPlan, monthlyQuota, unylyUpgradeUrl, type Plan } from "./plan.js";
 import {
   enforceRateLimit,
   setRateLimiter,
@@ -109,7 +109,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.48.0";
+const SERVER_VERSION = "2.49.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1585,7 +1585,9 @@ interface RpcMeta {
   tool?: string;
   /** Caller's subscription tier (from the token `plan` claim); undefined ⇒ owner. */
   plan?: string;
-  /** True when a tools/call was blocked by plan gating (for usage logging). */
+  /** Sanitized tenant id (X-Tenant-Id) — for per-tenant quota + metering. */
+  tenantId?: string;
+  /** True when a tools/call was blocked by plan gating / quota (for usage logging). */
   gated?: boolean;
 }
 
@@ -1686,6 +1688,38 @@ async function handleRpc(rpc: JsonRpcRequest, env: Env, meta: RpcMeta = {}): Pro
           structuredContent: payload,
           isError: true,
         });
+      }
+      // ── Monthly quota (free-tier upsell) ─────────────────────────────────────
+      // Only enforced when the plan has a finite quota AND KV is bound to count.
+      // `owner` (claimless) is unlimited ⇒ the authless deploy is unaffected.
+      const quota = monthlyQuota(effectivePlan);
+      if (Number.isFinite(quota) && env.NECTARIN_KV && meta.tenantId) {
+        const used = await readUsage(env, meta.tenantId);
+        if (used >= quota) {
+          meta.gated = true;
+          const base = env.UNYLY_LISTING_URL || "https://unyly.org/ru/mcp/nectarin-intelligence-worker";
+          const upgradeUrl = unylyUpgradeUrl(base, env.UNYLY_PARTNER_ID || "nectarin", "pro", name);
+          const payload = {
+            tool: name,
+            gated: true,
+            reason: "monthly_quota_exceeded",
+            yourPlan: effectivePlan,
+            quota,
+            used,
+            month: usageMonth(),
+            upgradeVia: "unyly",
+            upgradeUrl,
+            message: `Лимит тарифа «${effectivePlan}» исчерпан (${used}/${quota} запросов за ${usageMonth()}). Обновитесь через Unyly для снятия лимита.`,
+          };
+          return rpcResult(id ?? null, {
+            content: [
+              { type: "text", text: `🔒 Лимит тарифа «${effectivePlan}» исчерпан (${used}/${quota}). Обновитесь через Unyly: ${upgradeUrl}` },
+              { type: "text", text: "```json\n" + JSON.stringify(payload, null, 2) + "\n```" },
+            ],
+            structuredContent: payload,
+            isError: true,
+          });
+        }
       }
       // Validate arguments against the tool's JSON Schema → -32602 on failure.
       const validation = validateInput(args, tool.inputSchema);
@@ -1817,11 +1851,35 @@ interface ExecutionContextLike {
   waitUntil?: (p: Promise<unknown>) => void;
 }
 
-/** Read + lightly sanitize the tenant id from the X-Tenant-Id header (or "anon"). */
-function tenantIdFrom(req: Request): string {
-  const raw = (req.headers.get("X-Tenant-Id") ?? "").trim();
-  const safe = raw.replace(/[^a-zA-Z0-9_.:-]/g, "").slice(0, 64);
+/** Lightly sanitize a tenant id (opaque token) → safe KV key fragment, or "anon". */
+function sanitizeTenant(raw: string | null | undefined): string {
+  const safe = (raw ?? "").trim().replace(/[^a-zA-Z0-9_.:-]/g, "").slice(0, 64);
   return safe || "anon";
+}
+
+/** Read the tenant id from the X-Tenant-Id header (or "anon"). */
+function tenantIdFrom(req: Request): string {
+  return sanitizeTenant(req.headers.get("X-Tenant-Id"));
+}
+
+/** Current usage bucket: YYYYMM (UTC). */
+function usageMonth(): string {
+  return new Date().toISOString().slice(0, 7).replace("-", "");
+}
+
+/** KV key for a tenant's monthly tool-call counter. */
+function usageKey(tenant: string, ym: string = usageMonth()): string {
+  return `usage:${tenant}:${ym}`;
+}
+
+/** Best-effort read of a tenant's tool-call count this month (0 when no KV / on error). */
+async function readUsage(env: Env, tenant: string): Promise<number> {
+  if (!env.NECTARIN_KV) return 0;
+  try {
+    return Number((await env.NECTARIN_KV.get(usageKey(tenant))) ?? "0") || 0;
+  } catch {
+    return 0;
+  }
 }
 
 /**
@@ -1841,10 +1899,9 @@ function recordUsage(env: Env, ctx: ExecutionContextLike | undefined, req: Reque
   );
   if (meta.gated || !env.NECTARIN_KV) return; // don't meter blocked calls; need KV to persist
   const kv = env.NECTARIN_KV;
-  const ym = new Date().toISOString().slice(0, 7).replace("-", ""); // YYYYMM
+  const key = usageKey(tenant);
   const bump = async () => {
     try {
-      const key = `usage:${tenant}:${ym}`;
       const cur = Number((await kv.get(key)) ?? "0") || 0;
       await kv.put(key, String(cur + 1), { expirationTtl: 60 * 60 * 24 * 400 });
     } catch {
@@ -1972,6 +2029,29 @@ export default {
       });
     }
 
+    // Usage dashboard seam: current-month tool-call count + plan/quota for a tenant.
+    // Same auth posture as /mcp (open under dev-bypass / authless prod). Read-only.
+    if (url.pathname === "/usage" && request.method === "GET") {
+      const auth = await authenticate(request, env);
+      if (!auth.authenticated) {
+        return unauthorizedResponse(resourceMetadataUrl, CORS_HEADERS, auth.error ?? "invalid_token");
+      }
+      const tenant = sanitizeTenant(url.searchParams.get("tenant") ?? request.headers.get("X-Tenant-Id"));
+      const plan = normalizePlan(auth.plan);
+      const quota = monthlyQuota(plan);
+      const used = await readUsage(env, tenant);
+      const finite = Number.isFinite(quota);
+      return json({
+        tenant,
+        month: usageMonth(),
+        plan,
+        used,
+        quota: finite ? quota : null,
+        remaining: finite ? Math.max(0, quota - used) : null,
+        metering: env.NECTARIN_KV ? "kv" : "none",
+      });
+    }
+
     // OAuth protected-resource metadata (discovery).
     if (url.pathname === "/.well-known/oauth-protected-resource") {
       return json({
@@ -2059,7 +2139,7 @@ export default {
             continue;
           }
           try {
-            const itemMeta: RpcMeta = { plan: auth.plan };
+            const itemMeta: RpcMeta = { plan: auth.plan, tenantId: tenantIdFrom(request) };
             const res = await withTenant(() => handleRpc(item as JsonRpcRequest, env, itemMeta));
             if (itemMeta.tool) recordUsage(env, ctx, request, itemMeta);
             if (res) responses.push(await res.json());
@@ -2083,7 +2163,7 @@ export default {
         return rpcError(null, INVALID_REQUEST, "Invalid Request");
       }
 
-      const meta: RpcMeta = { plan: auth.plan };
+      const meta: RpcMeta = { plan: auth.plan, tenantId: tenantIdFrom(request) };
       const method = (payload as JsonRpcRequest).method;
       const sse = wantsSse(url, request);
       try {

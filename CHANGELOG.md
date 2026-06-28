@@ -3,6 +3,31 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.49.0] — 2026-06-29
+
+Twelfth wave — **metered free tier + usage dashboard**: build on the monetization seam
+with a per-tenant monthly quota (the concrete free→paid upsell moment) and a read-only
+`/usage` endpoint Unyly (or an internal dashboard) can poll for consumption. Non-breaking:
+quota is only enforced for finite-quota plans with KV bound, and `owner` (claimless) is
+unlimited — so the current authless deploy is unaffected. Counts unchanged (**74 tools /
+51 prompts**).
+
+### Added
+- **Monthly quota** (`PLAN_MONTHLY_QUOTA` in `src/plan.ts`) — `free` capped at 100
+  tool-calls/month; paid tiers and `owner` unlimited. When a finite-quota caller exceeds
+  it (counted via the KV usage counter), the tool returns a quota-exceeded **upgrade CTA**
+  with a tracked Unyly link instead of running.
+- **`GET /usage`** — returns `{ tenant, month, plan, used, quota, remaining, metering }`
+  for the current month. Same auth posture as `/mcp` (open under dev-bypass / authless
+  prod, 401 when OAuth is configured without a token). Read-only; no enumeration.
+- Shared usage helpers (`usageMonth`, `usageKey`, `readUsage`, `sanitizeTenant`) so the
+  metering writer and the quota/dashboard readers agree on keys.
+
+### Changed
+- `tools/call` now checks the monthly quota (after tool-tier gating) and threads the
+  sanitized tenant id through `RpcMeta`. Tests: +5 (quota unit + `/usage` integration +
+  counter increment). 194 passing.
+
 ## [2.48.0] — 2026-06-29
 
 Eleventh wave — **monetization seam**: turn the Unyly access tiers from narrative into

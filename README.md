@@ -17,6 +17,12 @@ over **Streamable HTTP (JSON-RPC 2.0)** with an **opt-in SSE** transport, ships
 with **mock/synthetic RU data** plus **KV real-data layering**, and a
 **KV-cached, model-agnostic LLM narrative** (DeepSeek wired in this deploy).
 
+> **New in 2.49 — metered free tier + usage dashboard:** a per-tenant **monthly quota**
+> (free = 100 calls/mo; paid tiers unlimited) creates the concrete free→paid upsell, and a
+> read-only **`GET /usage`** endpoint reports `{used, quota, remaining, plan}` per tenant for
+> Unyly / an internal dashboard. Owner/claimless tokens stay unlimited (authless deploy
+> unaffected).
+
 > **New in 2.48 — monetization seam:** the Unyly access tiers are now **real**. A small set
 > of flagship tools (`strategy_orchestrate`, `mmm_optimize`, `incrementality_meta`,
 > `geo_holdout`, `competitive_response`, `report_export` → **pro**; `board_report` → **team**)
@@ -114,6 +120,7 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
 | GET | `/.well-known/oauth-protected-resource` | OAuth discovery |
 | GET | `/health` | Liveness probe |
 | GET | `/version` | name + version + toolCount + commit + authMode |
+| GET | `/usage` | per-tenant monthly usage `{used, quota, remaining, plan}` (auth like `/mcp`) |
 | GET | `/` | Friendly index (endpoint URLs) |
 
 ### JSON-RPC error codes
