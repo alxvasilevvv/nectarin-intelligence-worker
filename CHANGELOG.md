@@ -3,6 +3,32 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.57.0] — 2026-06-29
+
+Twentieth wave — **autonomy (alert → action → measure) + marketing leadership/ops** (Phase D of
+`ROADMAP.md`). **91 tools / 66 prompts.**
+
+### Added
+- **`autonomous_plan`** (Ops & Autonomy, pro+) — the second autonomy brick. Turns a set of KPI
+  `breaches` (name, optional severity/deviationPct) and/or a free-text `goal` into an ORDERED,
+  deterministic remediation plan: a DIAGNOSE step, one ACTION step per breach (severity-first —
+  each naming the issue, the recommended NECTARIN tool, the owner/role and the expected-impact
+  direction), then a MEASURE/control step; for a goal it points to the matching `marketing_skill`
+  recipe. Complements `kpi_alert_engine` by sequencing alert→action→measure. Returns the recipe;
+  does NOT execute tools (same pattern as `marketing_skill`).
+- **`marketing_okr_planner`** (new **Marketing Ops & Leadership** group, pro+) — turns an objective
+  + key results into a measurable OKR set: per KR baseline → target, %Δ, an ambition band
+  (conservative/realistic/ambitious/stretch), a leading-vs-lagging classification and the tool to
+  drive it; warns on an unbalanced (all-lagging / all-leading) set.
+- **`content_calendar_planner`** (Marketing Ops & Leadership) — content-team capacity/throughput
+  planner: from team size, productive hours and a content mix (effort per piece + desired share +
+  optional planned count) ⇒ total capacity, achievable pieces per type, weekly throughput,
+  utilization vs. plan and the bottleneck.
+- Guided prompts **`action_plan`**, **`okr_plan`**, **`content_capacity`** (**66 prompts**).
+
+### Changed
+- `tools/list`/catalog/`/version` advertise **91 tools**. Docs + tests updated (+10). 243 pass.
+
 ## [2.56.0] — 2026-06-29
 
 Nineteenth wave — **autonomy (anomaly → action) + CMO budgeting + B2B win/loss** (Phase D of

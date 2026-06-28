@@ -1,5 +1,5 @@
 /**
- * OPS & AUTONOMY tool group (v2.56) for NECTARIN Intelligence — Workers.
+ * OPS & AUTONOMY tool group (v2.56–v2.57) for NECTARIN Intelligence — Workers.
  *
  *   • kpi_alert_engine — the first "autonomy" brick: a cross-KPI, rule-based alert engine.
  *     Each KPI (value vs target/benchmark + direction) is graded ok/warning/critical and,
@@ -8,6 +8,11 @@
  *   • marketing_budget_allocator — CMO annual-budget split ACROSS FUNCTIONS (brand, demand,
  *     retention/CRM, content/SEO, martech, team/ops) — not media channels (that's
  *     budget_optimizer). Adjusts benchmark splits by goal/business type and adds guardrails.
+ *   • autonomous_plan — the second autonomy brick: turns a set of KPI breaches OR a goal into
+ *     an ORDERED, deterministic remediation/action plan that chains NECTARIN tools. Each step
+ *     names the issue, the recommended tool, the owner/role, the expected-impact direction and
+ *     its sequencing (diagnose → act, severity-first → measure). Returns the plan; it does NOT
+ *     execute other tools (same pattern as marketing_skill).
  *
  * Deterministic rules on YOUR inputs — planning support, not a guarantee.
  */
@@ -266,4 +271,171 @@ const marketingBudgetAllocator: ToolDef = {
   },
 };
 
-export const AUTONOMY_TOOLS: ToolDef[] = [kpiAlertEngine, marketingBudgetAllocator];
+// ── 3. Autonomous remediation/action plan (autonomy brick #2) ────────────────
+
+// Map a recommended NECTARIN tool to the owner/role that runs it.
+const OWNER_FOR: Record<string, string> = {
+  budget_optimizer: "Перформанс / Медиапленер",
+  creative_testing_matrix: "Креатив / Перформанс",
+  churn_predictor: "CRM / Retention",
+  funnel_model: "Аналитик / CRO",
+  nps_analysis: "CX / Клиентский сервис",
+  unit_economics: "Финансы / Growth",
+  frequency_cap_optimizer: "Медиапленер",
+  report_explain: "Аналитик",
+  kpi_alert_engine: "Аналитик / Marketing Ops",
+  marketing_skill: "Маркетинг-стратег",
+};
+function ownerFor(tool: string): string {
+  return OWNER_FOR[tool] ?? "Маркетинг-менеджер";
+}
+function expectedImpactFor(name: string): string {
+  return LOWER_BETTER.test(name) ? `снизить ${name} к цели` : `повысить ${name} к цели`;
+}
+function severityFromDeviation(dev: number | null, crit = 25, warn = 10): string {
+  if (dev === null) return "warning";
+  if (dev >= crit) return "critical";
+  if (dev >= warn) return "warning";
+  if (dev > 0) return "watch";
+  return "ok";
+}
+
+const autonomousPlan: ToolDef = {
+  name: "autonomous_plan",
+  description:
+    "AUTONOMY: turns a set of KPI breaches OR a goal into an ORDERED, deterministic remediation/action PLAN that chains existing NECTARIN tools. Give `breaches` (each: name, optional severity critical|warning|watch, optional deviationPct) and/or a free-text `goal`. It assembles a coherent multi-step plan: a DIAGNOSE step, then one ACTION step per breach (severity-first; each names the issue, the recommended NECTARIN tool, the owner/role, the expected-impact direction and what it depends on), then a MEASURE/control step — and for a goal it points to the matching `marketing_skill` recipe. Complements `kpi_alert_engine` (single-alert routing) by sequencing alert→action→measure. Deterministic; returns the plan/recipe, it does NOT execute other tools.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      breaches: {
+        type: "array",
+        description: "KPI breaches to remediate (use this and/or goal)",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string", description: "Metric name, e.g. 'CPA', 'CTR', 'Churn', 'ROAS'" },
+            severity: { type: "string", enum: ["critical", "warning", "watch"], description: "Optional; inferred from deviationPct if omitted" },
+            deviationPct: { type: "number", description: "Optional adverse deviation, % (drives ordering & severity)" },
+          },
+          required: ["name"],
+          additionalProperties: false,
+        },
+      },
+      goal: { type: "string", description: "Free-text goal, e.g. 'снизить CAC' or 'поднять удержание' (use this and/or breaches)" },
+      horizon: { type: "string", description: "Optional time horizon for the plan, e.g. '30 дней', 'квартал'" },
+    },
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const rawBreaches = Array.isArray(input?.breaches) ? input.breaches : [];
+    const goal = typeof input?.goal === "string" ? input.goal.trim() : "";
+    const horizon = typeof input?.horizon === "string" && input.horizon.trim() ? input.horizon.trim() : "30 дней";
+
+    const breaches: Array<{ name: string; severity: string; deviationPct: number | null }> = [];
+    for (const b of rawBreaches) {
+      if (!isRecord(b)) continue;
+      const name = typeof b.name === "string" ? b.name.trim() : "";
+      if (!name) continue;
+      const dev = num(b.deviationPct);
+      const severity = b.severity === "critical" || b.severity === "warning" || b.severity === "watch"
+        ? b.severity
+        : severityFromDeviation(dev);
+      breaches.push({ name, severity, deviationPct: dev });
+    }
+
+    if (breaches.length === 0 && !goal) {
+      return errResult("Передайте breaches (массив с полем name) и/или goal (текст цели).");
+    }
+
+    breaches.sort((a, b) =>
+      (SEV_RANK[b.severity] - SEV_RANK[a.severity]) ||
+      (Number(b.deviationPct ?? 0) - Number(a.deviationPct ?? 0)) ||
+      a.name.localeCompare(b.name));
+
+    const mode = breaches.length > 0 && goal ? "both" : breaches.length > 0 ? "breaches" : "goal";
+    const plan: Array<Record<string, unknown>> = [];
+    let order = 0;
+    const addStep = (s: Omit<Record<string, unknown>, "step" | "dependsOn">) => {
+      order += 1;
+      plan.push({ step: order, dependsOn: order > 1 ? order - 1 : null, ...s });
+    };
+
+    // Phase 1 — diagnose.
+    if (breaches.length > 0) {
+      addStep({
+        phase: "Диагностика",
+        issue: "Подтвердить и приоритизировать отклонения",
+        recommendedTool: "kpi_alert_engine",
+        owner: ownerFor("kpi_alert_engine"),
+        expectedImpact: "ранжировать алёрты по severity перед действиями",
+      });
+    } else {
+      addStep({
+        phase: "Диагностика",
+        issue: `Разобрать цель «${goal}» в воркфлоу`,
+        recommendedTool: "marketing_skill",
+        owner: ownerFor("marketing_skill"),
+        expectedImpact: "получить готовый рецепт шагов под цель",
+      });
+    }
+
+    // Phase 2 — act, one step per breach, severity-first.
+    for (const br of breaches) {
+      const act = actionFor(br.name);
+      addStep({
+        phase: "Действие",
+        issue: br.name,
+        severity: br.severity,
+        deviationPct: br.deviationPct,
+        action: act.action,
+        recommendedTool: act.tool,
+        owner: ownerFor(act.tool),
+        expectedImpact: expectedImpactFor(br.name),
+      });
+    }
+
+    // For a goal, add the primary action derived from the goal text.
+    if (goal) {
+      const act = actionFor(goal);
+      addStep({
+        phase: "Действие",
+        issue: `Главный рычаг под цель «${goal}»`,
+        action: act.action,
+        recommendedTool: act.tool,
+        owner: ownerFor(act.tool),
+        expectedImpact: "сдвинуть целевую метрику в нужную сторону",
+      });
+    }
+
+    // Phase 3 — measure / control.
+    addStep({
+      phase: "Контроль",
+      issue: "Проверить эффект и зафиксировать алёрты",
+      recommendedTool: "kpi_alert_engine",
+      owner: ownerFor("kpi_alert_engine"),
+      expectedImpact: "убедиться, что метрики вернулись в норму; иначе — новая итерация",
+    });
+
+    const counts = { critical: 0, warning: 0, watch: 0 } as Record<string, number>;
+    for (const b of breaches) counts[b.severity] = (counts[b.severity] ?? 0) + 1;
+
+    const actionSteps = plan.filter((s) => s.phase === "Действие");
+    const first = actionSteps[0];
+    const summary =
+      `План на ${horizon}: ${plan.length} шагов (диагностика → ${actionSteps.length} действий → контроль)` +
+      (breaches.length > 0 ? `, из них критич. ${counts.critical} / предупр. ${counts.warning} / наблюдение ${counts.watch}. ` : ". ") +
+      (first ? `Первый шаг действия: «${first.issue}» → ${first.recommendedTool} (${first.owner}).` : "");
+
+    return toContent(summary, {
+      tool: "autonomous_plan",
+      mode,
+      horizon,
+      goal: goal || null,
+      breachCounts: counts,
+      plan,
+      note: "Детерминированный план: шаги упорядочены диагностика → действия (по убыванию severity) → контроль. Каждый шаг называет инструмент NECTARIN, ответственную роль и направление эффекта. План НЕ выполняет инструменты — это рецепт; запускайте шаги по порядку (выход шага — вход следующего).",
+    });
+  },
+};
+
+export const AUTONOMY_TOOLS: ToolDef[] = [kpiAlertEngine, marketingBudgetAllocator, autonomousPlan];

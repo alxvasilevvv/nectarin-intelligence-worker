@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-88-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-91-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -28,7 +28,10 @@ with **mock/synthetic RU data** plus **KV real-data layering**, and a
 > v2.55 adds a B2B & CX group (ABM account scoring, NPS analysis, B2B pipeline velocity).
 > v2.56 adds an Ops & Autonomy group — a cross-KPI alert engine (anomaly → action → the tool to
 > run next) and a CMO function-level budget allocator — plus B2B win/loss analysis.
-> **88 tools / 63 prompts.**
+> v2.57 deepens autonomy with `autonomous_plan` (breaches/goal → an ordered diagnose→act→measure
+> plan that chains tools, with owners & expected impact) and adds a Marketing Ops & Leadership
+> group — a marketing OKR planner and a content-team capacity/throughput planner.
+> **91 tools / 66 prompts.**
 
 > **New in 2.51 — skills & growth science:** an extensible **playbook layer**
 > (`marketing_skill`) chains tools into 10 repeatable end-to-end workflows (cut CAC,
@@ -156,7 +159,7 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
 
 ---
 
-## Tools (88 total)
+## Tools (91 total)
 
 ### Intelligence group (inform + orchestrate)
 | Tool | What it does |
@@ -351,6 +354,13 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 |---|---|
 | `kpi_alert_engine` | **Alert engine (autonomy).** Grades KPIs vs targets ok/watch/warning/critical and routes every breach to a recommended action + the NECTARIN tool to run next (CPA↑ ⇒ budget_optimizer, CTR↓ ⇒ creative_testing_matrix, churn↑ ⇒ churn_predictor). Sorted by severity. |
 | `marketing_budget_allocator` | **CMO budget by function (pro+).** Splits an annual budget across brand / demand / retention-CRM / content-SEO / martech / team, tilted by goal & business type with guardrails. (Media channel splits ⇒ `budget_optimizer`.) |
+| `autonomous_plan` | **Action-plan builder (pro+).** Turns KPI breaches and/or a goal into an ORDERED, deterministic plan — diagnose → one action per breach (severity-first, each with the NECTARIN tool, the owner/role and the expected-impact direction) → measure/control. Complements `kpi_alert_engine` by sequencing alert→action→measure. Returns the recipe; does not execute tools. |
+
+### Marketing Ops & Leadership group (v2.57+ — OKRs & content capacity)
+| Tool | What it does |
+|---|---|
+| `marketing_okr_planner` | **OKR planner (pro+).** Turns an objective + key results into a measurable OKR set: per KR baseline → target, %Δ, an ambition band (conservative/realistic/ambitious/stretch), a leading-vs-lagging classification and the tool to drive it; flags an unbalanced (all-lagging / all-leading) set. |
+| `content_calendar_planner` | **Content capacity planner.** From team size, productive hours and a content mix (effort per piece + desired share + optional planned count) ⇒ total capacity, achievable pieces per type, weekly throughput, utilization vs. plan and the bottleneck. |
 
 ### Roles / Adoption group (v2.46+ — one connector for every marketer)
 | Tool | What it does |
@@ -473,7 +483,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 88 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 2 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 2 Retention/CRM + 1 Email/Lifecycle + 1 Partnerships + 1 Roles/Adoption + 1 SEO + 1 Social/SMM + 1 PR + 1 Events + 1 Mobile/ASO + 1 Content + 1 Distribution + 1 Skills + 2 Growth Lab + 2 Federation + 3 Expansion + 4 B2B & CX + 2 Ops & Autonomy);
+`tools/list` returns all 91 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 2 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 2 Retention/CRM + 1 Email/Lifecycle + 1 Partnerships + 1 Roles/Adoption + 1 SEO + 1 Social/SMM + 1 PR + 1 Events + 1 Mobile/ASO + 1 Content + 1 Distribution + 1 Skills + 2 Growth Lab + 2 Federation + 3 Expansion + 4 B2B & CX + 3 Ops & Autonomy + 2 Marketing Ops & Leadership);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -516,7 +526,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (88 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (91 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit

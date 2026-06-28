@@ -36,6 +36,8 @@ export const TOOL_MIN_PLAN: Record<string, Plan> = {
   b2b_pipeline_velocity: "pro",
   win_loss_analysis: "pro",
   marketing_budget_allocator: "pro",
+  autonomous_plan: "pro",
+  marketing_okr_planner: "pro",
 };
 
 /**

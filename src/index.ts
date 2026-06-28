@@ -111,7 +111,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.56.0";
+const SERVER_VERSION = "2.57.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1770,6 +1770,56 @@ const PROMPTS = [
       `Сделки: ${a.deals}.\n` +
       `\nРазбери строку в массив deals [{outcome, reason?, segment?, value?}] и вызови win_loss_analysis(deals=[...]).\n` +
       `Покажи win-rate (по кол-ву и сумме), топ-причины проигрышей/побед, win-rate по сегментам и приоритетные рекомендации.`,
+  },
+  {
+    name: "action_plan",
+    title: "Build an autonomous action plan",
+    description:
+      "Turn KPI breaches and/or a goal into an ordered remediation plan (diagnose → act → measure) that chains NECTARIN tools (autonomous_plan).",
+    arguments: [
+      { name: "breaches", description: "Breaches as 'name:severity:deviationPct' separated by ';', e.g. 'CPA:critical:33; CTR:warning:12'", required: false },
+      { name: "goal", description: "Free-text goal, e.g. 'снизить CAC за квартал'", required: false },
+      { name: "horizon", description: "Time horizon, e.g. '30 дней', 'квартал'", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, автономный маркетинг-оператор.\n` +
+      (a.breaches ? `Нарушения: ${a.breaches}.\n` : "") +
+      (a.goal ? `Цель: ${a.goal}.\n` : "") +
+      `\nРазбери нарушения в массив breaches [{name, severity?, deviationPct?}]${a.goal ? " и/или передай goal" : ""} и вызови autonomous_plan(${a.breaches ? "breaches=[...]" : ""}${a.breaches && a.goal ? ", " : ""}${a.goal ? `goal="${a.goal}"` : ""}${a.horizon ? `, horizon="${a.horizon}"` : ""}).\n` +
+      `Покажи упорядоченный план: диагностика → действия (по убыванию severity, с инструментом NECTARIN и ответственной ролью) → контроль. Предложи стартовать с шага №1.`,
+  },
+  {
+    name: "okr_plan",
+    title: "Draft measurable marketing OKRs",
+    description:
+      "Turn an objective + key results into a measurable OKR set with baseline→target, ambition bands, leading/lagging mix and the tool to drive each KR (marketing_okr_planner).",
+    arguments: [
+      { name: "objective", description: "The qualitative objective, e.g. 'Стать №1 по органике'", required: true },
+      { name: "keyResults", description: "KRs as 'metric:baseline:target:unit' separated by ';', e.g. 'Органический трафик:50000:90000:визитов; CAC:4000:3000:₽'", required: true },
+      { name: "timeframe", description: "Time horizon, e.g. 'Q3 2026', 'квартал'", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, стратегический партнёр CMO.\n` +
+      `Цель: ${a.objective}. KR: ${a.keyResults}.\n` +
+      `\nРазбери KR в массив keyResults [{metric, baseline, target, unit?}] и вызови marketing_okr_planner(objective="${a.objective}", keyResults=[...]${a.timeframe ? `, timeframe="${a.timeframe}"` : ""}).\n` +
+      `Покажи по каждому KR: baseline→target, %Δ, бэнд амбиции, leading/lagging и рекомендованный инструмент; оцени баланс набора.`,
+  },
+  {
+    name: "content_capacity",
+    title: "Plan content team capacity",
+    description:
+      "Compute realistic content throughput from team size, hours and a content mix; find the bottleneck (content_calendar_planner).",
+    arguments: [
+      { name: "people", description: "Number of content team members", required: true },
+      { name: "contentTypes", description: "Mix as 'type:effortHours:weightPct:planned' separated by ';', e.g. 'статья:8:50:8; reels:3:30:20; email:2:20:8'", required: true },
+      { name: "hoursPerWeek", description: "Productive content hours per person/week (default 20)", required: false },
+      { name: "weeks", description: "Planning horizon in weeks (default 4)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, руководитель контент-команды.\n` +
+      `Команда: ${a.people} чел${a.hoursPerWeek ? `, ${a.hoursPerWeek} ч/нед` : ""}${a.weeks ? `, горизонт ${a.weeks} нед` : ""}. Микс: ${a.contentTypes}.\n` +
+      `\nРазбери микс в массив contentTypes [{type, effortHours, weightPct?, planned?}] и вызови content_calendar_planner(people=${a.people}, contentTypes=[...]${a.hoursPerWeek ? `, hoursPerWeek=${a.hoursPerWeek}` : ""}${a.weeks ? `, weeks=${a.weeks}` : ""}).\n` +
+      `Покажи капасити в часах, достижимый объём по типам, недельный throughput, загрузку под план и бутылочное горлышко.`,
   },
 ];
 

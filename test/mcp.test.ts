@@ -24,7 +24,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(88);
+    expect(json.toolCount).toBe(91);
     expect(json.commit).toBeDefined();
   });
 });
@@ -35,7 +35,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(88);
+    expect(tools).toHaveLength(91);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -70,6 +70,9 @@ describe("tools/list", () => {
     expect(names).toContain("win_loss_analysis");
     expect(names).toContain("kpi_alert_engine");
     expect(names).toContain("marketing_budget_allocator");
+    expect(names).toContain("autonomous_plan");
+    expect(names).toContain("marketing_okr_planner");
+    expect(names).toContain("content_calendar_planner");
     expect(names).toContain("compliance_check");
     expect(names).toContain("ab_test_planner");
     expect(names).toContain("unit_economics");
@@ -221,8 +224,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(88);
-    expect(catalog.tools).toHaveLength(88);
+    expect(catalog.counts.tools).toBe(91);
+    expect(catalog.tools).toHaveLength(91);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -2338,7 +2341,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(88);
+    expect(parsed.result.tools.length).toBe(91);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -2421,7 +2424,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(88);
+    expect(json.result.tools).toHaveLength(91);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -2449,7 +2452,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(88);
+    expect(json.result.tools).toHaveLength(91);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -2459,10 +2462,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 63 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 66 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(63);
+    expect(json.result.prompts).toHaveLength(66);
     expect(names).toContain("maturity_check");
     expect(names).toContain("pricing_research");
     expect(names).toContain("abm_targets");
@@ -2471,6 +2474,9 @@ describe("prompts", () => {
     expect(names).toContain("alert_check");
     expect(names).toContain("budget_split");
     expect(names).toContain("win_loss_review");
+    expect(names).toContain("action_plan");
+    expect(names).toContain("okr_plan");
+    expect(names).toContain("content_capacity");
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -3239,6 +3245,42 @@ describe("prompts", () => {
     expect(text).toContain("win_loss_analysis");
     expect(text).toContain("won:функционал:enterprise:5000000");
   });
+
+  it("prompts/get action_plan embeds breaches and calls autonomous_plan", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 76,
+      method: "prompts/get",
+      params: { name: "action_plan", arguments: { breaches: "CPA:critical:33; CTR:warning:12", horizon: "30 дней" } },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("autonomous_plan");
+    expect(text).toContain("CPA:critical:33");
+  });
+
+  it("prompts/get okr_plan embeds inputs and calls marketing_okr_planner", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 77,
+      method: "prompts/get",
+      params: { name: "okr_plan", arguments: { objective: "Стать №1 по органике", keyResults: "Трафик:50000:90000:визитов; CAC:4000:3000:₽" } },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("marketing_okr_planner");
+    expect(text).toContain('objective="Стать №1 по органике"');
+  });
+
+  it("prompts/get content_capacity embeds inputs and calls content_calendar_planner", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 78,
+      method: "prompts/get",
+      params: { name: "content_capacity", arguments: { people: "3", contentTypes: "статья:8:50:8; reels:3:30:20" } },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("content_calendar_planner");
+    expect(text).toContain("people=3");
+  });
 });
 
 describe("Plan gating (monetization seam)", () => {
@@ -3928,5 +3970,144 @@ describe("Ops & Autonomy tools (v2.56)", () => {
     // default goal=growth ⇒ valid result
     expect(json.result.structuredContent.goal).toBe("growth");
     expect(json.result.structuredContent.allocation.length).toBe(6);
+  });
+
+  it("autonomous_plan orders breaches severity-first and chains tools", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 864,
+      method: "tools/call",
+      params: {
+        name: "autonomous_plan",
+        arguments: {
+          breaches: [
+            { name: "CTR", severity: "warning", deviationPct: 12 },
+            { name: "CPA", severity: "critical", deviationPct: 33 },
+          ],
+          horizon: "30 дней",
+        },
+      },
+    });
+    const sc = json.result.structuredContent;
+    // diagnose + 2 actions + control = 4 steps
+    expect(sc.plan).toHaveLength(4);
+    expect(sc.plan[0].phase).toBe("Диагностика");
+    expect(sc.plan[0].recommendedTool).toBe("kpi_alert_engine");
+    // first action step is the critical CPA breach ⇒ budget_optimizer
+    expect(sc.plan[1].phase).toBe("Действие");
+    expect(sc.plan[1].issue).toBe("CPA");
+    expect(sc.plan[1].recommendedTool).toBe("budget_optimizer");
+    expect(sc.plan[1].owner).toBeDefined();
+    expect(sc.plan[sc.plan.length - 1].phase).toBe("Контроль");
+    expect(sc.breachCounts.critical).toBe(1);
+  });
+
+  it("autonomous_plan supports a goal-only request", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 865,
+      method: "tools/call",
+      params: { name: "autonomous_plan", arguments: { goal: "снизить отток клиентов" } },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.mode).toBe("goal");
+    expect(sc.plan[0].recommendedTool).toBe("marketing_skill");
+    // churn goal ⇒ churn_predictor action
+    expect(sc.plan.some((s: any) => s.recommendedTool === "churn_predictor")).toBe(true);
+  });
+
+  it("autonomous_plan errors when neither breaches nor goal given", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 866,
+      method: "tools/call",
+      params: { name: "autonomous_plan", arguments: {} },
+    });
+    expect(json.result.isError).toBe(true);
+  });
+});
+
+describe("Marketing Ops & Leadership tools (v2.57)", () => {
+  it("marketing_okr_planner computes deltas, ambition and leading/lagging mix", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 870,
+      method: "tools/call",
+      params: {
+        name: "marketing_okr_planner",
+        arguments: {
+          objective: "Стать №1 по органике",
+          timeframe: "Q3 2026",
+          keyResults: [
+            { metric: "Органический трафик", baseline: 50000, target: 90000, unit: "визитов/мес" },
+            { metric: "CAC", baseline: 4000, target: 3000, unit: "₽" },
+          ],
+        },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.keyResults).toHaveLength(2);
+    const traffic = sc.keyResults.find((k: any) => k.metric === "Органический трафик");
+    expect(traffic.delta).toBe(40000);
+    expect(traffic.pctChange).toBe(80);
+    expect(traffic.type).toBe("leading");
+    expect(traffic.recommendedTool).toBe("seo_opportunity");
+    const cac = sc.keyResults.find((k: any) => k.metric === "CAC");
+    expect(cac.direction).toBe("decrease");
+    expect(cac.type).toBe("lagging");
+    expect(cac.recommendedTool).toBe("budget_optimizer");
+    expect(sc.leadingCount).toBe(1);
+    expect(sc.laggingCount).toBe(1);
+  });
+
+  it("marketing_okr_planner errors on missing/invalid key results", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 871,
+      method: "tools/call",
+      params: { name: "marketing_okr_planner", arguments: { objective: "Рост", keyResults: [{ metric: "X" }] } },
+    });
+    // metric without baseline/target ⇒ no parsable KR ⇒ tool isError
+    expect(json.result.isError).toBe(true);
+  });
+
+  it("content_calendar_planner computes capacity, throughput and bottleneck", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 872,
+      method: "tools/call",
+      params: {
+        name: "content_calendar_planner",
+        arguments: {
+          people: 2,
+          hoursPerWeek: 20,
+          weeks: 4,
+          contentTypes: [
+            { type: "статья", effortHours: 8, weightPct: 50, planned: 12 },
+            { type: "reels", effortHours: 2, weightPct: 50, planned: 20 },
+          ],
+        },
+      },
+    });
+    const sc = json.result.structuredContent;
+    // 2 people × 20h × 4 weeks = 160 hours total
+    expect(sc.totalCapacityHours).toBe(160);
+    const articles = sc.allocation.find((a: any) => a.type === "статья");
+    // 50% of 160 = 80h / 8h = 10 pieces; planned 12 ⇒ shortfall of 2
+    expect(articles.achievablePieces).toBe(10);
+    expect(articles.gapPieces).toBe(-2);
+    expect(sc.bottleneck).toBe("статья");
+  });
+
+  it("content_calendar_planner validates team size", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 873,
+      method: "tools/call",
+      params: { name: "content_calendar_planner", arguments: { people: 0, contentTypes: [{ type: "статья", effortHours: 8 }] } },
+    });
+    // people=0 violates schema (exclusiveMinimum) ⇒ RPC-level error, not a tool result
+    expect(json.error ?? json.result?.isError).toBeTruthy();
+    expect(json.result).toBeUndefined();
   });
 });
