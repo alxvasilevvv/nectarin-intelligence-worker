@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.36.0";
+const SERVER_VERSION = "2.37.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1156,6 +1156,33 @@ const PROMPTS = [
       `3) Покажи по ключам ожидаемые клики/конверсии/CPA и приоритет (high/medium/low).\n` +
       `4) Назови итоги портфеля: клики, конверсии, blended CPA, покрытие спроса; на что хватает бюджета.\n` +
       `5) Дай рекомендации: какие ключи масштабировать, где расширять семантику; дисклеймер про прогнозатор площадки и фактический аукцион.`,
+  },
+  {
+    name: "retail_media_plan",
+    title: "Marketplace / retail-media plan",
+    description:
+      "Plan Ozon / Wildberries / Я.Маркет / Avito retail media (retail_media_planner): per-placement ДРР/ROAS, profit-aware budget split and a target-ДРР check.",
+    arguments: [
+      { name: "placements", description: "Placements as 'name:model:cost:cvr%[:ctr%]' separated by ';', e.g. 'Ozon поиск:CPC:18:6; WB карточка:CPM:250:5:1.2'", required: true },
+      { name: "aov", description: "Average order value in ₽", required: true },
+      { name: "commissionPct", description: "Marketplace commission / take-rate % (optional)", required: false },
+      { name: "monthlyBudget", description: "Optional monthly budget in ₽ to allocate", required: false },
+      { name: "targetDrrPct", description: "Optional target ДРР % to check against", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, специалист по маркетплейсам и retail-media (Ozon/WB/Я.Маркет/Avito) RU/CIS.\n` +
+      `Собери план размещений и распредели бюджет с учётом ДРР и комиссии.\n` +
+      `Площадки (name:model:cost:cvr%[:ctr%]): ${a.placements}\n` +
+      `AOV: ${a.aov} ₽.\n` +
+      (a.commissionPct ? `Комиссия маркетплейса: ${a.commissionPct}%.\n` : "") +
+      (a.monthlyBudget ? `Бюджет на месяц: ${a.monthlyBudget} ₽.\n` : "") +
+      (a.targetDrrPct ? `Целевой ДРР: ${a.targetDrrPct}%.\n` : "") +
+      `\nШаги:\n` +
+      `1) Распарси площадки в массив {name, model, cpc/cpm, ctr?, cvr}.\n` +
+      `2) Вызови retail_media_planner(placements, aov${a.commissionPct ? ", commissionPct" : ""}${a.monthlyBudget ? ", monthlyBudget" : ""}${a.targetDrrPct ? ", targetDrrPct" : ""}).\n` +
+      `3) Покажи по площадкам ROAS, ДРР, прибыль на заказ и приоритет; кто прибыльный, кто нет.\n` +
+      `4) Назови итоги портфеля: заказы, выручка, ДРР, ROAS, прибыль после комиссии; кто выше целевого ДРР.\n` +
+      `5) Дай рекомендации по ставкам/ассортименту; дисклеймер про выкуп, возвраты и реальную выдачу маркетплейса.`,
   },
 ];
 

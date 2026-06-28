@@ -3,6 +3,31 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.37.0] — 2026-06-28
+
+Sixth wave (2/3) — a marketplace / retail-media planner (**58th tool**).
+NECTARIN Intelligence now ships **58 tools / 35 guided prompts**.
+
+### Added
+- **`retail_media_planner`** (new **Retail Media** group) — a planner for Ozon,
+  Wildberries, Яндекс Маркет & Avito retail media. From placements (search/catalog/
+  banner) with a cost model (**CPC**, or **CPM + CTR**), click→order **CVR**, an
+  **AOV**, the marketplace **commission** (take-rate %) and an optional budget, it
+  computes per-placement effective CPC, orders, revenue, **ДРР** (доля рекламных
+  расходов = ad spend / revenue) and **ROAS**, ranks placements by **profit per ₽**,
+  then greedily allocates the budget to the most profitable placements first
+  (respecting click/impression caps). Returns blended portfolio economics —
+  revenue, ДРР, ROAS, net profit after commission/COGS — with a **target-ДРР** check
+  and priority tiers. Falls back to unit-economics-only output when neither a budget
+  nor volume caps are supplied. 57 → **58 tools**.
+- **`retail_media_plan`** guided prompt (**35 prompts** total) — parse
+  `name:model:cost:cvr[:ctr]` rows + AOV/commission/budget/target ДРР →
+  `retail_media_planner` → profit-ranked plan and portfolio economics.
+
+### Changed
+- `tools/list` now advertises **58 tools**; catalog resource, `/version` `toolCount`,
+  README/USAGE/OVERVIEW counts and the integration test suite updated accordingly.
+
 ## [2.36.0] — 2026-06-28
 
 Sixth wave (1/3) — a paid-search / SEM keyword-portfolio planner (**57th tool**).

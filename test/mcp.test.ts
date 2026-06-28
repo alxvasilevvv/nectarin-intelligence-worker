@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(57);
+    expect(json.toolCount).toBe(58);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(57);
+    expect(tools).toHaveLength(58);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -94,6 +94,7 @@ describe("tools/list", () => {
     expect(names).toContain("utm_taxonomy_qa");
     expect(names).toContain("incrementality_meta");
     expect(names).toContain("search_planner");
+    expect(names).toContain("retail_media_planner");
     expect(names).toContain("marketing_audit");
   });
 
@@ -189,8 +190,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(57);
-    expect(catalog.tools).toHaveLength(57);
+    expect(catalog.counts.tools).toBe(58);
+    expect(catalog.tools).toHaveLength(58);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -1585,6 +1586,56 @@ describe("premium tools (v2.1)", () => {
     expect(sc.assumptions.some((a: string) => a.includes("дефолт"))).toBe(true);
   });
 
+  it("retail_media_planner computes ДРР/ROAS and allocates a budget profit-first", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 103,
+      method: "tools/call",
+      params: {
+        name: "retail_media_planner",
+        arguments: {
+          placements: [
+            { name: "Ozon поиск", type: "search", model: "CPC", cpc: 18, cvr: 6 },
+            { name: "WB карточка", type: "catalog", model: "CPM", cpm: 250, ctr: 1.2, cvr: 5 },
+          ],
+          aov: 2500,
+          commissionPct: 15,
+          monthlyBudget: 300000,
+          targetDrrPct: 20,
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.placementsCount).toBe(2);
+    expect(sc.totals).not.toBeNull();
+    expect(sc.totals.spend).toBeLessThanOrEqual(300000);
+    expect(sc.totals.revenue).toBeGreaterThan(0);
+    expect(typeof sc.totals.blendedDrrPct).toBe("number");
+    // Each placement reports a ROAS and a ДРР.
+    expect(typeof sc.placements[0].roas).toBe("number");
+    expect(sc.targetDrrCheck.targetDrrPct).toBe(20);
+  });
+
+  it("retail_media_planner reports unit economics only when no budget/caps are given", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 104,
+      method: "tools/call",
+      params: {
+        name: "retail_media_planner",
+        arguments: {
+          placements: [{ name: "Я.Маркет", model: "CPC", cpc: 20, cvr: 4 }],
+          aov: 3000,
+        },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.totals).toBeNull();
+    expect(sc.placements[0].roas).toBeGreaterThan(0);
+    expect(sc.warnings.some((w: string) => w.includes("капов"))).toBe(true);
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -1666,7 +1717,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(57);
+    expect(parsed.result.tools.length).toBe(58);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -1749,7 +1800,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(57);
+    expect(json.result.tools).toHaveLength(58);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -1777,7 +1828,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(57);
+    expect(json.result.tools).toHaveLength(58);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -1787,10 +1838,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 34 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 35 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(34);
+    expect(json.result.prompts).toHaveLength(35);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -1821,6 +1872,7 @@ describe("prompts", () => {
     expect(names).toContain("utm_audit");
     expect(names).toContain("meta_analysis");
     expect(names).toContain("search_plan");
+    expect(names).toContain("retail_media_plan");
   });
 
   it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
@@ -2185,6 +2237,22 @@ describe("prompts", () => {
     expect(text).toContain("search_planner");
     expect(text).toContain("купить диван:40000:35:5:3");
     expect(text).toContain("100000");
+  });
+
+  it("prompts/get retail_media_plan embeds the placements and calls retail_media_planner", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 102,
+      method: "prompts/get",
+      params: {
+        name: "retail_media_plan",
+        arguments: { placements: "Ozon поиск:CPC:18:6; WB карточка:CPM:250:5:1.2", aov: "2500", commissionPct: "15", monthlyBudget: "300000" },
+      },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("retail_media_planner");
+    expect(text).toContain("Ozon поиск:CPC:18:6");
+    expect(text).toContain("2500");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {
