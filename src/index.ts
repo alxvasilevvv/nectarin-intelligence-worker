@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.16.0";
+const SERVER_VERSION = "2.17.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -617,6 +617,34 @@ const PROMPTS = [
       `3) Покажи таблицу-ранжирование: бюджет, конверсии, blended CPA, прирост к текущему${a.revenuePerConversion ? ", прибыль/ROI" : ""} по каждому сценарию.\n` +
       `4) Объясни рекомендацию: почему этот сценарий лучший под цель, какой предельный CPA у доп.объёма, где риск переинвестирования (убывающая отдача).\n` +
       `5) Покажи чувствительность к эластичности (b=0.5 vs 0.9) и предупреди: прогноз экстраполирован от одной текущей точки, не гарантия.`,
+  },
+  {
+    name: "promo_review",
+    title: "Promo / discount P&L & break-even",
+    description:
+      "Evaluate a discount promo (promo_planner): post-discount margin, the break-even volume uplift, and — with an expected uplift — projected profit, incremental profit and ROI on the markdown.",
+    arguments: [
+      { name: "price", description: "Regular unit price in RUB", required: true },
+      { name: "unitCost", description: "Variable cost per unit (COGS) in RUB", required: true },
+      { name: "baselineUnits", description: "Units sold in the period WITHOUT the promo", required: true },
+      { name: "discountPct", description: "Promo discount on price, % (0–90)", required: true },
+      { name: "expectedUpliftPct", description: "Expected % increase in volume during the promo (optional)", required: false },
+      { name: "promoFixedCost", description: "Fixed promo cost (creative/media/ops) in RUB (optional)", required: false },
+      { name: "product", description: "Product / offer label (optional)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, финансовый аналитик торгового маркетинга RU/CIS.\n` +
+      `Оцени экономику промо/скидки и дай вердикт.\n` +
+      (a.product ? `Продукт: ${a.product}.\n` : ``) +
+      `Цена: ${a.price} ₽. Себестоимость ед.: ${a.unitCost} ₽. Базовый объём: ${a.baselineUnits} ед. Скидка: ${a.discountPct}%.\n` +
+      (a.expectedUpliftPct ? `Ожидаемый аплифт объёма: ${a.expectedUpliftPct}%.\n` : ``) +
+      (a.promoFixedCost ? `Фикс. затраты на промо: ${a.promoFixedCost} ₽.\n` : ``) +
+      `\nШаги:\n` +
+      `1) Вызови promo_planner(price, unitCost, baselineUnits, discountPct${a.expectedUpliftPct ? ", expectedUpliftPct" : ""}${a.promoFixedCost ? ", promoFixedCost" : ""}${a.product ? ", product" : ""}).\n` +
+      `2) Объясни эрозию маржи: цена и маржа после скидки против обычной.\n` +
+      `3) Назови break-even аплифт — рост объёма, нужный, чтобы не уйти в минус.\n` +
+      (a.expectedUpliftPct ? `4) Сравни ожидаемый аплифт с break-even: доп. прибыль, ROI на скидку, бьёт ли порог.\n` : `4) Дай ориентир: какой аплифт сделает промо безубыточным/прибыльным.\n`) +
+      `5) Дай вердикт и риск (каннибализация/перенос спроса). Предупреди: эластичность спроса и долгосрочные эффекты не моделируются.`,
   },
 ];
 

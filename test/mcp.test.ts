@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(37);
+    expect(json.toolCount).toBe(38);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(37);
+    expect(tools).toHaveLength(38);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -74,6 +74,7 @@ describe("tools/list", () => {
     expect(names).toContain("mmm_optimize");
     expect(names).toContain("gtm_calendar");
     expect(names).toContain("scenario_planner");
+    expect(names).toContain("promo_planner");
     expect(names).toContain("marketing_audit");
   });
 
@@ -169,8 +170,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(37);
-    expect(catalog.tools).toHaveLength(37);
+    expect(catalog.counts.tools).toBe(38);
+    expect(catalog.tools).toHaveLength(38);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -903,6 +904,56 @@ describe("premium tools (v2.1)", () => {
     expect(sc.recommendation.elasticitySensitivity).toHaveLength(2);
   });
 
+  it("promo_planner computes break-even uplift and projects promo ROI", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 75,
+      method: "tools/call",
+      params: {
+        name: "promo_planner",
+        arguments: {
+          product: "Подписка PRO",
+          price: 1000,
+          unitCost: 400,
+          baselineUnits: 1000,
+          discountPct: 20,
+          expectedUpliftPct: 60,
+          promoFixedCost: 50000,
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    // Regular margin 600, promo price 800, promo margin 400.
+    expect(sc.economics.promoPrice).toBe(800);
+    expect(sc.economics.promoUnitMargin).toBe(400);
+    // Break-even uplift = (baselineProfit+fixed)/(units*promoMargin) - 1
+    //   = (600000+50000)/(1000*400) - 1 = 0.625 → 62.5%.
+    expect(sc.breakevenUpliftPct).toBeCloseTo(62.5, 1);
+    // Expected uplift 60% < 62.5% break-even ⇒ not yet profitable.
+    expect(sc.projection.beatsBreakeven).toBe(false);
+    expect(sc.verdict).toBe("needs_more_uplift");
+    expect(typeof sc.projection.incrementalProfit).toBe("number");
+  });
+
+  it("promo_planner flags a margin-destroying discount", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 76,
+      method: "tools/call",
+      params: {
+        name: "promo_planner",
+        arguments: { price: 1000, unitCost: 900, baselineUnits: 500, discountPct: 20 },
+      },
+    });
+    const sc = json.result.structuredContent;
+    // Promo price 800 < unitCost 900 ⇒ negative promo margin.
+    expect(sc.economics.promoUnitMargin).toBeLessThan(0);
+    expect(sc.breakevenUpliftPct).toBeNull();
+    expect(sc.verdict).toBe("margin_destroying");
+    expect(sc.warnings.length).toBeGreaterThan(0);
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -984,7 +1035,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(37);
+    expect(parsed.result.tools.length).toBe(38);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -1067,7 +1118,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(37);
+    expect(json.result.tools).toHaveLength(38);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -1095,7 +1146,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(37);
+    expect(json.result.tools).toHaveLength(38);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -1105,10 +1156,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 14 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 15 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(14);
+    expect(json.result.prompts).toHaveLength(15);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -1119,6 +1170,7 @@ describe("prompts", () => {
     expect(names).toContain("quarter_plan");
     expect(names).toContain("account_audit");
     expect(names).toContain("scenario_review");
+    expect(names).toContain("promo_review");
   });
 
   it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
@@ -1167,6 +1219,29 @@ describe("prompts", () => {
     expect(text).toContain("Yandex Direct:900000:600");
     expect(text).toContain("Агрессивный:1.5");
     expect(text).toContain("4000");
+  });
+
+  it("prompts/get promo_review embeds the inputs and calls promo_planner", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 71,
+      method: "prompts/get",
+      params: {
+        name: "promo_review",
+        arguments: {
+          price: "1000",
+          unitCost: "400",
+          baselineUnits: "1000",
+          discountPct: "20",
+          expectedUpliftPct: "60",
+          product: "Подписка PRO",
+        },
+      },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("promo_planner");
+    expect(text).toContain("Подписка PRO");
+    expect(text).toContain("20%");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {

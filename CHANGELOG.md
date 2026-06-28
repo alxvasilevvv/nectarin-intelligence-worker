@@ -3,6 +3,27 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.17.0] — 2026-06-28
+
+Trade-marketing economics: a promo/discount break-even & ROI calculator (38th tool).
+
+### Added
+- **`promo_planner`** (new **Pricing & Promo** group) — a discount/promo P&L and
+  break-even calculator. From regular price, variable unit cost and baseline period
+  volume it computes the post-discount unit margin, the **break-even volume uplift**
+  a promo must clear to avoid losing money, and — when `expectedUpliftPct` is given —
+  projected units/revenue/profit, **incremental profit** vs. baseline and **ROI on the
+  markdown**. Optional `promoFixedCost` (creative/media/ops) and a
+  `cannibalizationPct` pull-forward penalty. Returns a verdict (`profitable` /
+  `needs_more_uplift` / `margin_destroying` / `breakeven_only`). Deterministic;
+  operator's own numbers. 37 → **38 tools**.
+- **`promo_review`** guided prompt (**15 prompts** total) — one-click promo evaluation
+  via `promo_planner` with margin erosion, break-even and ROI explanation.
+
+### Changed
+- `server.json` description + version, README (Tools badge 38, new Pricing & Promo
+  group), USAGE (catalogue 38, prompts 15), test counts (38 tools / 15 prompts).
+
 ## [2.16.0] — 2026-06-28
 
 Boardroom what-if planning: compare candidate budget scenarios head-to-head (37th tool).
