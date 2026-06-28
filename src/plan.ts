@@ -38,6 +38,8 @@ export const TOOL_MIN_PLAN: Record<string, Plan> = {
   marketing_budget_allocator: "pro",
   autonomous_plan: "pro",
   marketing_okr_planner: "pro",
+  demand_forecast: "pro",
+  competitive_positioning_map: "pro",
 };
 
 /**

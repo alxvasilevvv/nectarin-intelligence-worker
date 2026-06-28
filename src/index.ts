@@ -111,7 +111,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.57.0";
+const SERVER_VERSION = "2.58.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1820,6 +1820,56 @@ const PROMPTS = [
       `Команда: ${a.people} чел${a.hoursPerWeek ? `, ${a.hoursPerWeek} ч/нед` : ""}${a.weeks ? `, горизонт ${a.weeks} нед` : ""}. Микс: ${a.contentTypes}.\n` +
       `\nРазбери микс в массив contentTypes [{type, effortHours, weightPct?, planned?}] и вызови content_calendar_planner(people=${a.people}, contentTypes=[...]${a.hoursPerWeek ? `, hoursPerWeek=${a.hoursPerWeek}` : ""}${a.weeks ? `, weeks=${a.weeks}` : ""}).\n` +
       `Покажи капасити в часах, достижимый объём по типам, недельный throughput, загрузку под план и бутылочное горлышко.`,
+  },
+  {
+    name: "demand_plan",
+    title: "Forecast demand (Holt + seasonality)",
+    description:
+      "Project the next N periods of any series with Holt's linear trend (+ optional seasonality) and a confidence band (demand_forecast).",
+    arguments: [
+      { name: "series", description: "Historical values oldest→newest, comma-separated, e.g. '100,118,131,142,155,170'", required: true },
+      { name: "periods", description: "How many future periods to forecast (default 6)", required: false },
+      { name: "seasonLength", description: "Optional season length (12 monthly / 7 daily / 4 quarterly); needs ≥2 cycles", required: false },
+      { name: "label", description: "Metric label, e.g. 'выручка', 'лиды', 'трафик'", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, аналитик спроса и прогнозирования.\n` +
+      `Ряд${a.label ? ` «${a.label}»` : ""}: ${a.series}.\n` +
+      `\nРазбери ряд в массив чисел series=[...] (от старых к новым) и вызови demand_forecast(series=[...]${a.periods ? `, periods=${a.periods}` : ""}${a.seasonLength ? `, seasonLength=${a.seasonLength}` : ""}${a.label ? `, label="${a.label}"` : ""}).\n` +
+      `Покажи точечный прогноз по периодам, доверительный диапазон (lower/upper), тренд/период, MAPE и интерпретацию (рост/спад, расширение неопределённости с горизонтом).`,
+  },
+  {
+    name: "journey_map",
+    title: "Map the customer journey",
+    description:
+      "Map lifecycle stages (awareness→advocacy) to channels, content and KPIs, compute stage conversion and flag gaps (customer_journey_map).",
+    arguments: [
+      { name: "stages", description: "Your stages as 'name|channels(comma)|content(comma)|count' separated by ';', e.g. 'awareness|OLV,VK||100000; покупка|Поиск|лендинг|2500'. Omit for the best-practice template.", required: false },
+      { name: "business", description: "Optional context, e.g. 'b2b saas', 'ecom'", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, lifecycle / CRM-маркетолог.\n` +
+      (a.stages ? `Стадии: ${a.stages}.\n` : `Стадии не заданы — верни best-practice шаблон.\n`) +
+      `\n${a.stages
+        ? `Разбери строку в массив stages [{stage, channels?, content?, count?}] и вызови customer_journey_map(stages=[...]${a.business ? `, business="${a.business}"` : ""}).`
+        : `Вызови customer_journey_map(${a.business ? `business="${a.business}"` : ""}) без stages, чтобы получить эталонную карту.`}\n` +
+      `Покажи по стадиям: каналы, контент, KPI, конверсию между стадиями, пробелы покрытия и максимальный отвал; предложи, чем закрыть пробелы.`,
+  },
+  {
+    name: "positioning_map",
+    title: "Build a competitive positioning map",
+    description:
+      "Place competitors on a 2-axis perceptual map (e.g. price × value), assign quadrants and find white-space (competitive_positioning_map).",
+    arguments: [
+      { name: "competitors", description: "Players as 'name:x:y' separated by ';', e.g. 'Мы:60:80; Конкурент А:90:70; Конкурент Б:40:45'. Mark yours with a leading '*', e.g. '*Мы:60:80'.", required: true },
+      { name: "xAxis", description: "X-axis label (default 'Цена')", required: false },
+      { name: "yAxis", description: "Y-axis label (default 'Ценность')", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, бренд-стратег.\n` +
+      `Игроки: ${a.competitors}. Оси: ${a.xAxis ?? "Цена"} × ${a.yAxis ?? "Ценность"}.\n` +
+      `\nРазбери строку в массив competitors [{name, x, y, isYou?}] (имя с «*» ⇒ isYou=true) и вызови competitive_positioning_map(competitors=[...]${a.xAxis ? `, xAxis="${a.xAxis}"` : ""}${a.yAxis ? `, yAxis="${a.yAxis}"` : ""}).\n` +
+      `Покажи квадранты по каждому игроку, value-for-money индекс, свободные квадранты (white-space) и ваше положение + ближайшего конкурента.`,
   },
 ];
 

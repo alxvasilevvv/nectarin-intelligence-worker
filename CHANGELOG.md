@@ -3,6 +3,33 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.58.0] — 2026-06-29
+
+Twenty-first wave — **foresight & strategy (forecasting, journey mapping, positioning)** (Phase D of
+`ROADMAP.md`). **94 tools / 69 prompts.**
+
+### Added
+- **`demand_forecast`** (new **Foresight & Strategy** group, pro+) — deterministic time-series
+  forecast. Projects the next N periods of any series (sales/leads/traffic/revenue) with **Holt's
+  linear-trend** double exponential smoothing, returning a point forecast, a residual-based
+  **confidence band** (z·RMSE·√h, widening with the horizon), the fitted level & per-period trend
+  and MAPE. Optional **multiplicative seasonality** via classical decomposition when ≥2 full cycles
+  are supplied. Distinct from `seasonality_forecast` (category index) and `anomaly_detector`.
+- **`customer_journey_map`** (Foresight & Strategy) — lifecycle map & gap audit. Maps the funnel
+  (awareness → consideration → purchase → retention → advocacy) to channels, content and a primary
+  KPI per stage; with stage volumes computes stage-to-stage conversion and the biggest drop-off;
+  flags coverage **gaps** (a stage with no channels or no content). Call with no args for the
+  best-practice template.
+- **`competitive_positioning_map`** (Foresight & Strategy, pro+) — 2-axis perceptual/positioning
+  map. Places ≥2 competitors on a plane (e.g. price × value), splits at the mean of each axis into
+  four quadrants, assigns each player a quadrant + value-for-money index, finds the empty quadrants
+  (**white-space**) and — if one entry is flagged `isYou` — reports your quadrant and nearest rival
+  by normalized distance.
+- Guided prompts **`demand_plan`**, **`journey_map`**, **`positioning_map`** (**69 prompts**).
+
+### Changed
+- `tools/list`/catalog/`/version` advertise **94 tools**. Docs + tests updated. 252 pass.
+
 ## [2.57.0] — 2026-06-29
 
 Twentieth wave — **autonomy (alert → action → measure) + marketing leadership/ops** (Phase D of

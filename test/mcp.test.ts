@@ -24,7 +24,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(91);
+    expect(json.toolCount).toBe(94);
     expect(json.commit).toBeDefined();
   });
 });
@@ -35,7 +35,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(91);
+    expect(tools).toHaveLength(94);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -73,6 +73,9 @@ describe("tools/list", () => {
     expect(names).toContain("autonomous_plan");
     expect(names).toContain("marketing_okr_planner");
     expect(names).toContain("content_calendar_planner");
+    expect(names).toContain("demand_forecast");
+    expect(names).toContain("customer_journey_map");
+    expect(names).toContain("competitive_positioning_map");
     expect(names).toContain("compliance_check");
     expect(names).toContain("ab_test_planner");
     expect(names).toContain("unit_economics");
@@ -224,8 +227,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(91);
-    expect(catalog.tools).toHaveLength(91);
+    expect(catalog.counts.tools).toBe(94);
+    expect(catalog.tools).toHaveLength(94);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -2341,7 +2344,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(91);
+    expect(parsed.result.tools.length).toBe(94);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -2424,7 +2427,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(91);
+    expect(json.result.tools).toHaveLength(94);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -2452,7 +2455,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(91);
+    expect(json.result.tools).toHaveLength(94);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -2462,10 +2465,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 66 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 69 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(66);
+    expect(json.result.prompts).toHaveLength(69);
     expect(names).toContain("maturity_check");
     expect(names).toContain("pricing_research");
     expect(names).toContain("abm_targets");
@@ -2477,6 +2480,9 @@ describe("prompts", () => {
     expect(names).toContain("action_plan");
     expect(names).toContain("okr_plan");
     expect(names).toContain("content_capacity");
+    expect(names).toContain("demand_plan");
+    expect(names).toContain("journey_map");
+    expect(names).toContain("positioning_map");
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -3296,6 +3302,9 @@ describe("Plan gating (monetization seam)", () => {
     expect(requiredPlan("strategy_orchestrate")).toBe("pro");
     expect(requiredPlan("board_report")).toBe("team");
     expect(requiredPlan("budget_optimizer")).toBeNull();
+    expect(requiredPlan("demand_forecast")).toBe("pro");
+    expect(requiredPlan("competitive_positioning_map")).toBe("pro");
+    expect(requiredPlan("customer_journey_map")).toBeNull();
   });
 
   it("planAllows: free blocked from pro tool, team allowed, owner always", () => {
@@ -4109,5 +4118,169 @@ describe("Marketing Ops & Leadership tools (v2.57)", () => {
     // people=0 violates schema (exclusiveMinimum) ⇒ RPC-level error, not a tool result
     expect(json.error ?? json.result?.isError).toBeTruthy();
     expect(json.result).toBeUndefined();
+  });
+});
+
+describe("Foresight & Strategy tools (v2.58)", () => {
+  it("demand_forecast projects a trending series with a widening confidence band", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 880,
+      method: "tools/call",
+      params: {
+        name: "demand_forecast",
+        arguments: { series: [100, 112, 121, 133, 145, 158, 170], periods: 4, label: "выручка" },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.method).toBe("holt_linear");
+    expect(sc.observations).toBe(7);
+    expect(sc.forecast).toHaveLength(4);
+    // upward series ⇒ positive trend, point forecast above last actual
+    expect(sc.trendPerPeriod).toBeGreaterThan(0);
+    expect(sc.direction).toBe("рост");
+    const f = sc.forecast;
+    expect(f[0].pointForecast).toBeGreaterThan(170);
+    // band brackets the point estimate and widens with the horizon
+    for (const row of f) {
+      expect(row.upper).toBeGreaterThanOrEqual(row.pointForecast);
+      expect(row.lower).toBeLessThanOrEqual(row.pointForecast);
+    }
+    const w0 = f[0].upper - f[0].lower;
+    const w3 = f[3].upper - f[3].lower;
+    expect(w3).toBeGreaterThan(w0);
+  });
+
+  it("demand_forecast applies multiplicative seasonality when ≥2 cycles are supplied", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 881,
+      method: "tools/call",
+      params: {
+        name: "demand_forecast",
+        // 2 cycles of length 4 with a clear seasonal shape
+        arguments: { series: [100, 150, 120, 90, 110, 165, 132, 99], periods: 4, seasonLength: 4 },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.method).toBe("holt_linear_multiplicative_seasonal");
+    expect(Array.isArray(sc.seasonalIndices)).toBe(true);
+    expect(sc.seasonalIndices).toHaveLength(4);
+    expect(sc.forecast[0].seasonalIndex).not.toBeNull();
+  });
+
+  it("demand_forecast errors on a too-short series", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 882,
+      method: "tools/call",
+      params: { name: "demand_forecast", arguments: { series: [100, 110] } },
+    });
+    // <3 numeric points is handler-level validation ⇒ tool isError result
+    expect(json.result.isError).toBe(true);
+  });
+
+  it("customer_journey_map returns the best-practice template with no args", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 883,
+      method: "tools/call",
+      params: { name: "customer_journey_map", arguments: {} },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.mode).toBe("template");
+    expect(sc.stages).toHaveLength(5);
+    expect(sc.stages[0].channels.length).toBeGreaterThan(0);
+    expect(sc.stages[0].content.length).toBeGreaterThan(0);
+  });
+
+  it("customer_journey_map computes conversion and flags coverage gaps", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 884,
+      method: "tools/call",
+      params: {
+        name: "customer_journey_map",
+        arguments: {
+          stages: [
+            { stage: "awareness", channels: ["OLV", "VK Ads"], content: ["видео"], count: 100000 },
+            { stage: "покупка", channels: ["Поиск"], content: [], count: 2000 },
+          ],
+        },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.mode).toBe("audit");
+    const purchase = sc.stages[1];
+    // 2000 / 100000 = 2%
+    expect(purchase.conversionFromPrevPct).toBe(2);
+    // no content at the purchase stage ⇒ flagged gap
+    expect(purchase.gaps).toContain("нет контента");
+    expect(sc.gapStages.length).toBeGreaterThan(0);
+  });
+
+  it("customer_journey_map errors when stages are provided but unparseable", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 885,
+      method: "tools/call",
+      params: { name: "customer_journey_map", arguments: { stages: [{ channels: ["x"] }] } },
+    });
+    // stage entries with no name ⇒ handler-level validation ⇒ tool isError
+    expect(json.result.isError).toBe(true);
+  });
+
+  it("competitive_positioning_map assigns quadrants, white-space and your nearest rival", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 886,
+      method: "tools/call",
+      params: {
+        name: "competitive_positioning_map",
+        arguments: {
+          competitors: [
+            { name: "Мы", x: 60, y: 80, isYou: true },
+            { name: "Конкурент А", x: 90, y: 70 },
+            { name: "Конкурент Б", x: 40, y: 45 },
+          ],
+          xAxis: "Цена",
+          yAxis: "Ценность",
+        },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.players).toHaveLength(3);
+    expect(sc.you.name).toBe("Мы");
+    expect(typeof sc.you.quadrant).toBe("string");
+    expect(sc.nearestRival).not.toBeNull();
+    // 4 quadrants, 3 players ⇒ at least one white-space quadrant
+    expect(sc.whiteSpace.length).toBeGreaterThanOrEqual(1);
+    const us = sc.players.find((p: any) => p.name === "Мы");
+    expect(us.valueForMoneyIndex).toBeCloseTo(80 / 60, 2);
+  });
+
+  it("competitive_positioning_map errors with fewer than 2 valid players", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 887,
+      method: "tools/call",
+      params: { name: "competitive_positioning_map", arguments: { competitors: [{ name: "Только мы", x: 10, y: 10 }] } },
+    });
+    // only 1 valid player ⇒ handler-level validation ⇒ tool isError result
+    expect(json.result.isError).toBe(true);
+  });
+
+  it("competitive_positioning_map handler-validates non-numeric coordinates", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 888,
+      method: "tools/call",
+      params: {
+        name: "competitive_positioning_map",
+        arguments: { competitors: [{ name: "A", x: 10, y: 10 }, { name: "B", x: 20, y: 20 }, { name: "", x: 5, y: 5 }] },
+      },
+    });
+    // 2 valid players remain after dropping the unnamed one ⇒ still succeeds
+    expect(json.result.structuredContent.players).toHaveLength(2);
   });
 });

@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-91-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-94-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -31,7 +31,10 @@ with **mock/synthetic RU data** plus **KV real-data layering**, and a
 > v2.57 deepens autonomy with `autonomous_plan` (breaches/goal → an ordered diagnose→act→measure
 > plan that chains tools, with owners & expected impact) and adds a Marketing Ops & Leadership
 > group — a marketing OKR planner and a content-team capacity/throughput planner.
-> **91 tools / 66 prompts.**
+> v2.58 adds a Foresight & Strategy group — `demand_forecast` (Holt linear-trend forecast + optional
+> multiplicative seasonality + confidence band), `customer_journey_map` (lifecycle → channels/content/KPI
+> with conversion & gap analysis) and `competitive_positioning_map` (2-axis perceptual map + white-space).
+> **94 tools / 69 prompts.**
 
 > **New in 2.51 — skills & growth science:** an extensible **playbook layer**
 > (`marketing_skill`) chains tools into 10 repeatable end-to-end workflows (cut CAC,
@@ -159,7 +162,7 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
 
 ---
 
-## Tools (91 total)
+## Tools (94 total)
 
 ### Intelligence group (inform + orchestrate)
 | Tool | What it does |
@@ -362,6 +365,13 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 | `marketing_okr_planner` | **OKR planner (pro+).** Turns an objective + key results into a measurable OKR set: per KR baseline → target, %Δ, an ambition band (conservative/realistic/ambitious/stretch), a leading-vs-lagging classification and the tool to drive it; flags an unbalanced (all-lagging / all-leading) set. |
 | `content_calendar_planner` | **Content capacity planner.** From team size, productive hours and a content mix (effort per piece + desired share + optional planned count) ⇒ total capacity, achievable pieces per type, weekly throughput, utilization vs. plan and the bottleneck. |
 
+### Foresight & Strategy group (v2.58+ — forecasting, journey & positioning)
+| Tool | What it does |
+|---|---|
+| `demand_forecast` | **Demand forecast (pro+).** Projects the next N periods of any series (sales/leads/traffic/revenue) with **Holt's linear-trend** double exponential smoothing, a residual-based **confidence band** (z·RMSE·√h, widening with the horizon), the fitted level & per-period trend and MAPE. Optional **multiplicative seasonality** via classical decomposition when ≥2 full cycles are supplied. Distinct from `seasonality_forecast` (category index) and `anomaly_detector` (outliers). |
+| `customer_journey_map` | **Lifecycle map & gap audit.** Maps the funnel (awareness → consideration → purchase → retention → advocacy) to channels, content and a primary KPI per stage; with stage volumes computes stage-to-stage conversion and the biggest drop-off; flags coverage **gaps** (a stage with no channels or no content). Call with no args for the best-practice template. |
+| `competitive_positioning_map` | **2-axis perceptual map (pro+).** Places ≥2 competitors on a plane (e.g. price × value), splits at the mean of each axis into four quadrants, assigns each player a quadrant + value-for-money index, finds the empty quadrants (**white-space**) and — if one entry is flagged `isYou` — reports your quadrant and nearest rival by normalized distance. |
+
 ### Roles / Adoption group (v2.46+ — one connector for every marketer)
 | Tool | What it does |
 |---|---|
@@ -483,7 +493,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 91 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 2 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 2 Retention/CRM + 1 Email/Lifecycle + 1 Partnerships + 1 Roles/Adoption + 1 SEO + 1 Social/SMM + 1 PR + 1 Events + 1 Mobile/ASO + 1 Content + 1 Distribution + 1 Skills + 2 Growth Lab + 2 Federation + 3 Expansion + 4 B2B & CX + 3 Ops & Autonomy + 2 Marketing Ops & Leadership);
+`tools/list` returns all 94 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 2 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 2 Retention/CRM + 1 Email/Lifecycle + 1 Partnerships + 1 Roles/Adoption + 1 SEO + 1 Social/SMM + 1 PR + 1 Events + 1 Mobile/ASO + 1 Content + 1 Distribution + 1 Skills + 2 Growth Lab + 2 Federation + 3 Expansion + 4 B2B & CX + 3 Ops & Autonomy + 2 Marketing Ops & Leadership + 3 Foresight & Strategy);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -526,7 +536,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (91 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (94 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit
