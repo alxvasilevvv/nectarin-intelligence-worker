@@ -34,6 +34,8 @@ export const TOOL_MIN_PLAN: Record<string, Plan> = {
   martech_stack_roi: "pro",
   abm_account_scoring: "pro",
   b2b_pipeline_velocity: "pro",
+  win_loss_analysis: "pro",
+  marketing_budget_allocator: "pro",
 };
 
 /**

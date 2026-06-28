@@ -316,4 +316,110 @@ const b2bPipelineVelocity: ToolDef = {
   },
 };
 
-export const B2BCX_TOOLS: ToolDef[] = [abmAccountScoring, npsAnalysis, b2bPipelineVelocity];
+// ── 4. Win/loss analysis ─────────────────────────────────────────────────────
+
+const winLossAnalysis: ToolDef = {
+  name: "win_loss_analysis",
+  description:
+    "B2B win/loss analysis for a revenue / product-marketing team. From closed deals (outcome won|lost, optional reason, segment, value ₽) it computes the overall win rate (by count and by value), win rate by segment, the top loss reasons and top win reasons (count + value impact), and prioritized recommendations targeting the biggest loss drivers. Deterministic aggregation on your CRM export.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      deals: {
+        type: "array",
+        minItems: 1,
+        description: "Closed deals",
+        items: {
+          type: "object",
+          properties: {
+            outcome: { type: "string", enum: ["won", "lost"], description: "Deal outcome" },
+            reason: { type: "string", description: "Optional win/loss reason, e.g. 'цена', 'функционал', 'конкурент'" },
+            segment: { type: "string", description: "Optional segment, e.g. 'enterprise', 'SMB', industry" },
+            value: { type: "number", minimum: 0, description: "Optional deal value (RUB)" },
+          },
+          required: ["outcome"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["deals"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const raw = Array.isArray(input?.deals) ? input.deals : [];
+    let won = 0;
+    let lost = 0;
+    let wonValue = 0;
+    let lostValue = 0;
+    const lossReasons = new Map<string, { count: number; value: number }>();
+    const winReasons = new Map<string, { count: number; value: number }>();
+    const bySegment = new Map<string, { won: number; lost: number }>();
+
+    for (const d of raw) {
+      if (!isRecord(d)) continue;
+      const outcome = d.outcome === "won" ? "won" : d.outcome === "lost" ? "lost" : null;
+      if (!outcome) continue;
+      const value = num(d.value) ?? 0;
+      const reason = (typeof d.reason === "string" && d.reason.trim()) || "не указана";
+      const segment = (typeof d.segment === "string" && d.segment.trim()) || "не указан";
+      const seg = bySegment.get(segment) ?? { won: 0, lost: 0 };
+      if (outcome === "won") {
+        won++;
+        wonValue += value;
+        const w = winReasons.get(reason) ?? { count: 0, value: 0 };
+        w.count++;
+        w.value += value;
+        winReasons.set(reason, w);
+        seg.won++;
+      } else {
+        lost++;
+        lostValue += value;
+        const l = lossReasons.get(reason) ?? { count: 0, value: 0 };
+        l.count++;
+        l.value += value;
+        lossReasons.set(reason, l);
+        seg.lost++;
+      }
+      bySegment.set(segment, seg);
+    }
+    const total = won + lost;
+    if (total === 0) {
+      return errResult("Не удалось разобрать сделки. Нужно поле outcome ('won' | 'lost').");
+    }
+    const winRatePct = round((won / total) * 100, 1);
+    const winRateByValuePct = wonValue + lostValue > 0 ? round((wonValue / (wonValue + lostValue)) * 100, 1) : null;
+
+    const topLoss = [...lossReasons.entries()]
+      .map(([reason, v]) => ({ reason, count: v.count, valueLost: round(v.value, 0) }))
+      .sort((a, b) => b.count - a.count || b.valueLost - a.valueLost);
+    const topWin = [...winReasons.entries()]
+      .map(([reason, v]) => ({ reason, count: v.count, valueWon: round(v.value, 0) }))
+      .sort((a, b) => b.count - a.count || b.valueWon - a.valueWon);
+    const segments = [...bySegment.entries()]
+      .map(([segment, v]) => ({ segment, won: v.won, lost: v.lost, winRatePct: round((v.won / (v.won + v.lost)) * 100, 1) }))
+      .sort((a, b) => b.winRatePct - a.winRatePct);
+
+    const recommendations: string[] = [];
+    if (topLoss[0]) recommendations.push(`Главная причина проигрышей — «${topLoss[0].reason}» (${topLoss[0].count} сделок). Адресуйте её в позиционировании/оффере и материалах для продаж.`);
+    const weakSeg = [...segments].sort((a, b) => a.winRatePct - b.winRatePct)[0];
+    if (weakSeg && weakSeg.won + weakSeg.lost >= 2) recommendations.push(`Слабый сегмент — «${weakSeg.segment}» (win-rate ${weakSeg.winRatePct}%). Проверьте ICP-фит и плейбук под него.`);
+    if (topWin[0]) recommendations.push(`Усильте то, что приносит победы — «${topWin[0].reason}»: вынесите в ключевые сообщения и кейсы.`);
+
+    const summary =
+      `Win/loss по ${total} сделкам: win-rate ${winRatePct}%` +
+      (winRateByValuePct !== null ? ` (по сумме ${winRateByValuePct}%)` : "") +
+      `. Топ-причина проигрышей: ${topLoss[0]?.reason ?? "—"}.`;
+
+    return toContent(summary, {
+      tool: "win_loss_analysis",
+      totals: { deals: total, won, lost, winRatePct, winRateByValuePct, wonValue: round(wonValue, 0), lostValue: round(lostValue, 0) },
+      topLossReasons: topLoss,
+      topWinReasons: topWin,
+      bySegment: segments,
+      recommendations,
+      note: "Подсчёт по вашему экспорту из CRM. Win-rate по количеству и по сумме; рекомендации нацелены на крупнейшие драйверы проигрышей.",
+    });
+  },
+};
+
+export const B2BCX_TOOLS: ToolDef[] = [abmAccountScoring, npsAnalysis, b2bPipelineVelocity, winLossAnalysis];

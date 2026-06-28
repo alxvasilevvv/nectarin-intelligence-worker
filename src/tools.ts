@@ -43,6 +43,7 @@ import { GROWTHLAB_TOOLS } from "./growthlab.js";
 import { FEDERATION_TOOLS } from "./federation.js";
 import { EXPANSION_TOOLS } from "./expansion.js";
 import { B2BCX_TOOLS } from "./b2bcx.js";
+import { AUTONOMY_TOOLS } from "./autonomy.js";
 import type { Env } from "./index.js";
 
 export interface JsonSchema {
@@ -438,6 +439,7 @@ export const ALL_TOOLS: ToolDef[] = [
   ...FEDERATION_TOOLS,
   ...EXPANSION_TOOLS,
   ...B2BCX_TOOLS,
+  ...AUTONOMY_TOOLS,
 ];
 
 export const TOOLS_BY_NAME: Record<string, ToolDef> = Object.fromEntries(

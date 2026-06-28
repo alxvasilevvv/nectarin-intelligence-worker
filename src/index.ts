@@ -111,7 +111,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.55.0";
+const SERVER_VERSION = "2.56.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1727,6 +1727,49 @@ const PROMPTS = [
       `Ты — NECTARIN Intelligence, revenue-маркетолог.\n` +
       `Вызови b2b_pipeline_velocity(opportunities=${a.opportunities}, winRatePct=${a.winRatePct}, avgDealSize=${a.avgDealSize}, salesCycleDays=${a.salesCycleDays}).\n` +
       `Покажи скорость пайплайна в ₽/день, ₽/мес и ₽/год, и подсветь рычаг с максимальным эффектом (+10% к каждому фактору / −10% к циклу).`,
+  },
+  {
+    name: "alert_check",
+    title: "Run the KPI alert engine",
+    description:
+      "Grade KPIs vs targets and turn breaches into prioritized actions + the NECTARIN tool to run next (kpi_alert_engine).",
+    arguments: [
+      { name: "metrics", description: "KPIs as 'name:value:target' separated by ';', e.g. 'CPA:1800:1500; CTR:0.4:0.8; Churn:6:4'", required: true },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, always-on монитор маркетинга.\n` +
+      `Метрики: ${a.metrics}.\n` +
+      `\nРазбери строку в массив metrics [{name, value, target}] (направление инферится из имени) и вызови kpi_alert_engine(metrics=[...]).\n` +
+      `Покажи алёрты по severity (critical→ok), для каждого нарушения — рекомендованное действие и инструмент NECTARIN. Предложи запустить инструмент по приоритету №1.`,
+  },
+  {
+    name: "budget_split",
+    title: "Allocate annual budget by function",
+    description:
+      "Split a CMO annual budget across brand/demand/retention/content/martech/team by goal (marketing_budget_allocator).",
+    arguments: [
+      { name: "totalBudget", description: "Total annual budget, RUB", required: true },
+      { name: "goal", description: "awareness | growth | performance | efficiency | retention", required: false },
+      { name: "businessType", description: "Optional: b2c | b2b | ecom | saas", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, финансовый партнёр CMO.\n` +
+      `Вызови marketing_budget_allocator(totalBudget=${a.totalBudget}${a.goal ? `, goal="${a.goal}"` : ""}${a.businessType ? `, businessType="${a.businessType}"` : ""}).\n` +
+      `Покажи функциональный сплит (₽ и %), отклонение от бенчмарка и гардрейлы; поясни логику наклона под цель${a.businessType ? " и тип бизнеса" : ""}.`,
+  },
+  {
+    name: "win_loss_review",
+    title: "Analyze B2B win/loss",
+    description:
+      "Compute win rate, top loss/win reasons and segment performance from closed deals (win_loss_analysis).",
+    arguments: [
+      { name: "deals", description: "Deals as 'outcome:reason:segment:value' separated by ';', e.g. 'won:функционал:enterprise:5000000; lost:цена:SMB:800000'", required: true },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, аналитик B2B-продаж и продукта.\n` +
+      `Сделки: ${a.deals}.\n` +
+      `\nРазбери строку в массив deals [{outcome, reason?, segment?, value?}] и вызови win_loss_analysis(deals=[...]).\n` +
+      `Покажи win-rate (по кол-ву и сумме), топ-причины проигрышей/побед, win-rate по сегментам и приоритетные рекомендации.`,
   },
 ];
 

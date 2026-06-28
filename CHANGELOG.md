@@ -3,6 +3,28 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.56.0] — 2026-06-29
+
+Nineteenth wave — **autonomy (anomaly → action) + CMO budgeting + B2B win/loss** (Phase D of
+`ROADMAP.md`). **88 tools / 63 prompts.**
+
+### Added
+- **`kpi_alert_engine`** (new **Ops & Autonomy** group) — the first autonomy brick: a
+  cross-KPI, rule-based alert engine. Grades each KPI ok/watch/warning/critical by adverse
+  deviation vs. target/benchmark (direction inferred from the name) and, on every breach,
+  maps it to a recommended ACTION and the NECTARIN tool to run next (CPA↑ ⇒ budget_optimizer,
+  CTR↓ ⇒ creative_testing_matrix, churn↑ ⇒ churn_predictor, …). Sorted by severity.
+- **`marketing_budget_allocator`** (Ops & Autonomy, pro+) — CMO annual-budget split ACROSS
+  FUNCTIONS (brand / demand / retention-CRM / content-SEO / martech / team) tilted by goal
+  (awareness | growth | performance | efficiency | retention) and business type, with
+  guardrails. (Channel splits remain `budget_optimizer`.)
+- **`win_loss_analysis`** (B2B & CX, pro+) — win rate by count & value, win rate by segment,
+  top loss/win reasons (count + value impact) and prioritized recommendations from CRM deals.
+- Guided prompts **`alert_check`**, **`budget_split`**, **`win_loss_review`** (**63 prompts**).
+
+### Changed
+- `tools/list`/catalog/`/version` advertise **88 tools**. Docs + tests updated (+11). 233 pass.
+
 ## [2.55.0] — 2026-06-29
 
 Eighteenth wave — **B2B & CX coverage** (Phase D of `ROADMAP.md`): fills two under-served

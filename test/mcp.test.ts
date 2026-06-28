@@ -24,7 +24,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(85);
+    expect(json.toolCount).toBe(88);
     expect(json.commit).toBeDefined();
   });
 });
@@ -35,7 +35,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(85);
+    expect(tools).toHaveLength(88);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -67,6 +67,9 @@ describe("tools/list", () => {
     expect(names).toContain("abm_account_scoring");
     expect(names).toContain("nps_analysis");
     expect(names).toContain("b2b_pipeline_velocity");
+    expect(names).toContain("win_loss_analysis");
+    expect(names).toContain("kpi_alert_engine");
+    expect(names).toContain("marketing_budget_allocator");
     expect(names).toContain("compliance_check");
     expect(names).toContain("ab_test_planner");
     expect(names).toContain("unit_economics");
@@ -218,8 +221,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(85);
-    expect(catalog.tools).toHaveLength(85);
+    expect(catalog.counts.tools).toBe(88);
+    expect(catalog.tools).toHaveLength(88);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -2335,7 +2338,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(85);
+    expect(parsed.result.tools.length).toBe(88);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -2418,7 +2421,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(85);
+    expect(json.result.tools).toHaveLength(88);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -2446,7 +2449,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(85);
+    expect(json.result.tools).toHaveLength(88);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -2456,15 +2459,18 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 60 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 63 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(60);
+    expect(json.result.prompts).toHaveLength(63);
     expect(names).toContain("maturity_check");
     expect(names).toContain("pricing_research");
     expect(names).toContain("abm_targets");
     expect(names).toContain("nps_check");
     expect(names).toContain("pipeline_velocity");
+    expect(names).toContain("alert_check");
+    expect(names).toContain("budget_split");
+    expect(names).toContain("win_loss_review");
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -3196,6 +3202,43 @@ describe("prompts", () => {
     expect(text).toContain("b2b_pipeline_velocity");
     expect(text).toContain("opportunities=50");
   });
+
+  it("prompts/get alert_check embeds metrics and calls kpi_alert_engine", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 73,
+      method: "prompts/get",
+      params: { name: "alert_check", arguments: { metrics: "CPA:1800:1500; CTR:0.4:0.8" } },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("kpi_alert_engine");
+    expect(text).toContain("CPA:1800:1500");
+  });
+
+  it("prompts/get budget_split embeds inputs and calls marketing_budget_allocator", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 74,
+      method: "prompts/get",
+      params: { name: "budget_split", arguments: { totalBudget: "100000000", goal: "performance", businessType: "b2b" } },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("marketing_budget_allocator");
+    expect(text).toContain("totalBudget=100000000");
+    expect(text).toContain('goal="performance"');
+  });
+
+  it("prompts/get win_loss_review embeds deals and calls win_loss_analysis", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 75,
+      method: "prompts/get",
+      params: { name: "win_loss_review", arguments: { deals: "won:функционал:enterprise:5000000; lost:цена:SMB:800000" } },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("win_loss_analysis");
+    expect(text).toContain("won:функционал:enterprise:5000000");
+  });
 });
 
 describe("Plan gating (monetization seam)", () => {
@@ -3790,5 +3833,100 @@ describe("B2B & CX tools (v2.55)", () => {
     // opportunities=0 violates schema (exclusiveMinimum) ⇒ RPC-level error, not a tool result
     expect(json.error ?? json.result?.isError).toBeTruthy();
     expect(json.result).toBeUndefined();
+  });
+
+  it("win_loss_analysis computes win rate, top reasons and segments", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 858,
+      method: "tools/call",
+      params: {
+        name: "win_loss_analysis",
+        arguments: {
+          deals: [
+            { outcome: "won", reason: "функционал", segment: "enterprise", value: 5_000_000 },
+            { outcome: "lost", reason: "цена", segment: "SMB", value: 800_000 },
+            { outcome: "lost", reason: "цена", segment: "SMB", value: 600_000 },
+            { outcome: "won", reason: "функционал", segment: "enterprise", value: 3_000_000 },
+          ],
+        },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.totals.deals).toBe(4);
+    expect(sc.totals.won).toBe(2);
+    expect(sc.totals.winRatePct).toBe(50);
+    expect(sc.topLossReasons[0].reason).toBe("цена");
+    expect(sc.topLossReasons[0].count).toBe(2);
+    expect(sc.recommendations.length).toBeGreaterThan(0);
+  });
+});
+
+describe("Ops & Autonomy tools (v2.56)", () => {
+  it("kpi_alert_engine grades KPIs and routes breaches to actions/tools", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 860,
+      method: "tools/call",
+      params: {
+        name: "kpi_alert_engine",
+        arguments: {
+          metrics: [
+            { name: "CPA", value: 2000, target: 1500 }, // lower_better, +33% adverse ⇒ critical
+            { name: "CTR", value: 0.75, target: 0.8 }, // higher_better, ~6% adverse ⇒ watch
+            { name: "ROAS", value: 5, target: 4 }, // higher_better, ahead ⇒ ok
+          ],
+        },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.alerts).toHaveLength(3);
+    // sorted by severity: CPA critical first
+    expect(sc.alerts[0].name).toBe("CPA");
+    expect(sc.alerts[0].severity).toBe("critical");
+    expect(sc.alerts[0].suggestedTool).toBe("budget_optimizer");
+    expect(sc.counts.critical).toBe(1);
+    const roas = sc.alerts.find((a: any) => a.name === "ROAS");
+    expect(roas.severity).toBe("ok");
+  });
+
+  it("kpi_alert_engine errors when no parsable metrics", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 861,
+      method: "tools/call",
+      params: { name: "kpi_alert_engine", arguments: { metrics: [{ foo: "bar" }] } },
+    });
+    expect(json.result.isError).toBe(true);
+  });
+
+  it("marketing_budget_allocator splits a budget across functions summing to 100%", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 862,
+      method: "tools/call",
+      params: { name: "marketing_budget_allocator", arguments: { totalBudget: 100_000_000, goal: "performance", businessType: "b2b" } },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.allocation).toHaveLength(6);
+    const sumPct = sc.allocation.reduce((a: number, x: any) => a + x.sharePct, 0);
+    expect(Math.round(sumPct)).toBe(100);
+    const sumAmt = sc.allocation.reduce((a: number, x: any) => a + x.amount, 0);
+    // amounts should be close to the total (rounding tolerance)
+    expect(Math.abs(sumAmt - 100_000_000)).toBeLessThan(100_000);
+    // performance goal ⇒ demand is the largest function
+    expect(sc.allocation[0].key).toBe("demand");
+  });
+
+  it("marketing_budget_allocator validates positive budget", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 863,
+      method: "tools/call",
+      params: { name: "marketing_budget_allocator", arguments: { totalBudget: 5_000_000 } },
+    });
+    // default goal=growth ⇒ valid result
+    expect(json.result.structuredContent.goal).toBe("growth");
+    expect(json.result.structuredContent.allocation.length).toBe(6);
   });
 });
