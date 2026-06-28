@@ -229,4 +229,141 @@ const brandLift: ToolDef = {
   },
 };
 
-export const BRAND_TOOLS: ToolDef[] = [brandLift];
+// ── sov_tracker ──────────────────────────────────────────────────────────────
+
+function ru(n: number): string {
+  try {
+    return Number(n).toLocaleString("ru-RU");
+  } catch {
+    return String(n);
+  }
+}
+
+interface CompetitorIn {
+  name: string;
+  spend: number;
+}
+
+const sovTracker: ToolDef = {
+  name: "sov_tracker",
+  description:
+    "Share of Voice tracker with ESOV → market-share growth prediction (Binet & Field rule). From the brand's spend + competitors' spends (or a given totalMarketSpend / sovPct) and the brand's current market share (SOM), computes Share of Voice (SOV), Excess Share of Voice (ESOV = SOV − SOM, pp) and the predicted annual market-share growth (~0.5pp per 10pp ESOV by default). Also solves the SOV required to hit a target share growth. Deterministic brand-growth heuristic on YOUR numbers — directional, not a guarantee.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      brandSpend: { type: "number", minimum: 0, description: "Brand advertising spend (RUB or any consistent unit)" },
+      competitors: {
+        type: "array",
+        description: "Competitor spends (with brandSpend → total & SOV)",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string", description: "Competitor name" },
+            spend: { type: "number", minimum: 0, description: "Competitor spend (same unit as brandSpend)" },
+          },
+          required: ["name", "spend"],
+          additionalProperties: false,
+        },
+      },
+      totalMarketSpend: { type: "number", exclusiveMinimum: 0, description: "Alt: total category ad spend (with brandSpend → SOV)" },
+      sovPct: { type: "number", minimum: 0, maximum: 100, description: "Alt: provide SOV directly, %" },
+      marketSharePct: { type: "number", minimum: 0, maximum: 100, description: "Brand current market share (SOM), %" },
+      targetShareGrowthPp: { type: "number", exclusiveMinimum: 0, description: "Optional: target annual share growth (pp) to solve required SOV" },
+      esovToGrowthCoef: { type: "number", exclusiveMinimum: 0, description: "pp share growth per 1pp ESOV (default 0.05 ≈ Binet & Field)" },
+    },
+    required: ["marketSharePct"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const som = clamp(Number(input.marketSharePct), 0, 100);
+    const coef = typeof input.esovToGrowthCoef === "number" && input.esovToGrowthCoef > 0 ? input.esovToGrowthCoef : 0.05;
+
+    // Resolve SOV%.
+    let sov: number | null = null;
+    let totalSpend: number | null = null;
+    const competitors = (input.competitors ?? []) as CompetitorIn[];
+    const brandSpend = typeof input.brandSpend === "number" && input.brandSpend >= 0 ? input.brandSpend : null;
+    if (typeof input.sovPct === "number") {
+      sov = clamp(input.sovPct, 0, 100);
+    } else if (brandSpend != null && competitors.length) {
+      const ts = brandSpend + competitors.reduce((s, c) => s + Math.max(0, c.spend), 0);
+      totalSpend = ts;
+      sov = ts > 0 ? (brandSpend / ts) * 100 : 0;
+    } else if (brandSpend != null && typeof input.totalMarketSpend === "number" && input.totalMarketSpend > 0) {
+      const ts = input.totalMarketSpend;
+      totalSpend = ts;
+      sov = (brandSpend / ts) * 100;
+    }
+
+    if (sov == null) {
+      return {
+        content: [
+          { type: "text", text: "Ошибка: задай sovPct, либо brandSpend + (competitors[] или totalMarketSpend)." },
+        ],
+        isError: true,
+      };
+    }
+
+    const esov = sov - som;
+    const predictedGrowthPp = esov * coef;
+    const projectedShare = clamp(som + predictedGrowthPp, 0, 100);
+
+    let targetInfo: Record<string, unknown> | null = null;
+    if (typeof input.targetShareGrowthPp === "number" && input.targetShareGrowthPp > 0) {
+      const requiredEsov = input.targetShareGrowthPp / coef;
+      const requiredSov = clamp(som + requiredEsov, 0, 100);
+      let requiredBrandSpend: number | null = null;
+      // If competitors known, required brand spend so that brand/(brand+comp) = requiredSov.
+      if (competitors.length) {
+        const compSpend = competitors.reduce((s, c) => s + Math.max(0, c.spend), 0);
+        const f = requiredSov / 100;
+        requiredBrandSpend = f < 1 ? (f * compSpend) / (1 - f) : null;
+      } else if (totalSpend != null) {
+        requiredBrandSpend = (requiredSov / 100) * totalSpend;
+      }
+      targetInfo = {
+        targetShareGrowthPp: round(input.targetShareGrowthPp, 2),
+        requiredEsovPp: round(requiredEsov, 1),
+        requiredSovPct: round(requiredSov, 1),
+        requiredBrandSpend: requiredBrandSpend != null ? round(requiredBrandSpend) : null,
+      };
+    }
+
+    const stance = esov > 1 ? "investing_for_growth" : esov < -1 ? "underinvesting" : "holding";
+    const verdict =
+      stance === "investing_for_growth"
+        ? `ESOV +${round(esov, 1)} п.п. — инвестируешь в рост, прогноз +${round(predictedGrowthPp, 2)} п.п. доли/год.`
+        : stance === "underinvesting"
+          ? `ESOV ${round(esov, 1)} п.п. (отрицательный) — недоинвест, риск потери доли (~${round(predictedGrowthPp, 2)} п.п./год).`
+          : `ESOV ≈ 0 — удержание доли, роста за счёт SOV не ожидается.`;
+
+    const payload = {
+      sovPct: round(sov, 1),
+      marketSharePct: round(som, 1),
+      esovPp: round(esov, 1),
+      esovToGrowthCoef: coef,
+      predictedAnnualShareGrowthPp: round(predictedGrowthPp, 2),
+      projectedShareNextYearPct: round(projectedShare, 1),
+      totalMarketSpend: totalSpend != null ? round(totalSpend) : null,
+      stance,
+      target: targetInfo,
+      verdict,
+      methodology:
+        "SOV = brand/(brand+competitors) (или задан). ESOV = SOV − SOM. Прогноз роста доли ≈ ESOV × coef (по умолчанию 0.05 ≈ правило Binet & Field: ~0.5 п.п. роста на 10 п.п. ESOV).",
+      assumptions: [
+        "Связь ESOV→рост доли — усреднённая эмпирика (Binet & Field), сильно зависит от категории, креатива и ценности предложения.",
+        "Эффект годовой и при прочих равных; качество коммуникации может усиливать/ослаблять его.",
+      ],
+      disclaimer: "Директивная оценка, не гарантия. Калибруйте coef по своей категории и истории.",
+    };
+
+    const summary =
+      `SOV ${round(sov, 1)}% vs доля ${round(som, 1)}% ⇒ ESOV ${esov >= 0 ? "+" : ""}${round(esov, 1)} п.п. ` +
+      `Прогноз доли: ${round(projectedShare, 1)}% (${predictedGrowthPp >= 0 ? "+" : ""}${round(predictedGrowthPp, 2)} п.п./год). ` +
+      (targetInfo ? `Для +${targetInfo.targetShareGrowthPp} п.п. нужен SOV ~${targetInfo.requiredSovPct}%${targetInfo.requiredBrandSpend != null ? ` (≈${ru(targetInfo.requiredBrandSpend as number)} спенда)` : ""}.` : verdict);
+
+    return toContent(summary, payload);
+  },
+};
+
+export const BRAND_TOOLS: ToolDef[] = [brandLift, sovTracker];

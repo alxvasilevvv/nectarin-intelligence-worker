@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.27.0";
+const SERVER_VERSION = "2.28.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -941,6 +941,30 @@ const PROMPTS = [
             `4) Предупреди: качество вывода зависит от matched-markets и отсутствия утечки.`)
       );
     },
+  },
+  {
+    name: "sov_analysis",
+    title: "Share of Voice & ESOV growth",
+    description:
+      "Analyze Share of Voice vs market share and predict growth (sov_tracker): SOV, ESOV and the expected annual market-share change (Binet & Field).",
+    arguments: [
+      { name: "brandSpend", description: "Brand ad spend (RUB)", required: false },
+      { name: "competitors", description: "Competitor spends as 'name:spend' separated by ';', e.g. 'Конкурент A:8000000; Конкурент B:5000000'", required: false },
+      { name: "sovPct", description: "Alt: provide SOV directly, %", required: false },
+      { name: "marketSharePct", description: "Brand current market share (SOM), %", required: true },
+      { name: "targetShareGrowthPp", description: "Optional target annual share growth (pp) to solve required SOV", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, бренд-стратег RU/CIS (доля голоса и рост доли рынка).\n` +
+      `Текущая доля рынка (SOM): ${a.marketSharePct}%.\n` +
+      (a.sovPct ? `SOV задан: ${a.sovPct}%.\n` : `Спенд бренда: ${a.brandSpend} ₽. Конкуренты (name:spend): ${a.competitors}\n`) +
+      (a.targetShareGrowthPp ? `Цель роста доли: +${a.targetShareGrowthPp} п.п./год.\n` : ``) +
+      `\nШаги:\n` +
+      (a.sovPct ? `1) Используй sovPct напрямую.\n` : `1) Распарси конкурентов в массив {name, spend}.\n`) +
+      `2) Вызови sov_tracker(marketSharePct${a.sovPct ? ", sovPct" : ", brandSpend, competitors"}${a.targetShareGrowthPp ? ", targetShareGrowthPp" : ""}).\n` +
+      `3) Объясни SOV, ESOV (избыточная доля голоса) и прогноз изменения доли рынка.\n` +
+      `4) Скажи, инвестирует ли бренд в рост или недоинвестирует; ${a.targetShareGrowthPp ? "назови нужный SOV/спенд под цель." : "сколько SOV нужно для роста."}\n` +
+      `5) Рекомендация по медиадавлению + дисклеймер: связь ESOV→рост усреднённая (Binet & Field), калибруйте под категорию.`,
   },
 ];
 

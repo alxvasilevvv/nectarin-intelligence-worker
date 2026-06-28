@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-48-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-49-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -219,6 +219,7 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 | Tool | What it does |
 |---|---|
 | `brand_lift` | **Brand-lift study calculator.** *Measure*: from a control vs. exposed survey cell (n + positive answers for ad recall / awareness / consideration / intent) computes both rates, the absolute (pp) & relative lift, a pooled **two-proportion z-test** (z, two-tailed p-value, significance at α) and a confidence interval for the lift. *Design*: from a base rate + target lift (absolute pp or relative %), α and power, returns the **required sample size per cell** (and total). Auto-detects mode. Deterministic. |
+| `sov_tracker` | **Share of Voice + ESOV growth tracker.** From brand spend + competitor spends (or a given SOV) and the brand's current market share, computes **SOV**, **ESOV** (excess share of voice = SOV − share) and the predicted annual market-share growth (Binet & Field: ~0.5pp per 10pp ESOV). Also solves the SOV/spend required to hit a target share growth. Deterministic brand-growth heuristic. |
 
 > **Funnel logic & safety.** All Growth figures are synthetic/illustrative and
 > anchored to the same mock RU/CIS benchmarks (`src/data.ts`) — internally
@@ -299,7 +300,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 48 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 6 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 1 Creative Ops + 1 Influence + 3 Media + 1 Brand + 1 Production + 1 Experimentation);
+`tools/list` returns all 49 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 6 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 1 Creative Ops + 1 Influence + 3 Media + 2 Brand + 1 Production + 1 Experimentation);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -342,7 +343,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (48 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (49 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit
@@ -492,6 +493,7 @@ interface, so going real is a one-line wiring change — no upstream edits.
   **`omnichannel_reach`** (channel_overlap) for cross-channel deduplicated reach,
   **`production_budget`** (production_estimator) for a production budget & timeline,
   **`flighting_plan`** (media_flowchart) for a weekly media flowchart,
-  **`geo_test`** (geo_holdout) to design/measure a geo incrementality test, and
+  **`geo_test`** (geo_holdout) to design/measure a geo incrementality test,
+  **`sov_analysis`** (sov_tracker) for Share of Voice & ESOV growth, and
   **`exec_report`** (board_report) for a board-ready one-pager (audit + upside), and
   **`creative_fatigue_check`** (creative_fatigue) to spot burning-out creatives.

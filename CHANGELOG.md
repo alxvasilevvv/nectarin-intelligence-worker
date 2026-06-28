@@ -3,6 +3,24 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.28.0] — 2026-06-28
+
+Brand growth: a Share-of-Voice / ESOV growth tracker (49th tool) — second feature of
+the third wave.
+
+### Added
+- **`sov_tracker`** (Brand group, now 2 tools) — from brand spend + competitor
+  spends (or a given SOV) and the brand's current market share (SOM), computes
+  **SOV**, **ESOV** (excess share of voice = SOV − SOM) and the predicted annual
+  market-share growth using the Binet & Field rule (~0.5pp per 10pp ESOV, coef
+  configurable). Also solves the SOV and brand spend required to hit a target share
+  growth. Deterministic brand-growth heuristic. 48 → **49 tools**.
+- **`sov_analysis`** guided prompt (**26 prompts** total).
+
+### Changed
+- `server.json` description + version, README (Tools badge 49, Brand group now 2
+  tools), USAGE (catalogue 49, prompts 26), test counts (49 tools / 26 prompts).
+
 ## [2.27.0] — 2026-06-28
 
 Incrementality: a geo-holdout test designer & evaluator (48th tool) — first feature

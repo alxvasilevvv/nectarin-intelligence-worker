@@ -37,7 +37,7 @@ stays on JSON, so existing clients are unaffected.
 
 ---
 
-## 2. Tool catalogue (48)
+## 2. Tool catalogue (49)
 
 ### Intelligence (11)
 | Tool | What it does |
@@ -132,10 +132,11 @@ stays on JSON, so existing clients are unaffected.
 | `channel_overlap` | From a shared universe + ≥2 channels' reach, gives the combined **deduplicated net reach** (Sainsbury), gross summed reach, duplication (people & %) and each channel's **incremental unique reach** (leave-one-out); flags most additive / most duplicated. |
 | `media_flowchart` | Distributes a budget across N weeks by a flighting pattern (even / front_loaded / back_loaded / burst / pulse) → per-week budget, share, cumulative spend, and a **per-channel split** each on-air week; reports peak week & on-air weeks. |
 
-### Brand (1) — brand lift
+### Brand (2) — brand lift, share of voice
 | Tool | What it does |
 |---|---|
 | `brand_lift` | *Measure*: control vs exposed survey cells → rates, absolute (pp) & relative lift, pooled **two-proportion z-test** (z, p-value, significance) and a lift CI. *Design*: base rate + target lift + α + power → **required sample per cell** and total. Auto-detects mode. |
+| `sov_tracker` | From brand + competitor spends (or a given SOV) and market share → **SOV**, **ESOV** and predicted annual share growth (Binet & Field). Solves the SOV/spend needed for a target share growth. |
 
 ### Production (1) — Производство
 | Tool | What it does |
@@ -147,13 +148,13 @@ stays on JSON, so existing clients are unaffected.
 |---|---|
 | `geo_holdout` | *Design*: baseline conversions + target lift → **MDE**, required volume and test duration. *Measure*: test vs counterfactual conversions → incremental, lift %, count-based (Poisson) **z-test**, p-value, significance, incremental CPA. Auto-detects mode. |
 
-Built‑in **prompts** (25): `build_media_plan`, `full_strategy`, `competitor_teardown`,
+Built‑in **prompts** (26): `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`,
 `launch_flight`, `performance_review`, `saturation_reallocation`, `mmm_planning`,
 `quarter_plan`, `account_audit`, `scenario_review`, `promo_review`, `exec_report`,
 `creative_fatigue_check`, `price_optimization`, `influencer_plan`, `olv_plan`,
 `brand_lift_study`, `omnichannel_reach`, `production_budget`, `flighting_plan`,
-`geo_test`.
+`geo_test`, `sov_analysis`.
 **Resources:** `nectarin://methodology`, `nectarin://glossary`, `nectarin://catalog`
 (live JSON catalog of all tools + annotations + prompts). `tools/list` also
 returns a `title` and behavioral `annotations` (read-only / idempotent / open-world) per tool.
