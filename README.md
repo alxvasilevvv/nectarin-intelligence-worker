@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-52-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-53-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -206,6 +206,7 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 | `channel_overlap` | **Omnichannel deduplicated reach estimator.** Given a shared universe and ≥2 channels' individual reach, computes the combined **net deduplicated reach** (independence / Sainsbury model), gross summed reach, the duplication/overlap (people & %), and each channel's **incremental unique reach** (leave-one-out). Flags the most additive and most duplicated channels. Deterministic planning estimate. |
 | `media_flowchart` | **Media flighting / flowchart planner.** Distributes a total budget across N weeks by a flighting pattern (even / front_loaded / back_loaded / burst / pulse), returning the per-week budget, share and cumulative spend, plus a **per-channel split each week** when channel shares are given. Reports the peak week and on-air weeks. Deterministic. |
 | `media_quality_score` | **Media delivery quality scorer.** From a placement's OWN delivered metrics (viewability %, IVT/bot %, video completion %, brand-safe %, on-target %), computes a weighted **0–100 quality score** + A–F grade, scores each metric vs. RU/MRC-style thresholds, flags problems and names the biggest lever. Complements `supplier_quality` (a benchmark lookup) — this scores YOUR actual delivery. Deterministic. |
+| `audience_overlap` | **Audience overlap / dedup analyzer from MEASURED pairwise overlaps** (DMP / panel / cross-device) — unlike `channel_overlap` (which assumes independence). Computes **deduplicated reach** (inclusion–exclusion), the **duplication rate**, each segment's **incremental (leave-one-out)** unique contribution & redundancy, a duplication matrix, and the most additive vs. most redundant segment — to cap frequency or reallocate. Exact for 2 segments, clamped 2nd-order estimate for ≥3. |
 
 ### Production group (v2.25+ — Производство)
 | Tool | What it does |
@@ -307,7 +308,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 52 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 7 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 1 Creative Ops + 1 Influence + 4 Media + 2 Brand + 1 Production + 1 Experimentation + 1 Competitive);
+`tools/list` returns all 53 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 7 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 1 Creative Ops + 1 Influence + 5 Media + 2 Brand + 1 Production + 1 Experimentation + 1 Competitive);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -350,7 +351,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (52 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (53 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit
@@ -504,6 +505,7 @@ interface, so going real is a one-line wiring change — no upstream edits.
   **`sov_analysis`** (sov_tracker) for Share of Voice & ESOV growth,
   **`media_quality_check`** (media_quality_score) for delivery quality scoring,
   **`competitive_wargame`** (competitive_response) to war-game a competitor move,
-  **`pacing_forecast`** (budget_pacing_forecast) for a trend-aware pacing forecast, and
+  **`pacing_forecast`** (budget_pacing_forecast) for a trend-aware pacing forecast,
+  **`audience_dedup`** (audience_overlap) for measured audience deduplication, and
   **`exec_report`** (board_report) for a board-ready one-pager (audit + upside), and
   **`creative_fatigue_check`** (creative_fatigue) to spot burning-out creatives.

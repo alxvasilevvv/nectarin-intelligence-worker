@@ -1,7 +1,7 @@
 # NECTARIN Intelligence — что умеет
 
-**AI-маркетинг-директор для рынка RU/CIS прямо в Claude.** MCP-коннектор с **52
-детерминированными инструментами** и **29 готовыми сценариями (prompts)**, которые
+**AI-маркетинг-директор для рынка RU/CIS прямо в Claude.** MCP-коннектор с **53
+детерминированными инструментами** и **30 готовыми сценариями (prompts)**, которые
 закрывают полный цикл услуг агентства — от стратегии и медиапланирования до
 измеримости, брендинга и производства. Без галлюцинаций: каждый расчёт делает
 инструмент, а не модель.
@@ -19,7 +19,7 @@
 | **Стратегия и медиапланирование** | «Собери стратегию запуска под бюджет X» | `strategy_orchestrate`, `media_plan`, `ru_benchmarks`, `audience_insights`, `budget_optimizer` |
 | **Performance & аналитика** | «Куда переложить бюджет? Где аномалии? Уложусь ли в бюджет?» | `attribution_model`, `bid_simulator`, `mmm_optimize`, `anomaly_detector`, `pacing_monitor`, `budget_pacing_forecast`, `funnel_model`, `cohort_ltv`, `unit_economics` |
 | **Маркетинг влияния (инфлюенсеры)** | «Оцени ростер блогеров и собери микс» | `influencer_planner` (ER-аномалии/фрод, CPM/CPV/CPE, eCPA, оптимизация микса) |
-| **Видеореклама / OLV** | «Спланируй охват и частоту» | `reach_frequency` (net reach, эфф. охват ≥N), `channel_overlap` (дедуп-охват), `media_flowchart` (флайтинг по неделям) |
+| **Видеореклама / OLV** | «Спланируй охват и частоту, убери дубли» | `reach_frequency` (net reach, эфф. охват ≥N), `channel_overlap` (дедуп по независимости), `audience_overlap` (дедуп по измеренным пересечениям), `media_flowchart` (флайтинг по неделям) |
 | **Брендинг** | «Замерь brand lift, оцени долю голоса» | `brand_lift` (z-тест/дизайн выборки), `sov_tracker` (SOV/ESOV → рост доли, Binet & Field) |
 | **Ценообразование и промо** | «Найди прибыльную цену и механику акции» | `price_optimizer` (эластичность → profit-max цена), `promo_planner` (маржа, breakeven uplift) |
 | **Креатив** | «Сгенерируй варианты, проверь на выгорание» | `creative_variants`, `creative_fatigue` (детектор выгорания по CTR-тренду) |
@@ -41,7 +41,7 @@
   OLV, Avito; комплаенс ОРД/ЕРИР; рубли по умолчанию.
 - **Полный цикл за один разговор.** От `strategy_orchestrate` одним вызовом до
   выгрузки презентации `report_export` и записи на консультацию.
-- **29 готовых сценариев.** Нажал prompt — Claude сам вызывает нужные инструменты в
+- **30 готовых сценариев.** Нажал prompt — Claude сам вызывает нужные инструменты в
   правильном порядке (медиаплан, brand lift, гео-тест, флайтинг, доля голоса и т.д.).
 
 ---
@@ -49,7 +49,7 @@
 ## Быстрые сценарии
 
 - **Go-to-market:** `strategy_orchestrate` → `report_export` → `book_consultation`.
-- **OLV-охват:** `reach_frequency` → `channel_overlap` → `media_flowchart`.
+- **OLV-охват:** `reach_frequency` → `channel_overlap` / `audience_overlap` → `media_flowchart`.
 - **Бренд-рост:** `brand_lift` → `sov_tracker` → нужное медиадавление.
 - **Инфлюенсеры:** `influencer_planner` → `media_quality_score` → `report_export`.
 - **Инкремент:** `geo_holdout` (дизайн → замер) → `attribution_model`.
@@ -58,5 +58,5 @@
 
 ---
 
-*NECTARIN Intelligence · 52 инструмента · 29 сценариев · Cloudflare Workers (edge,
+*NECTARIN Intelligence · 53 инструмента · 30 сценариев · Cloudflare Workers (edge,
 MCP Streamable HTTP). Подробности — в `README.md` и `USAGE.md`.*

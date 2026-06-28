@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(52);
+    expect(json.toolCount).toBe(53);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(52);
+    expect(tools).toHaveLength(53);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -89,6 +89,7 @@ describe("tools/list", () => {
     expect(names).toContain("media_quality_score");
     expect(names).toContain("competitive_response");
     expect(names).toContain("budget_pacing_forecast");
+    expect(names).toContain("audience_overlap");
     expect(names).toContain("marketing_audit");
   });
 
@@ -184,8 +185,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(52);
-    expect(catalog.tools).toHaveLength(52);
+    expect(catalog.counts.tools).toBe(53);
+    expect(catalog.tools).toHaveLength(53);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -1397,6 +1398,60 @@ describe("premium tools (v2.1)", () => {
     expect(sc.recommendedDailyRate).toBeCloseTo(35_000, -3);
   });
 
+  it("audience_overlap dedups two segments exactly and rates duplication", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 93,
+      method: "tools/call",
+      params: {
+        name: "audience_overlap",
+        arguments: {
+          segments: [
+            { name: "VK", size: 40 },
+            { name: "Telegram", size: 30 },
+          ],
+          overlaps: [{ a: "VK", b: "Telegram", overlap: 12 }],
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    // Union = 40 + 30 - 12 = 58; gross 70 ⇒ duplication 12/70 = 17.1%.
+    expect(sc.grossReach).toBeCloseTo(70, 0);
+    expect(sc.dedupReach).toBeCloseTo(58, 0);
+    expect(sc.duplicationPct).toBeCloseTo(17.1, 0);
+    expect(sc.approximate).toBe(false);
+    expect(sc.perSegment.length).toBe(2);
+  });
+
+  it("audience_overlap flags ≥3 segments as an approximate estimate", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 94,
+      method: "tools/call",
+      params: {
+        name: "audience_overlap",
+        arguments: {
+          segments: [
+            { name: "VK", size: 40 },
+            { name: "Telegram", size: 30 },
+            { name: "OLV", size: 25 },
+          ],
+          overlaps: [
+            { a: "VK", b: "Telegram", overlap: 12 },
+            { a: "VK", b: "OLV", overlap: 8 },
+            { a: "Telegram", b: "OLV", overlap: 6 },
+          ],
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.approximate).toBe(true);
+    expect(sc.dedupReach).toBeLessThan(sc.grossReach);
+    expect(sc.duplicationMatrix.length).toBe(3);
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -1478,7 +1533,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(52);
+    expect(parsed.result.tools.length).toBe(53);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -1561,7 +1616,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(52);
+    expect(json.result.tools).toHaveLength(53);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -1589,7 +1644,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(52);
+    expect(json.result.tools).toHaveLength(53);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -1599,10 +1654,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 29 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 30 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(29);
+    expect(json.result.prompts).toHaveLength(30);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -1628,6 +1683,7 @@ describe("prompts", () => {
     expect(names).toContain("media_quality_check");
     expect(names).toContain("competitive_wargame");
     expect(names).toContain("pacing_forecast");
+    expect(names).toContain("audience_dedup");
   });
 
   it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
@@ -1916,6 +1972,21 @@ describe("prompts", () => {
     const text = json.result.messages[0].content.text;
     expect(text).toContain("budget_pacing_forecast");
     expect(text).toContain("1000000");
+  });
+
+  it("prompts/get audience_dedup embeds inputs and calls audience_overlap", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 86,
+      method: "prompts/get",
+      params: {
+        name: "audience_dedup",
+        arguments: { segments: "VK:40; Telegram:30; OLV:25", overlaps: "VK|Telegram:12; VK|OLV:8; Telegram|OLV:6" },
+      },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("audience_overlap");
+    expect(text).toContain("VK:40");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {

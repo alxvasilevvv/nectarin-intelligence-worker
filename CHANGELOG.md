@@ -3,6 +3,27 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.32.0] — 2026-06-28
+
+Fourth wave complete (3/3) — a measured audience overlap / dedup analyzer (**53rd
+tool**). NECTARIN Intelligence now ships **53 tools / 30 guided prompts**.
+
+### Added
+- **`audience_overlap`** (Media group, now 5 tools) — deduplicates audiences from
+  **measured** pairwise overlaps (DMP / panel / cross-device), unlike `channel_overlap`
+  which assumes statistical independence. Computes the deduplicated total reach
+  (inclusion–exclusion), the duplication rate, each segment's incremental
+  (leave-one-out) unique contribution & redundancy, a duplication matrix, and the most
+  additive vs. most redundant segment — to cap frequency or reallocate budget. Exact
+  for 2 segments; a clamped 2nd-order estimate for ≥3 (no triple-intersection data).
+  52 → **53 tools**.
+- **`audience_dedup`** guided prompt (**30 prompts** total).
+
+### Changed
+- `server.json` description + version, README (Tools badge 53, Media now 5 tools),
+  USAGE (catalogue 53, prompts 30, OLV flow), OVERVIEW, test counts (53 tools / 30
+  prompts).
+
 ## [2.31.0] — 2026-06-28
 
 Fourth wave (2/3) — a trend-aware budget pacing forecaster (**52nd tool**). Now **52

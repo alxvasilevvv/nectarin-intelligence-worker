@@ -608,4 +608,174 @@ const mediaQualityScore: ToolDef = {
   },
 };
 
-export const MEDIA_TOOLS: ToolDef[] = [reachFrequency, channelOverlap, mediaFlowchart, mediaQualityScore];
+// ── audience_overlap ─────────────────────────────────────────────────────────
+
+interface AudSegment {
+  name: string;
+  size: number;
+}
+interface AudPair {
+  a: string;
+  b: string;
+  overlap: number;
+}
+
+/** Inclusion–exclusion union over a subset of indices using MEASURED pairwise
+ *  overlaps. Exact for 2 sets; for ≥3 a 2nd-order Bonferroni estimate
+ *  (ΣS − Σpairwise) clamped to [max single, ΣS] (no triple-intersection data). */
+function unionOf(indices: number[], sizes: number[], pair: number[][]): number {
+  if (indices.length === 0) return 0;
+  const sumS = indices.reduce((s, i) => s + sizes[i], 0);
+  let sumPair = 0;
+  for (let x = 0; x < indices.length; x++) {
+    for (let y = x + 1; y < indices.length; y++) {
+      sumPair += pair[indices[x]][indices[y]] ?? 0;
+    }
+  }
+  const raw = sumS - sumPair;
+  const lower = Math.max(...indices.map((i) => sizes[i]));
+  return Math.max(lower, Math.min(sumS, raw));
+}
+
+const audienceOverlap: ToolDef = {
+  name: "audience_overlap",
+  description:
+    "Audience overlap / deduplication analyzer from MEASURED pairwise overlaps (e.g. from a DMP, panel or cross-device graph) — unlike channel_overlap, which assumes statistical independence. Given segment sizes (reach % or absolute users) and the measured pairwise overlaps, it computes the deduplicated total reach (inclusion–exclusion), the duplication rate (wasted double-counting), each segment's incremental (leave-one-out) unique contribution and redundancy, a duplication matrix, and which segment is most additive vs. most redundant — to cap frequency or reallocate budget. Exact for 2 segments; a clamped 2nd-order estimate for ≥3 (no triple-intersection data). Deterministic.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      segments: {
+        type: "array",
+        minItems: 2,
+        description: "Audience segments / channels with their sizes (reach % or absolute users — be consistent)",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string", description: "Segment / channel name" },
+            size: { type: "number", exclusiveMinimum: 0, description: "Segment reach (% of universe or absolute users)" },
+          },
+          required: ["name", "size"],
+          additionalProperties: false,
+        },
+      },
+      overlaps: {
+        type: "array",
+        description: "Measured pairwise overlaps (people in BOTH a and b), same unit as size",
+        items: {
+          type: "object",
+          properties: {
+            a: { type: "string", description: "First segment name" },
+            b: { type: "string", description: "Second segment name" },
+            overlap: { type: "number", minimum: 0, description: "Overlap size (same unit as segment size)" },
+          },
+          required: ["a", "b", "overlap"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["segments", "overlaps"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const segs = (input.segments ?? []) as AudSegment[];
+    if (!Array.isArray(segs) || segs.length < 2) {
+      return { content: [{ type: "text", text: "Ошибка: нужно ≥2 сегмента с size." }], isError: true };
+    }
+    const names = segs.map((s) => String(s.name));
+    const sizes = segs.map((s) => Math.max(0, Number(s.size)));
+    const n = segs.length;
+    const idxOf = (name: string) => names.findIndex((x) => x.toLowerCase() === String(name).toLowerCase());
+
+    const pair: number[][] = Array.from({ length: n }, () => Array(n).fill(0));
+    const warnings: string[] = [];
+    for (const o of (input.overlaps ?? []) as AudPair[]) {
+      const i = idxOf(o.a);
+      const j = idxOf(o.b);
+      if (i < 0 || j < 0 || i === j) {
+        warnings.push(`Пропущено пересечение «${o.a}↔${o.b}»: сегмент не найден.`);
+        continue;
+      }
+      let ov = Math.max(0, Number(o.overlap));
+      const cap = Math.min(sizes[i], sizes[j]);
+      if (ov > cap) {
+        warnings.push(`Пересечение «${o.a}↔${o.b}» (${round(ov)}) > min размера (${round(cap)}) — обрезано.`);
+        ov = cap;
+      }
+      pair[i][j] = ov;
+      pair[j][i] = ov;
+    }
+
+    const allIdx = segs.map((_, i) => i);
+    const totalUnion = unionOf(allIdx, sizes, pair);
+    const sumSizes = sizes.reduce((s, x) => s + x, 0);
+    const duplicationRate = sumSizes > 0 ? (sumSizes - totalUnion) / sumSizes : 0;
+
+    const perSegment = segs.map((s, i) => {
+      const without = allIdx.filter((k) => k !== i);
+      const incremental = totalUnion - unionOf(without, sizes, pair);
+      const incrementalSharePct = sizes[i] > 0 ? (incremental / sizes[i]) * 100 : 0;
+      return {
+        name: names[i],
+        size: round(sizes[i], 2),
+        incrementalUnique: round(incremental, 2),
+        incrementalSharePct: round(incrementalSharePct, 1),
+        redundancyPct: round(100 - incrementalSharePct, 1),
+      };
+    });
+
+    const sortedByAddable = [...perSegment].sort((a, b) => b.incrementalSharePct - a.incrementalSharePct);
+    const mostAdditive = sortedByAddable[0]?.name ?? null;
+    const mostRedundant = sortedByAddable[sortedByAddable.length - 1]?.name ?? null;
+
+    const matrix: Array<{ a: string; b: string; overlap: number; ofSmallerPct: number }> = [];
+    for (let i = 0; i < n; i++) {
+      for (let j = i + 1; j < n; j++) {
+        const smaller = Math.min(sizes[i], sizes[j]);
+        matrix.push({
+          a: names[i],
+          b: names[j],
+          overlap: round(pair[i][j], 2),
+          ofSmallerPct: smaller > 0 ? round((pair[i][j] / smaller) * 100, 1) : 0,
+        });
+      }
+    }
+
+    const approximate = n >= 3;
+    const verdict =
+      duplicationRate > 0.4
+        ? `Высокое дублирование (${round(duplicationRate * 100, 0)}%) — много двойного охвата. Введи частотные капы и сократи самый избыточный сегмент «${mostRedundant}».`
+        : duplicationRate > 0.15
+          ? `Умеренное дублирование (${round(duplicationRate * 100, 0)}%). Перелей часть бюджета из «${mostRedundant}» в наиболее аддитивный «${mostAdditive}».`
+          : `Низкое дублирование (${round(duplicationRate * 100, 0)}%) — сегменты дополняют друг друга, охват эффективный.`;
+
+    const payload = {
+      segmentsCount: n,
+      grossReach: round(sumSizes, 2),
+      dedupReach: round(totalUnion, 2),
+      duplicationRate: round(duplicationRate, 3),
+      duplicationPct: round(duplicationRate * 100, 1),
+      perSegment,
+      duplicationMatrix: matrix,
+      mostAdditive,
+      mostRedundant,
+      approximate,
+      warnings,
+      verdict,
+      methodology:
+        "Дедуп-охват по формуле включений-исключений на ИЗМЕРЕННЫХ парных пересечениях (точно для 2 сегментов; для ≥3 — оценка 2-го порядка ΣS−Σпар, обрезанная в [max, ΣS], без тройных пересечений). Инкремент сегмента = leave-one-out (union − union без него). Duplication rate = (ΣS − dedup)/ΣS.",
+      assumptions: [
+        "Размеры и пересечения — в одной единице (охват % или абсолютные люди).",
+        approximate ? "Для ≥3 сегментов точность ограничена отсутствием тройных пересечений — оценка." : "Для 2 сегментов расчёт точный.",
+      ],
+      disclaimer: "Оценка дедупликации на ВАШИХ измеренных данных. Для точного 3+ дедупа нужны тройные пересечения (single-source панель).",
+    };
+
+    const summary =
+      `Дедуп-охват: ${round(totalUnion, 1)} из ${round(sumSizes, 1)} «грязного» (дублирование ${round(duplicationRate * 100, 0)}%). ` +
+      `Аддитивнее всего «${mostAdditive}», избыточнее всего «${mostRedundant}». ${verdict}`;
+
+    return toContent(summary, payload);
+  },
+};
+
+export const MEDIA_TOOLS: ToolDef[] = [reachFrequency, channelOverlap, mediaFlowchart, mediaQualityScore, audienceOverlap];

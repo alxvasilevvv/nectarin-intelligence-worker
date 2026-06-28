@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.31.0";
+const SERVER_VERSION = "2.32.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1048,6 +1048,26 @@ const PROMPTS = [
       `3) Назови статус (overpacing / on_track / underpacing), прогноз к концу и отклонение %.\n` +
       `4) Если бюджет кончится раньше — предупреди (дни до исчерпания); дай рекомендованный дневной и % корректировки.\n` +
       `5) Next-step: budget_optimizer для перелива, дисклеймер про сезонность/аукцион.`,
+  },
+  {
+    name: "audience_dedup",
+    title: "Audience overlap & deduplication",
+    description:
+      "Deduplicate audiences from measured overlaps (audience_overlap): dedup reach, duplication rate, per-segment incremental contribution and which segment to cap or reallocate.",
+    arguments: [
+      { name: "segments", description: "Segments as 'name:size' separated by ';', e.g. 'VK:40; Telegram:30; OLV:25' (% or users)", required: true },
+      { name: "overlaps", description: "Pairwise overlaps as 'a|b:overlap' separated by ';', e.g. 'VK|Telegram:12; VK|OLV:8; Telegram|OLV:6'", required: true },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, специалист по медиапланированию и дедупликации аудиторий RU/CIS.\n` +
+      `Сегменты (name:size): ${a.segments}\n` +
+      `Измеренные пересечения (a|b:overlap): ${a.overlaps}\n` +
+      `\nШаги:\n` +
+      `1) Распарси сегменты в массив {name, size} и пересечения в {a, b, overlap}.\n` +
+      `2) Вызови audience_overlap(segments, overlaps).\n` +
+      `3) Объясни дедуп-охват vs «грязный» охват и уровень дублирования.\n` +
+      `4) Назови самый аддитивный и самый избыточный сегмент; дай рекомендацию (частотный кап / перелив бюджета).\n` +
+      `5) Предупреди: для 3+ сегментов оценка приближённая (нет тройных пересечений); точнее — single-source панель.`,
   },
 ];
 
