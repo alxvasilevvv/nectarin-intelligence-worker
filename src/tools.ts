@@ -27,6 +27,7 @@ import { CREATIVE_OPS_TOOLS } from "./fatigue.js";
 import { INFLUENCE_TOOLS } from "./influence.js";
 import { MEDIA_TOOLS } from "./reach.js";
 import { BRAND_TOOLS } from "./brand.js";
+import { PRODUCTION_TOOLS } from "./production.js";
 import type { Env } from "./index.js";
 
 export interface JsonSchema {
@@ -406,6 +407,7 @@ export const ALL_TOOLS: ToolDef[] = [
   ...INFLUENCE_TOOLS,
   ...MEDIA_TOOLS,
   ...BRAND_TOOLS,
+  ...PRODUCTION_TOOLS,
 ];
 
 export const TOOLS_BY_NAME: Record<string, ToolDef> = Object.fromEntries(

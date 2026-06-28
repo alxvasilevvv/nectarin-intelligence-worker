@@ -3,6 +3,26 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.25.0] — 2026-06-28
+
+Production: a creative production budget & timeline estimator (46th tool) — second
+feature of the second wave (Производство).
+
+### Added
+- **`production_estimator`** (new **Production** group) — from a list of deliverables
+  (asset type × quantity × complexity) and a quality tier (economy/standard/premium),
+  applies an illustrative RU rate card to give a per-deliverable cost & effort
+  breakdown, a subtotal, contingency and optional rush surcharge, a **total cost
+  range (±20%)**, and a **critical-path timeline** estimate (production is partly
+  parallel, not purely additive). Asset types: video, video_cutdown, static,
+  key_visual, animated_banner, social_post, photo, landing, audio. Heuristic &
+  deterministic. 45 → **46 tools**.
+- **`production_budget`** guided prompt (**23 prompts** total).
+
+### Changed
+- `server.json` description + version, README (Tools badge 46, new Production group),
+  USAGE (catalogue 46, prompts 23), test counts (46 tools / 23 prompts).
+
 ## [2.24.0] — 2026-06-28
 
 Omnichannel measurement: a cross-channel deduplicated reach estimator (45th tool) —

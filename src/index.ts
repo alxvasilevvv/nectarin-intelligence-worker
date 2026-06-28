@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.24.0";
+const SERVER_VERSION = "2.25.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -851,6 +851,36 @@ const PROMPTS = [
       `3) Объясни: суммарный (с дублями) vs дедуплицированный охват, размер пересечения.\n` +
       `4) Покажи инкрементальный уникальный вклад каждого канала; назови самый аддитивный и самый дублирующий.\n` +
       `5) Рекомендация по миксу + дисклеймер: модель независимой дупликации (Sainsbury), сверяйте с кросс-медиа исследованием.`,
+  },
+  {
+    name: "production_budget",
+    title: "Creative production budget & timeline",
+    description:
+      "Estimate a creative production budget & timeline (production_estimator): per-deliverable cost & effort, total cost range, contingency/rush and a critical-path schedule.",
+    arguments: [
+      {
+        name: "deliverables",
+        description:
+          "Assets as 'type×qty[:complexity]' separated by ';', e.g. 'video×1:complex; video_cutdown×6; static×20; social_post×30'",
+        required: true,
+      },
+      { name: "tier", description: "economy | standard | premium (optional; default standard)", required: false },
+      { name: "rushPct", description: "Rush surcharge % (optional)", required: false },
+      { name: "contingencyPct", description: "Contingency buffer % (optional; default 10)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, продюсер креативного продакшна RU.\n` +
+      `Собери плановую смету и сроки.\n` +
+      `Дельверблы (type×qty[:complexity]): ${a.deliverables}\n` +
+      (a.tier ? `Тир: ${a.tier}.\n` : `Тир: standard.\n`) +
+      (a.rushPct ? `Rush: +${a.rushPct}%.\n` : ``) +
+      (a.contingencyPct ? `Контингенция: ${a.contingencyPct}%.\n` : ``) +
+      `\nШаги:\n` +
+      `1) Распарси в массив {type, quantity, complexity?} (типы: video, video_cutdown, static, key_visual, animated_banner, social_post, photo, landing, audio).\n` +
+      `2) Вызови production_estimator(deliverables${a.tier ? ", tier" : ""}${a.rushPct ? ", rushPct" : ""}${a.contingencyPct ? ", contingencyPct" : ""}).\n` +
+      `3) Разбери смету по позициям, субтотал, контингенцию, rush, итог и вилку.\n` +
+      `4) Объясни срок: критический путь + параллельные потоки, в неделях.\n` +
+      `5) Дай рекомендации по оптимизации бюджета/сроков + дисклеймер: ставки иллюстративные, подтверждайте сметами подрядчиков.`,
   },
 ];
 

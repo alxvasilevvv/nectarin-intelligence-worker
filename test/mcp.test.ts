@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(45);
+    expect(json.toolCount).toBe(46);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(45);
+    expect(tools).toHaveLength(46);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -82,6 +82,7 @@ describe("tools/list", () => {
     expect(names).toContain("reach_frequency");
     expect(names).toContain("brand_lift");
     expect(names).toContain("channel_overlap");
+    expect(names).toContain("production_estimator");
     expect(names).toContain("marketing_audit");
   });
 
@@ -177,8 +178,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(45);
-    expect(catalog.tools).toHaveLength(45);
+    expect(catalog.counts.tools).toBe(46);
+    expect(catalog.tools).toHaveLength(46);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -1185,6 +1186,36 @@ describe("premium tools (v2.1)", () => {
     expect(sc.mostAdditiveChannel.name).toBe("TV");
   });
 
+  it("production_estimator builds a costed breakdown with a timeline and range", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 85,
+      method: "tools/call",
+      params: {
+        name: "production_estimator",
+        arguments: {
+          deliverables: [
+            { type: "video", quantity: 1, complexity: "complex" },
+            { type: "video_cutdown", quantity: 6 },
+            { type: "static", quantity: 20 },
+          ],
+          tier: "premium",
+          rushPct: 20,
+          contingencyPct: 10,
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.tier).toBe("premium");
+    expect(sc.deliverables).toHaveLength(3);
+    expect(sc.costs.total).toBeGreaterThan(0);
+    expect(sc.costs.rush).toBeGreaterThan(0);
+    expect(sc.costs.totalRange.low).toBeLessThan(sc.costs.total);
+    expect(sc.costs.totalRange.high).toBeGreaterThan(sc.costs.total);
+    expect(sc.timeline.estimatedWeeks).toBeGreaterThan(0);
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -1266,7 +1297,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(45);
+    expect(parsed.result.tools.length).toBe(46);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -1349,7 +1380,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(45);
+    expect(json.result.tools).toHaveLength(46);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -1377,7 +1408,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(45);
+    expect(json.result.tools).toHaveLength(46);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -1387,10 +1418,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 22 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 23 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(22);
+    expect(json.result.prompts).toHaveLength(23);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -1409,6 +1440,7 @@ describe("prompts", () => {
     expect(names).toContain("olv_plan");
     expect(names).toContain("brand_lift_study");
     expect(names).toContain("omnichannel_reach");
+    expect(names).toContain("production_budget");
   });
 
   it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
@@ -1592,6 +1624,21 @@ describe("prompts", () => {
     const text = json.result.messages[0].content.text;
     expect(text).toContain("channel_overlap");
     expect(text).toContain("TV:45; OLV:30; Соцсети:25");
+  });
+
+  it("prompts/get production_budget embeds deliverables and calls production_estimator", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 79,
+      method: "prompts/get",
+      params: {
+        name: "production_budget",
+        arguments: { deliverables: "video×1:complex; video_cutdown×6; static×20", tier: "premium" },
+      },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("production_estimator");
+    expect(text).toContain("video×1:complex");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {
