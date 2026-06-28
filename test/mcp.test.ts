@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(65);
+    expect(json.toolCount).toBe(66);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(65);
+    expect(tools).toHaveLength(66);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -103,6 +103,7 @@ describe("tools/list", () => {
     expect(names).toContain("landing_cro_audit");
     expect(names).toContain("rfm_segmenter");
     expect(names).toContain("email_campaign_planner");
+    expect(names).toContain("affiliate_program_planner");
   });
 
   it("annotations: pure tools are read-only/idempotent; LLM & funnel tools are flagged", async () => {
@@ -197,8 +198,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(65);
-    expect(catalog.tools).toHaveLength(65);
+    expect(catalog.counts.tools).toBe(66);
+    expect(catalog.tools).toHaveLength(66);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -1943,6 +1944,63 @@ describe("premium tools (v2.1)", () => {
     expect(sc.rates.clickRatePct).toBeCloseTo(3, 1);
   });
 
+  it("affiliate_program_planner computes per-partner economics and the sustainable ceiling", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 118,
+      method: "tools/call",
+      params: {
+        name: "affiliate_program_planner",
+        arguments: {
+          aov: 5000,
+          marginPct: 30,
+          commissionType: "percent",
+          commissionPct: 10,
+          networkFeePct: 20,
+          validationRatePct: 85,
+          partners: [
+            { name: "Admitad", clicksPerMonth: 50000, conversionRatePct: 2.5 },
+            { name: "Блогер X", clicksPerMonth: 8000, conversionRatePct: 4 },
+          ],
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    // payout = 10% of 5000 = 500; cost = 500×1.2 = 600; gross profit/order = 1500; profit/order = 900
+    expect(sc.model.payoutPerOrder).toBe(500);
+    expect(sc.model.costPerOrder).toBe(600);
+    expect(sc.model.profitPerOrder).toBe(900);
+    expect(sc.model.sustainable).toBe(true);
+    // ceiling: 1500/1.2 = 1250 ₽ → 25% of AOV
+    expect(sc.sustainableCeiling.maxPayoutPerOrder).toBe(1250);
+    expect(sc.sustainableCeiling.maxCommissionPctOfAov).toBeCloseTo(25, 1);
+    expect(sc.partners.length).toBe(2);
+    expect(sc.program.netProfit).toBeGreaterThan(0);
+  });
+
+  it("affiliate_program_planner flags an unsustainable commission", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 119,
+      method: "tools/call",
+      params: {
+        name: "affiliate_program_planner",
+        arguments: {
+          aov: 1000,
+          marginPct: 20,
+          commissionType: "percent",
+          commissionPct: 30,
+          partners: [{ name: "P", clicksPerMonth: 10000, conversionRatePct: 3 }],
+        },
+      },
+    });
+    const sc = json.result.structuredContent;
+    // payout 300 > gross profit 200 ⇒ loss
+    expect(sc.model.sustainable).toBe(false);
+    expect(sc.program.netProfit).toBeLessThan(0);
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -2024,7 +2082,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(65);
+    expect(parsed.result.tools.length).toBe(66);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -2107,7 +2165,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(65);
+    expect(json.result.tools).toHaveLength(66);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -2135,7 +2193,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(65);
+    expect(json.result.tools).toHaveLength(66);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -2145,10 +2203,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 42 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 43 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(42);
+    expect(json.result.prompts).toHaveLength(43);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -2187,6 +2245,7 @@ describe("prompts", () => {
     expect(names).toContain("landing_cro_audit_run");
     expect(names).toContain("rfm_segmentation");
     expect(names).toContain("email_campaign_plan");
+    expect(names).toContain("affiliate_program_plan");
   });
 
   it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
@@ -2676,6 +2735,22 @@ describe("prompts", () => {
     const text = json.result.messages[0].content.text;
     expect(text).toContain("email_campaign_planner");
     expect(text).toContain("100000");
+  });
+
+  it("prompts/get affiliate_program_plan embeds inputs and calls affiliate_program_planner", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 110,
+      method: "prompts/get",
+      params: {
+        name: "affiliate_program_plan",
+        arguments: { aov: "5000", marginPct: "30", commission: "percent:10", partners: "Admitad:50000:2.5; Блогер X:8000:4" },
+      },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("affiliate_program_planner");
+    expect(text).toContain("percent:10");
+    expect(text).toContain("Admitad:50000:2.5");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {

@@ -3,6 +3,28 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.45.0] — 2026-06-28
+
+Eighth wave (3/3) — CPA / affiliate program economics (**66th tool**).
+NECTARIN Intelligence now ships **66 tools / 43 guided prompts**.
+
+### Added
+- **`affiliate_program_planner`** (new **Partnerships** group) — CPA / affiliate /
+  partner-program economics for RU networks (Admitad, Cityads, …) and direct partners.
+  From AOV, gross margin %, a commission model (percent of AOV or fixed CPA), an optional
+  `networkFeePct` and `validationRatePct`, plus per-partner `clicksPerMonth` &
+  `conversionRatePct`, it computes per-partner approved orders, revenue, payout, EPC,
+  effective CPA, ROAS and net profit, ranks partners, blends the program (revenue,
+  payout, fee, net profit, blended ROAS/CPA), and derives the **sustainable commission
+  ceiling** (payout where profit per order = 0 ⇒ `AOV×margin/(1+fee)`), flagging
+  loss-making partners and checking an optional target CPA. 65 → **66 tools**.
+- **`affiliate_program_plan`** guided prompt (**43 prompts** total).
+
+### Changed
+- `tools/list` now advertises **66 tools** with a new Partnerships group. Catalog
+  resource, `/version` `toolCount`, README/USAGE/OVERVIEW counts and the test suite
+  updated accordingly.
+
 ## [2.44.0] — 2026-06-28
 
 Eighth wave (2/3) — email / CRM newsletter economics (**65th tool**).

@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-65-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-66-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -251,6 +251,11 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 |---|---|
 | `email_campaign_planner` | **Email / CRM newsletter economics & cadence.** From list size, deliverability, open & click rates (CTR or click-to-open), conversion and AOV → per-send delivered→opens→clicks→orders→revenue and the key **revenue-per-email (RPE)**; with `sendsPerMonth` → **monthly & annual** revenue, orders and list attrition from unsubscribes, a **list half-life** and a **fatigue warning**; with `costPerEmail` / `platformMonthlyCost` → profit and **ROI**. Deterministic. |
 
+### Partnerships group (v2.45+ — CPA / affiliate)
+| Tool | What it does |
+|---|---|
+| `affiliate_program_planner` | **CPA / affiliate / partner-program economics** for RU networks (Admitad, Cityads, …) & direct partners. From AOV, gross margin, a commission model (% of AOV or fixed CPA), an optional network fee and validation rate, plus per-partner clicks & conversion → per-partner approved orders, payout, **EPC**, effective CPA, **ROAS** and net profit; ranks partners, blends the program, and derives the **sustainable commission ceiling** (`margin/(1+fee)`), flagging loss-making partners and checking a target CPA. Deterministic. |
+
 ### Brand group (v2.23+ — brand lift)
 | Tool | What it does |
 |---|---|
@@ -337,7 +342,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 65 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 2 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 2 Retention/CRM + 1 Email/Lifecycle);
+`tools/list` returns all 66 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 2 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 2 Retention/CRM + 1 Email/Lifecycle + 1 Partnerships);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -380,7 +385,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (65 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (66 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit

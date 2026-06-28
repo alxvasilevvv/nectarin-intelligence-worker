@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.44.0";
+const SERVER_VERSION = "2.45.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1361,6 +1361,32 @@ const PROMPTS = [
       `3) Назови выручку/мес и /год, заказы и отписки.\n` +
       `4) Оцени полужизнь списка и риск усталости; дай рекомендации по частоте и сегментации.\n` +
       `5) Если заданы затраты — посчитай прибыль и ROI; дисклеймер про сверку с фактикой ESP.`,
+  },
+  {
+    name: "affiliate_program_plan",
+    title: "Affiliate / CPA program economics",
+    description:
+      "Plan a CPA / affiliate partner program (affiliate_program_planner): per-partner orders, payout, EPC, ROAS & net profit, blended program economics and the sustainable commission ceiling.",
+    arguments: [
+      { name: "aov", description: "Average order value ₽", required: true },
+      { name: "marginPct", description: "Gross margin % (before affiliate payout)", required: true },
+      { name: "commission", description: "Commission as 'percent:10' (10% of AOV) or 'cpa:800' (₽800 per order)", required: true },
+      { name: "partners", description: "Partners as 'name:clicksPerMonth:conversionRatePct' separated by ';', e.g. 'Admitad:50000:2.5; Блогер X:8000:4'", required: true },
+      { name: "networkFeePct", description: "Network fee on top of payout % (optional)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, специалист по партнёрскому / CPA-маркетингу (Admitad, Cityads, прямые партнёры) RU/CIS.\n` +
+      `Посчитай экономику партнёрской программы.\n` +
+      `Средний чек: ${a.aov} ₽. Маржа: ${a.marginPct}%.\n` +
+      `Комиссия (percent:X или cpa:Y): ${a.commission}.\n` +
+      (a.networkFeePct ? `Комиссия сети сверху: ${a.networkFeePct}%.\n` : "") +
+      `Партнёры (name:clicksPerMonth:conversionRatePct): ${a.partners}\n` +
+      `\nШаги:\n` +
+      `1) Разбери commission в commissionType + commissionPct|cpaPayout и партнёров в массив.\n` +
+      `2) Вызови affiliate_program_planner(aov, marginPct, commissionType, ...${a.networkFeePct ? ", networkFeePct" : ""}, partners).\n` +
+      `3) Покажи прибыль с заказа и потолок выплаты (≤ margin/(1+fee) от чека).\n` +
+      `4) Дай таблицу партнёров (заказы, выплата, EPC, ROAS, чистая прибыль), отметь убыточных.\n` +
+      `5) Сведи программу (выручка, прибыль, ROAS, blended CPA) и дай рекомендации; дисклеймер про постбеки/отмены/фрод.`,
   },
 ];
 
