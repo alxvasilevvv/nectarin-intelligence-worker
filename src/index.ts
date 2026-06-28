@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.13.0";
+const SERVER_VERSION = "2.14.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -528,6 +528,33 @@ const PROMPTS = [
       `3) По каждому каналу объясни: adstock-распад λ (и период полураспада переноса), эластичность насыщения b, качество подгонки R² и флаг lowConfidence.\n` +
       `4) Объясни рекомендованный сплит: где предельный CPA выровнен, какой канал недо/переинвестирован, ожидаемый uplift к стабильному уровню.\n` +
       `5) Явно предупреди про каналы с низким R² (валидировать до перелива бюджета). Данные иллюстративные, не реальные бенчмарки.`,
+  },
+  {
+    name: "quarter_plan",
+    title: "Go-to-market roadmap (Test → Scale → Optimize)",
+    description:
+      "Build a phased go-to-market roadmap with a week-by-week budget pacing curve (gtm_calendar): Test → Scale → Optimize, seasonally weighted, with KPIs and milestones.",
+    arguments: [
+      { name: "category", description: "Industry category (realty, finance, ecom, retail, fmcg, auto, pharma, edtech)", required: true },
+      { name: "budget", description: "Total budget for the whole horizon in RUB", required: true },
+      { name: "goal", description: "Primary goal: awareness | consideration | performance | retention", required: true },
+      { name: "horizonWeeks", description: "Planning horizon in weeks (optional; default 12 — a quarter)", required: false },
+      { name: "startMonth", description: "Start month 1..12 (optional; default current month)", required: false },
+      { name: "geo", description: "Geography note, e.g. 'РФ', 'Москва+МО', 'СНГ' (optional)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, стратег go-to-market в RU/CIS.\n` +
+      `Составь фазовую дорожную карту запуска с недельным пейсингом бюджета.\n` +
+      `Категория: ${a.category}. Бюджет на горизонт: ${a.budget} ₽. Цель: ${a.goal}.\n` +
+      (a.horizonWeeks ? `Горизонт: ${a.horizonWeeks} нед.\n` : `Горизонт: 12 нед. (квартал).\n`) +
+      (a.startMonth ? `Старт: месяц ${a.startMonth}.\n` : ``) +
+      (a.geo ? `Гео: ${a.geo}.\n` : ``) +
+      `\nШаги:\n` +
+      `1) Вызови gtm_calendar(category, budget, goal${a.horizonWeeks ? ", horizonWeeks" : ""}${a.startMonth ? ", startMonth" : ""}${a.geo ? ", geo" : ""}).\n` +
+      `2) Разложи по фазам Тест → Масштаб → Оптимизация: доля бюджета, недели, каналы, KPI и критерий выхода каждой фазы.\n` +
+      `3) Покажи недельный пейсинг и объясни, почему спенд смещён в пиковые по сезонности недели (укажи пиковые/слабые месяцы из seasonalWindows).\n` +
+      `4) Дай вехи (milestones) и понятный next-step под фазу теста.\n` +
+      `5) Предупреди: план иллюстративный на mock-сезонности — каналы и пороги уточняются по факту фазы теста.`,
   },
 ];
 

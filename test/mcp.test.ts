@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(34);
+    expect(json.toolCount).toBe(35);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(34);
+    expect(tools).toHaveLength(35);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -72,6 +72,7 @@ describe("tools/list", () => {
     expect(names).toContain("pacing_monitor");
     expect(names).toContain("response_curve");
     expect(names).toContain("mmm_optimize");
+    expect(names).toContain("gtm_calendar");
   });
 
   it("annotations: pure tools are read-only/idempotent; LLM & funnel tools are flagged", async () => {
@@ -166,8 +167,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(34);
-    expect(catalog.tools).toHaveLength(34);
+    expect(catalog.counts.tools).toBe(35);
+    expect(catalog.tools).toHaveLength(35);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -800,6 +801,34 @@ describe("premium tools (v2.1)", () => {
     expect(json.result.isError).toBe(true);
   });
 
+  it("gtm_calendar builds Test→Scale→Optimize phases with seasonally-weighted weekly pacing", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 72,
+      method: "tools/call",
+      params: {
+        name: "gtm_calendar",
+        arguments: { category: "ecom", budget: 12000000, goal: "performance", horizonWeeks: 12, startMonth: 9 },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.phases).toHaveLength(3);
+    expect(sc.phases.map((p: any) => p.phase)).toEqual(["Test", "Scale", "Optimize"]);
+    // Scale gets the largest budget share for a performance goal.
+    expect(sc.phases[1].budget).toBeGreaterThan(sc.phases[0].budget);
+    expect(sc.phases[1].budget).toBeGreaterThan(sc.phases[2].budget);
+    // Phase budgets sum to ~total (rounding tolerance).
+    const sum = sc.phases.reduce((a: number, p: any) => a + p.budget, 0);
+    expect(Math.abs(sum - sc.totalBudget)).toBeLessThanOrEqual(3);
+    // Weekly pacing covers the horizon and each week names a month + season index.
+    expect(sc.weeklyPacing).toHaveLength(sc.horizonWeeks);
+    expect(typeof sc.weeklyPacing[0].month).toBe("string");
+    expect(sc.weeklyPacing[0].seasonIndex).toBeGreaterThan(0);
+    // ecom peaks in Nov (index 1.40): starting Sep/12wk horizon should flag a peak window.
+    expect(sc.seasonalWindows.some((w: any) => w.signal === "peak")).toBe(true);
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -881,7 +910,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(34);
+    expect(parsed.result.tools.length).toBe(35);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -964,7 +993,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(34);
+    expect(json.result.tools).toHaveLength(35);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -992,7 +1021,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(34);
+    expect(json.result.tools).toHaveLength(35);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -1002,10 +1031,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 11 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 12 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(11);
+    expect(json.result.prompts).toHaveLength(12);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -1013,6 +1042,20 @@ describe("prompts", () => {
     expect(names).toContain("performance_review");
     expect(names).toContain("saturation_reallocation");
     expect(names).toContain("mmm_planning");
+    expect(names).toContain("quarter_plan");
+  });
+
+  it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 68,
+      method: "prompts/get",
+      params: { name: "quarter_plan", arguments: { category: "ecom", budget: "12000000", goal: "performance", horizonWeeks: "12" } },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("gtm_calendar");
+    expect(text).toContain("ecom");
+    expect(text).toContain("12000000");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {

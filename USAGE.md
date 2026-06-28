@@ -37,7 +37,7 @@ stays on JSON, so existing clients are unaffected.
 
 ---
 
-## 2. Tool catalogue (34)
+## 2. Tool catalogue (35)
 
 ### Intelligence (11)
 | Tool | What it does |
@@ -93,9 +93,15 @@ stays on JSON, so existing clients are unaffected.
 |---|---|
 | `mmm_optimize` | MMM‑lite: fits adstock (carryover) + saturation per channel from spend/conversions **time series**, then computes the conversion‑maximizing steady‑state budget split (Lagrange bisection, marginal CPA equalized) with fit R²/confidence. |
 
-Built‑in **prompts** (11): `build_media_plan`, `full_strategy`, `competitor_teardown`,
+### Planning (1) — go-to-market roadmap
+| Tool | What it does |
+|---|---|
+| `gtm_calendar` | Phased **Test → Scale → Optimize** roadmap with goal-driven budget weights & channel emphasis, plus a **week-by-week budget pacing** curve weighted by the category's monthly seasonality. Returns per-phase objectives/KPIs/exit-criteria, peak/soft seasonal windows and milestones. Answers *when & in what order* (vs. `media_plan`/`budget_optimizer` for *where*). |
+
+Built‑in **prompts** (12): `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`,
-`launch_flight`, `performance_review`, `saturation_reallocation`, `mmm_planning`.
+`launch_flight`, `performance_review`, `saturation_reallocation`, `mmm_planning`,
+`quarter_plan`.
 **Resources:** `nectarin://methodology`, `nectarin://glossary`, `nectarin://catalog`
 (live JSON catalog of all tools + annotations + prompts). `tools/list` also
 returns a `title` and behavioral `annotations` (read-only / idempotent / open-world) per tool.

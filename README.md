@@ -1,13 +1,13 @@
 # NECTARIN Intelligence — remote MCP on Cloudflare Workers
 
-[![Install with Unyly](https://img.shields.io/badge/Install%20with-Unyly-ff2d9b?style=for-the-badge)](https://unyly.org/ru/mcp/nectarin-intelligence)
+[![Install with Unyly](https://img.shields.io/badge/Install%20with-Unyly-ff2d9b?style=for-the-badge)](https://unyly.org/ru/mcp/nectarin-intelligence-worker)
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-34-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-35-22c55e?style=for-the-badge)
 
-> **Install with Unyly** opens the listing once the review is approved
-> (`https://unyly.org/ru/mcp/nectarin-intelligence`). Until then, add it manually as a
+> **Install with Unyly** opens the live listing
+> (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
 > custom connector with the `/mcp` URL (see [Add to Claude](#add-to-claude-custom-connector)).
 
 A **production** remote [Model Context Protocol](https://modelcontextprotocol.io)
@@ -103,7 +103,7 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
 
 ---
 
-## Tools (34 total)
+## Tools (35 total)
 
 ### Intelligence group (inform + orchestrate)
 | Tool | What it does |
@@ -165,6 +165,11 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 | Tool | What it does |
 |---|---|
 | `mmm_optimize` | **Marketing Mix Model (MMM-lite).** From each channel's spend & conversions **time series**, fits **adstock/carryover** (geometric decay λ, grid-searched by R²) and **saturation** (`conversions = a·adstock(spend)^b`, 0<b≤1), then computes the conversion-maximizing **steady-state** budget split via exact Lagrange bisection (marginal CPA equalized). Returns decay, carryover half-life, elasticity, fit R²/confidence, recommended spend, projected conversions, marginal CPA and uplift. |
+
+### Planning group (v2.14+ — go-to-market roadmap)
+| Tool | What it does |
+|---|---|
+| `gtm_calendar` | **Phased go-to-market roadmap.** Splits the horizon into **Test → Scale → Optimize** phases with goal-driven budget weights and channel emphasis, then builds a **week-by-week budget pacing curve** that leans spend into high-demand weeks using the category's monthly **seasonality index**. Returns per-phase objectives, KPIs and exit criteria, peak/soft **seasonal windows** inside the horizon, and milestones. Answers *when & in what sequence* (pairs with `media_plan`/`budget_optimizer` for *where*). Deterministic. |
 
 > **Funnel logic & safety.** All Growth figures are synthetic/illustrative and
 > anchored to the same mock RU/CIS benchmarks (`src/data.ts`) — internally
@@ -245,7 +250,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 34 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 6 Premium + 1 MMM);
+`tools/list` returns all 35 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 6 Premium + 1 MMM + 1 Planning);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -288,7 +293,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (34 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (35 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit
@@ -412,7 +417,7 @@ interface, so going real is a one-line wiring change — no upstream edits.
   display `title` per tool. Pure tools are `readOnlyHint`/`idempotentHint` true,
   `openWorldHint` false; LLM-backed (`creative_variants`, `localize`) are
   non-idempotent/open-world; `request_nectarin_proposal` is not read-only.
-- Prompts (11): `build_media_plan`, **`full_strategy`** (one-shot flagship via
+- Prompts (12): `build_media_plan`, **`full_strategy`** (one-shot flagship via
   `strategy_orchestrate`), `competitor_teardown`, the two funnel
   orchestrators **`sell_nectarin_services`** (roi_calculator → value_forecast →
   lead_qualify → request_nectarin_proposal → book_consultation) and
@@ -424,4 +429,6 @@ interface, so going real is a one-line wiring change — no upstream edits.
   **`performance_review`** (anomaly_detector → attribution_model →
   bid_simulator → budget_optimizer), **`saturation_reallocation`**
   (response_curve → pacing_monitor) for diminishing-returns budget splits, and
-  **`mmm_planning`** (mmm_optimize) for time-series adstock + saturation modeling.
+  **`mmm_planning`** (mmm_optimize) for time-series adstock + saturation modeling,
+  and **`quarter_plan`** (gtm_calendar) for a phased Test→Scale→Optimize roadmap
+  with seasonally-weighted weekly budget pacing.

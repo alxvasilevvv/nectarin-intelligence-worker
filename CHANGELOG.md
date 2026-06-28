@@ -3,6 +3,25 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.14.0] — 2026-06-28
+
+The senior-strategist planning layer: a phased go-to-market roadmap (35th tool).
+
+### Added
+- **`gtm_calendar`** (new **Planning** group) — a phased **Test → Scale → Optimize**
+  go-to-market roadmap. Goal-driven phase budget weights and channel emphasis, plus
+  a **week-by-week budget pacing curve** that leans spend into high-demand weeks
+  using the category's monthly **seasonality index** (`src/data.ts`). Returns
+  per-phase objectives/KPIs/exit-criteria, peak/soft **seasonal windows** inside the
+  horizon, and milestones. Deterministic; answers *when & in what sequence* (vs.
+  `media_plan`/`budget_optimizer` for *where*). 34 → **35 tools**.
+- **`quarter_plan`** guided prompt (**12 prompts** total) — one-click phased roadmap
+  via `gtm_calendar` with an explanation of phases, weekly pacing and seasonal pikes.
+
+### Changed
+- `version` `2.13.0` → `2.14.0`. Suite **91 tests** (tool/prompt counts, gtm_calendar
+  phase/pacing/seasonality assertions, quarter_plan interpolation).
+
 ## [2.13.0] — 2026-06-28
 
 ### Added

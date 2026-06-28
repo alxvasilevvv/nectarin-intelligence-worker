@@ -18,6 +18,7 @@ import { GROWTH_TOOLS } from "./growth.js";
 import { ANALYTICS_TOOLS } from "./analytics.js";
 import { PREMIUM_TOOLS } from "./premium.js";
 import { MMM_TOOLS } from "./mmm.js";
+import { PLANNING_TOOLS } from "./planning.js";
 import type { Env } from "./index.js";
 
 export interface JsonSchema {
@@ -388,6 +389,7 @@ export const ALL_TOOLS: ToolDef[] = [
   ...ANALYTICS_TOOLS,
   ...PREMIUM_TOOLS,
   ...MMM_TOOLS,
+  ...PLANNING_TOOLS,
 ];
 
 export const TOOLS_BY_NAME: Record<string, ToolDef> = Object.fromEntries(
@@ -422,7 +424,7 @@ const ANNOTATION_OVERRIDES: Record<string, ToolAnnotations> = {
 
 const ACRONYMS = new Set([
   "ru", "cis", "roi", "ltv", "cac", "cpa", "cpm", "ctr", "vtr", "utm",
-  "ab", "aeo", "geo", "kpi", "npv", "fz", "ord", "mmm",
+  "ab", "aeo", "geo", "kpi", "npv", "fz", "ord", "mmm", "gtm",
 ]);
 
 /** snake_case → "Title Case" with marketing acronyms upper-cased (display name). */
