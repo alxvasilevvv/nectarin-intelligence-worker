@@ -35,6 +35,8 @@ import { RETAIL_TOOLS } from "./retail.js";
 import { RETENTION_TOOLS } from "./retention.js";
 import { EMAIL_TOOLS } from "./email.js";
 import { PARTNERSHIP_TOOLS } from "./affiliate.js";
+import { DISCIPLINE_TOOLS } from "./disciplines.js";
+import { ROLE_TOOLS } from "./roles.js";
 import type { Env } from "./index.js";
 
 export interface JsonSchema {
@@ -422,6 +424,8 @@ export const ALL_TOOLS: ToolDef[] = [
   ...RETENTION_TOOLS,
   ...EMAIL_TOOLS,
   ...PARTNERSHIP_TOOLS,
+  ...DISCIPLINE_TOOLS,
+  ...ROLE_TOOLS,
 ];
 
 export const TOOLS_BY_NAME: Record<string, ToolDef> = Object.fromEntries(
@@ -457,6 +461,7 @@ const ANNOTATION_OVERRIDES: Record<string, ToolAnnotations> = {
 const ACRONYMS = new Set([
   "ru", "cis", "roi", "ltv", "cac", "cpa", "cpm", "ctr", "vtr", "utm",
   "ab", "aeo", "geo", "kpi", "npv", "fz", "ord", "mmm", "gtm",
+  "seo", "smm", "pr", "aso", "epc", "crm",
 ]);
 
 /** snake_case → "Title Case" with marketing acronyms upper-cased (display name). */

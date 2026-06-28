@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(66);
+    expect(json.toolCount).toBe(73);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(66);
+    expect(tools).toHaveLength(73);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -104,6 +104,13 @@ describe("tools/list", () => {
     expect(names).toContain("rfm_segmenter");
     expect(names).toContain("email_campaign_planner");
     expect(names).toContain("affiliate_program_planner");
+    expect(names).toContain("seo_opportunity");
+    expect(names).toContain("social_media_planner");
+    expect(names).toContain("pr_value_estimator");
+    expect(names).toContain("event_roi_planner");
+    expect(names).toContain("aso_planner");
+    expect(names).toContain("content_plan_roi");
+    expect(names).toContain("role_playbook");
   });
 
   it("annotations: pure tools are read-only/idempotent; LLM & funnel tools are flagged", async () => {
@@ -198,8 +205,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(66);
-    expect(catalog.tools).toHaveLength(66);
+    expect(catalog.counts.tools).toBe(73);
+    expect(catalog.tools).toHaveLength(73);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -2001,6 +2008,207 @@ describe("premium tools (v2.1)", () => {
     expect(sc.program.netProfit).toBeLessThan(0);
   });
 
+  it("seo_opportunity projects position→CTR traffic uplift and flags page-2 quick wins", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 130,
+      method: "tools/call",
+      params: {
+        name: "seo_opportunity",
+        arguments: {
+          conversionRatePct: 2,
+          valuePerConversion: 5000,
+          keywords: [{ keyword: "купить диван", monthlySearchVolume: 12000, currentPosition: 14, targetPosition: 3 }],
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    // current pos 14 (CTR .009) → 108 visits; target pos 3 (CTR .10) → 1200 visits; delta 1092
+    expect(sc.keywords[0].incrementalMonthlyTraffic).toBe(1092);
+    expect(sc.keywords[0].quickWin).toBe(true);
+    expect(sc.quickWins).toContain("купить диван");
+    expect(sc.totals.incrementalMonthlyValue).toBeGreaterThan(0);
+    expect(sc.totals.incrementalAnnualValue).toBe(sc.totals.incrementalMonthlyValue * 12);
+  });
+
+  it("social_media_planner projects reach, engagement and growth per platform", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 131,
+      method: "tools/call",
+      params: {
+        name: "social_media_planner",
+        arguments: {
+          conversionRatePct: 1,
+          aov: 2000,
+          platforms: [
+            { name: "VK", followers: 120000, postsPerWeek: 5, reachRatePct: 18, engagementRatePct: 2.5, growthRatePct: 3 },
+            { name: "Telegram", followers: 45000, postsPerWeek: 7, reachRatePct: 60, engagementRatePct: 6 },
+          ],
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.platforms.length).toBe(2);
+    expect(sc.totals.monthlyImpressions).toBeGreaterThan(0);
+    expect(sc.totals.revenuePerMonth).toBeGreaterThan(0);
+    // VK organic reach 18% ≥ 10% ⇒ not low
+    expect(sc.platforms.find((p: any) => p.platform === "VK").lowOrganicReach).toBe(false);
+  });
+
+  it("pr_value_estimator computes dedup reach, quality score and share of voice", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 132,
+      method: "tools/call",
+      params: {
+        name: "pr_value_estimator",
+        arguments: {
+          cpmBenchmark: 300,
+          competitorReach: 2000000,
+          placements: [
+            { outlet: "РБК", audienceReach: 2500000, tier: "tier1", sentiment: "positive" },
+            { outlet: "vc.ru", audienceReach: 800000, tier: "tier2", sentiment: "neutral" },
+          ],
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.totals.summedReach).toBe(3300000);
+    // dedup 30% discount → 2,310,000
+    expect(sc.totals.deduplicatedReach).toBe(2310000);
+    expect(sc.prQualityScore).toBeGreaterThan(0);
+    expect(sc.prQualityScore).toBeLessThanOrEqual(100);
+    expect(sc.earnedShareOfVoicePct).toBeGreaterThan(0);
+    expect(sc.topPlacement).toBe("РБК");
+  });
+
+  it("event_roi_planner projects the funnel and ROI", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 133,
+      method: "tools/call",
+      params: {
+        name: "event_roi_planner",
+        arguments: {
+          invites: 10000,
+          registrationRatePct: 10,
+          attendanceRatePct: 40,
+          leadRatePct: 30,
+          winRatePct: 20,
+          dealSize: 50000,
+          eventCost: 300000,
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    // 10000→1000 reg→400 att→120 leads→24 deals × 50000 = 1,200,000 revenue
+    expect(sc.funnel.registrations).toBe(1000);
+    expect(sc.funnel.leads).toBe(120);
+    expect(sc.economics.revenue).toBe(1200000);
+    expect(sc.economics.roiPct).toBe(300);
+  });
+
+  it("aso_planner projects installs, LTV revenue, paid-UA economics and an ASO uplift scenario", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 134,
+      method: "tools/call",
+      params: {
+        name: "aso_planner",
+        arguments: {
+          monthlyImpressions: 1000000,
+          tapThroughRatePct: 25,
+          installConversionRatePct: 30,
+          ltvPerInstall: 100,
+          cpi: 50,
+          asoUpliftPp: 5,
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    // 1,000,000 × .25 = 250,000 pageViews × .30 = 75,000 installs
+    expect(sc.funnel.monthlyInstalls).toBe(75000);
+    expect(sc.revenue.monthlyRevenue).toBe(7500000);
+    expect(sc.paidUa.profitable).toBe(true);
+    expect(sc.paidUa.ltvToCpi).toBe(2);
+    // +5pp → 35% conversion → 87,500 installs → +12,500
+    expect(sc.asoScenario.extraInstallsPerMonth).toBe(12500);
+  });
+
+  it("content_plan_roi simulates the compounding content library over the horizon", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 135,
+      method: "tools/call",
+      params: {
+        name: "content_plan_roi",
+        arguments: {
+          piecesPerMonth: 4,
+          costPerPiece: 20000,
+          steadyStateVisitsPerPiece: 500,
+          conversionRatePct: 1.5,
+          valuePerConversion: 3000,
+          horizonMonths: 24,
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.monthly.length).toBe(24);
+    expect(sc.totals.publishedPieces).toBe(96);
+    expect(typeof sc.totals.roiPct).toBe("number");
+    // content compounds: exit run-rate exceeds the first month's value
+    expect(sc.totals.exitRunRateMonthlyValue).toBeGreaterThan(sc.monthly[0].monthlyValue);
+  });
+
+  it("role_playbook returns a tailored toolkit for a recognised role", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 136,
+      method: "tools/call",
+      params: { name: "role_playbook", arguments: { role: "SEO" } },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.matched).toBe(true);
+    expect(sc.role.key).toBe("seo");
+    const primaryNames = sc.primaryTools.map((t: any) => t.name);
+    expect(primaryNames).toContain("seo_opportunity");
+    expect(Array.isArray(sc.recommendedWorkflow)).toBe(true);
+    expect(sc.kpis.length).toBeGreaterThan(0);
+  });
+
+  it("role_playbook lists every supported profession when called without a role", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 137,
+      method: "tools/call",
+      params: { name: "role_playbook", arguments: {} },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.totalRoles).toBe(22);
+    expect(sc.roles.length).toBe(22);
+    expect(sc.roles.map((r: any) => r.key)).toContain("crm");
+  });
+
+  it("role_playbook matches RU aliases (таргетолог → performance)", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 138,
+      method: "tools/call",
+      params: { name: "role_playbook", arguments: { role: "таргетолог" } },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.matched).toBe(true);
+    expect(sc.role.key).toBe("performance");
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -2082,7 +2290,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(66);
+    expect(parsed.result.tools.length).toBe(73);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -2165,7 +2373,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(66);
+    expect(json.result.tools).toHaveLength(73);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -2193,7 +2401,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(66);
+    expect(json.result.tools).toHaveLength(73);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -2203,10 +2411,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 43 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 50 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(43);
+    expect(json.result.prompts).toHaveLength(50);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -2246,6 +2454,13 @@ describe("prompts", () => {
     expect(names).toContain("rfm_segmentation");
     expect(names).toContain("email_campaign_plan");
     expect(names).toContain("affiliate_program_plan");
+    expect(names).toContain("my_role");
+    expect(names).toContain("seo_forecast");
+    expect(names).toContain("social_plan");
+    expect(names).toContain("pr_value");
+    expect(names).toContain("event_roi");
+    expect(names).toContain("aso_plan");
+    expect(names).toContain("content_roi");
   });
 
   it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
@@ -2751,6 +2966,43 @@ describe("prompts", () => {
     expect(text).toContain("affiliate_program_planner");
     expect(text).toContain("percent:10");
     expect(text).toContain("Admitad:50000:2.5");
+  });
+
+  it("prompts/get my_role embeds the role and calls role_playbook", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 160,
+      method: "prompts/get",
+      params: { name: "my_role", arguments: { role: "CRM-маркетолог" } },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("role_playbook");
+    expect(text).toContain("CRM-маркетолог");
+    expect(text).toContain("Unyly");
+  });
+
+  it("prompts/get seo_forecast embeds keywords and calls seo_opportunity", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 161,
+      method: "prompts/get",
+      params: { name: "seo_forecast", arguments: { keywords: "купить диван:12000:14:3", conversionRatePct: "2", valuePerConversion: "5000" } },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("seo_opportunity");
+    expect(text).toContain("купить диван:12000:14:3");
+  });
+
+  it("prompts/get content_roi embeds inputs and calls content_plan_roi", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 162,
+      method: "prompts/get",
+      params: { name: "content_roi", arguments: { piecesPerMonth: "4", costPerPiece: "20000", steadyStateVisitsPerPiece: "500", valuePerConversion: "3000" } },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("content_plan_roi");
+    expect(text).toContain("20000");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {

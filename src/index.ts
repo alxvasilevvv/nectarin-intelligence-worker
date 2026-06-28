@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.45.0";
+const SERVER_VERSION = "2.46.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1387,6 +1387,164 @@ const PROMPTS = [
       `3) Покажи прибыль с заказа и потолок выплаты (≤ margin/(1+fee) от чека).\n` +
       `4) Дай таблицу партнёров (заказы, выплата, EPC, ROAS, чистая прибыль), отметь убыточных.\n` +
       `5) Сведи программу (выручка, прибыль, ROAS, blended CPA) и дай рекомендации; дисклеймер про постбеки/отмены/фрод.`,
+  },
+  {
+    name: "my_role",
+    title: "My role → tailored toolkit",
+    description:
+      "Tell NECTARIN your marketing profession (role_playbook) and get the exact tools, end-to-end workflow, KPIs and example questions for your job. Works for any role: SEO, PPC, SMM, CRM, brand, PR, media planning, analytics, e-commerce, mobile/ASO, content, events, affiliate, creative, pricing, compliance, agency, CMO.",
+    arguments: [
+      { name: "role", description: "Your role in RU or EN, e.g. 'SEO', 'таргетолог', 'CRM-маркетолог', 'медиапленер', 'бренд-менеджер'", required: true },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, навигатор по инструментам для маркетинговых команд RU/CIS.\n` +
+      `Пользователь представился ролью: «${a.role}».\n` +
+      `\nШаги:\n` +
+      `1) Вызови role_playbook(role="${a.role}").\n` +
+      `2) Покажи персональный набор: ключевые инструменты (с пояснением «зачем именно мне»), вспомогательные, рекомендуемый поток работы и KPI роли.\n` +
+      `3) Предложи начать с первого инструмента потока на реальной задаче пользователя и задай 1–2 уточняющих вопроса под его данные.\n` +
+      `4) Напомни, что один и тот же коннектор закрывает работу всех ролей в команде, а доступ — через Unyly.`,
+  },
+  {
+    name: "seo_forecast",
+    title: "SEO opportunity forecast",
+    description:
+      "Forecast organic SEO upside (seo_opportunity): position→CTR→traffic→conversions→value per keyword, with quick wins (page-2 keywords) highlighted.",
+    arguments: [
+      { name: "keywords", description: "Keywords as 'keyword:volume:currentPos:targetPos' separated by ';', e.g. 'купить диван:12000:14:3; диван цена:5000:8:2'", required: true },
+      { name: "conversionRatePct", description: "Visit→conversion rate % (default 2)", required: false },
+      { name: "valuePerConversion", description: "Value per conversion ₽ (or pass aov)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, SEO-специалист RU.\n` +
+      `Оцени потенциал органического роста.\n` +
+      `Ключи (keyword:volume:currentPos:targetPos): ${a.keywords}\n` +
+      (a.conversionRatePct ? `Конверсия визит→цель: ${a.conversionRatePct}%.\n` : "") +
+      (a.valuePerConversion ? `Ценность конверсии: ${a.valuePerConversion} ₽.\n` : "") +
+      `\nШаги:\n` +
+      `1) Разбери строку ключей в массив объектов {keyword, monthlySearchVolume, currentPosition, targetPosition}.\n` +
+      `2) Вызови seo_opportunity(keywords, conversionRatePct?, valuePerConversion?).\n` +
+      `3) Покажи прирост трафика/конверсий/ценности по портфелю, топ-возможности и «быстрые победы» (стр.2→1).\n` +
+      `4) Предложи приоритезацию работ и дисклеймер про CTR-кривую и непостоянство позиций.`,
+  },
+  {
+    name: "social_plan",
+    title: "Social-media (SMM) plan",
+    description:
+      "Project organic social reach, engagement and follower growth across platforms (social_media_planner).",
+    arguments: [
+      { name: "platforms", description: "Platforms as 'name:followers:postsPerWeek:reachRatePct:engagementRatePct' separated by ';', e.g. 'VK:120000:5:18:2.5; Telegram:45000:7:60:6'", required: true },
+      { name: "conversionRatePct", description: "Engagement→conversion rate % (optional)", required: false },
+      { name: "aov", description: "Average order value ₽ (optional, with conversionRatePct)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, SMM/комьюнити-стратег RU/CIS.\n` +
+      `Спрогнозируй органический результат соцсетей.\n` +
+      `Площадки (name:followers:postsPerWeek:reachRatePct:engagementRatePct): ${a.platforms}\n` +
+      (a.conversionRatePct ? `Конверсия из вовлечения: ${a.conversionRatePct}%.\n` : "") +
+      (a.aov ? `Средний чек: ${a.aov} ₽.\n` : "") +
+      `\nШаги:\n` +
+      `1) Разбери площадки в массив объектов {name, followers, postsPerWeek, reachRatePct, engagementRatePct}.\n` +
+      `2) Вызови social_media_planner(platforms, conversionRatePct?, aov?).\n` +
+      `3) Покажи охват/показы/вовлечения и прирост подписчиков по площадкам и суммарно; отметь площадки с низким органическим охватом.\n` +
+      `4) Дай рекомендации по частоте и форматам; дисклеймер про алгоритмы площадок.`,
+  },
+  {
+    name: "pr_value",
+    title: "PR value & share of voice",
+    description:
+      "Estimate earned-media reach, quality and share of voice from placements (pr_value_estimator).",
+    arguments: [
+      { name: "placements", description: "Placements as 'outlet:reach:tier:sentiment' separated by ';', e.g. 'РБК:2500000:tier1:positive; vc.ru:800000:tier2:neutral'", required: true },
+      { name: "cpmBenchmark", description: "Ad CPM ₽ for advertising-equivalent value (default 300)", required: false },
+      { name: "competitorReach", description: "Competitors' total earned reach (for share of voice)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, PR/коммуникационный аналитик RU/CIS.\n` +
+      `Оцени ценность PR-кампании честно (без переоценки через AVE).\n` +
+      `Размещения (outlet:reach:tier:sentiment): ${a.placements}\n` +
+      (a.cpmBenchmark ? `CPM для рекл. эквивалента: ${a.cpmBenchmark} ₽.\n` : "") +
+      (a.competitorReach ? `Охват конкурентов (для SoV): ${a.competitorReach}.\n` : "") +
+      `\nШаги:\n` +
+      `1) Разбери размещения в массив объектов {outlet, audienceReach, tier, sentiment}.\n` +
+      `2) Вызови pr_value_estimator(placements, cpmBenchmark?, competitorReach?).\n` +
+      `3) Покажи дедуп-охват, качество (tier×тональность), earned SOV и рекл. эквивалент с оговоркой, что AVE — контекст, а не KPI.\n` +
+      `4) Предложи мерить PR по бизнес-эффекту (share of search, brand lift).`,
+  },
+  {
+    name: "event_roi",
+    title: "Event / webinar ROI",
+    description:
+      "Project the event funnel (registrations→attendees→leads→deals) and ROI (event_roi_planner).",
+    arguments: [
+      { name: "invites", description: "Invites / audience reached", required: true },
+      { name: "dealSize", description: "Average won-deal value ₽", required: true },
+      { name: "eventCost", description: "Total event cost ₽", required: true },
+      { name: "rates", description: "Funnel rates as 'reg:attend:lead:win' percentages, e.g. '12:45:30:20' (opportunity optional)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, event/field-маркетолог RU/CIS.\n` +
+      `Посчитай ROI мероприятия.\n` +
+      `Приглашения: ${a.invites}. Средняя сделка: ${a.dealSize} ₽. Затраты: ${a.eventCost} ₽.\n` +
+      (a.rates ? `Конверсии воронки (reg:attend:lead:win, %): ${a.rates}.\n` : "") +
+      `\nШаги:\n` +
+      `1) Разбери rates в registrationRatePct/attendanceRatePct/leadRatePct/winRatePct (если задано).\n` +
+      `2) Вызови event_roi_planner(invites, dealSize, eventCost, ...rates).\n` +
+      `3) Покажи воронку рег→участники→лиды→сделки, стоимость лида/участника, ROI и точку окупаемости.\n` +
+      `4) Дай дисклеймер про отложенный pipeline и influence вне атрибуции.`,
+  },
+  {
+    name: "aso_plan",
+    title: "Mobile / ASO economics",
+    description:
+      "Project store funnel (impressions→installs), LTV revenue and paid-UA economics, with an ASO uplift scenario (aso_planner).",
+    arguments: [
+      { name: "monthlyImpressions", description: "Store listing impressions per month", required: true },
+      { name: "tapThroughRatePct", description: "Impression→page-view % (default 25)", required: false },
+      { name: "installConversionRatePct", description: "Page-view→install % (default 30)", required: false },
+      { name: "ltvPerInstall", description: "LTV per install ₽ (or arpdau+avgLifetimeDays)", required: false },
+      { name: "cpi", description: "Paid cost per install ₽ (for paid-UA economics)", required: false },
+      { name: "asoUpliftPp", description: "ASO scenario: +pp to install conversion rate", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, мобильный маркетолог / ASO-специалист RU/CIS.\n` +
+      `Посчитай воронку стора и экономику установок.\n` +
+      `Показы/мес: ${a.monthlyImpressions}.\n` +
+      (a.tapThroughRatePct ? `Tap-through: ${a.tapThroughRatePct}%.\n` : "") +
+      (a.installConversionRatePct ? `Конверсия в установку: ${a.installConversionRatePct}%.\n` : "") +
+      (a.ltvPerInstall ? `LTV установки: ${a.ltvPerInstall} ₽.\n` : "") +
+      (a.cpi ? `CPI (платный UA): ${a.cpi} ₽.\n` : "") +
+      (a.asoUpliftPp ? `ASO-сценарий: +${a.asoUpliftPp} п.п. к конверсии в установку.\n` : "") +
+      `\nШаги:\n` +
+      `1) Вызови aso_planner(monthlyImpressions, tapThroughRatePct?, installConversionRatePct?, ltvPerInstall?, cpi?, asoUpliftPp?).\n` +
+      `2) Покажи воронку показы→просмотры→установки, выручку по LTV и экономику платного UA (LTV/CPI).\n` +
+      `3) Если задан ASO-сценарий — покажи прирост установок и ценности от роста конверсии.\n` +
+      `4) Дисклеймер: сверять с App Store/Google Play Console и MMP.`,
+  },
+  {
+    name: "content_roi",
+    title: "Content-marketing ROI",
+    description:
+      "Model content as a compounding asset and compute ROI, payback month and exit run-rate (content_plan_roi).",
+    arguments: [
+      { name: "piecesPerMonth", description: "Pieces published per month", required: true },
+      { name: "costPerPiece", description: "Fully-loaded cost per piece ₽", required: true },
+      { name: "steadyStateVisitsPerPiece", description: "Monthly visits each piece earns at steady state", required: true },
+      { name: "valuePerConversion", description: "Value per conversion ₽", required: true },
+      { name: "conversionRatePct", description: "Visit→conversion rate % (default 1.5)", required: false },
+      { name: "horizonMonths", description: "Simulation horizon in months (default 24)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, контент-маркетолог RU/CIS.\n` +
+      `Посчитай ROI контент-плана как компаундящегося актива.\n` +
+      `Материалов/мес: ${a.piecesPerMonth}. Стоимость материала: ${a.costPerPiece} ₽.\n` +
+      `Визитов на материал (плато): ${a.steadyStateVisitsPerPiece}. Ценность конверсии: ${a.valuePerConversion} ₽.\n` +
+      (a.conversionRatePct ? `Конверсия визит→цель: ${a.conversionRatePct}%.\n` : "") +
+      (a.horizonMonths ? `Горизонт: ${a.horizonMonths} мес.\n` : "") +
+      `\nШаги:\n` +
+      `1) Вызови content_plan_roi(piecesPerMonth, costPerPiece, steadyStateVisitsPerPiece, valuePerConversion, conversionRatePct?, horizonMonths?).\n` +
+      `2) Покажи помесячную динамику (накопленная ценность vs затраты), ROI, месяц окупаемости и рантрейт на конец горизонта.\n` +
+      `3) Объясни, почему контент окупается позже, но компаундится; дисклеймер про длиннохвостое распределение трафика.`,
   },
 ];
 

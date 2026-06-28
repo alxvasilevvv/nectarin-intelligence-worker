@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-66-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-73-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -16,6 +16,13 @@ for the RU/CIS market. It runs entirely on a single Cloudflare Worker, serves MC
 over **Streamable HTTP (JSON-RPC 2.0)** with an **opt-in SSE** transport, ships
 with **mock/synthetic RU data** plus **KV real-data layering**, and a
 **KV-cached, model-agnostic LLM narrative** (DeepSeek wired in this deploy).
+
+> **New in 2.46 — profession coverage:** **73 tools across 22 marketing professions**,
+> with a **role router** (`role_playbook`) that maps any specialist's job — SEO, PPC,
+> SMM, CRM, brand, PR, media planning, analytics, e-commerce, mobile/ASO, content,
+> events, affiliate, creative, pricing, compliance, agency, marketing ops, CMO — to a
+> tailored toolkit, workflow and KPIs. One connector for the whole team; **install and
+> access flow through a single [Unyly](https://unyly.org/ru/mcp/nectarin-intelligence-worker) front door** (Unyly Connect fronts OAuth 2.1).
 
 > **New in 2.0:** KV LLM response cache (cold 9.8s → warm 0.2s on prod),
 > `LayeredKvDataSource` for operator-uploaded real benchmarks, opt-in SSE, and
@@ -103,7 +110,7 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
 
 ---
 
-## Tools (36 total)
+## Tools (73 total)
 
 ### Intelligence group (inform + orchestrate)
 | Tool | What it does |
@@ -256,6 +263,41 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 |---|---|
 | `affiliate_program_planner` | **CPA / affiliate / partner-program economics** for RU networks (Admitad, Cityads, …) & direct partners. From AOV, gross margin, a commission model (% of AOV or fixed CPA), an optional network fee and validation rate, plus per-partner clicks & conversion → per-partner approved orders, payout, **EPC**, effective CPA, **ROAS** and net profit; ranks partners, blends the program, and derives the **sustainable commission ceiling** (`margin/(1+fee)`), flagging loss-making partners and checking a target CPA. Deterministic. |
 
+### Roles / Adoption group (v2.46+ — one connector for every marketer)
+| Tool | What it does |
+|---|---|
+| `role_playbook` | **Role router & adoption engine.** A marketer states their profession in RU or EN (free-text, alias-matched) and gets a TAILORED playbook: primary tools (each with a role-specific "why"), the supporting toolkit, an ordered end-to-end **workflow**, the **KPIs** that role owns and example questions. Called without a role it lists all **22 supported professions** (CMO, performance/PPC, SEO, SMM, content, brand, media planning, CRM/lifecycle, e-commerce/marketplaces, influencer, PR, analytics, product/GTM, affiliate, growth, events, mobile/ASO, creative, pricing/promo, compliance, agency, marketing ops). Curated, deterministic. |
+
+### SEO group (v2.46+ — organic search)
+| Tool | What it does |
+|---|---|
+| `seo_opportunity` | **SEO organic-growth model.** From keywords (volume + current & target position) and a conversion rate + value, applies a **position→CTR curve** to estimate current vs. target organic traffic, incremental conversions & value per keyword, ranks opportunities and flags page-2 **quick wins** (positions 11–20). Deterministic. |
+
+### Social / SMM group (v2.46+ — organic social)
+| Tool | What it does |
+|---|---|
+| `social_media_planner` | **Organic SMM planner.** Per platform (VK/Telegram/Дзен/YouTube …) from followers, posts/week, organic reach % and engagement % → monthly posts, reach, impressions, engagements and follower growth; with a conversion rate + AOV → conversions & revenue. Aggregates the portfolio, recommends a cadence and flags low organic reach. Deterministic. |
+
+### PR / Communications group (v2.46+ — earned media)
+| Tool | What it does |
+|---|---|
+| `pr_value_estimator` | **PR / earned-media value & share of voice.** From placements (outlet, reach, tier, sentiment) → total & **deduplicated** reach, tier×sentiment **quality-adjusted reach**, an advertising-equivalent reach value (labelled context, not an endorsed KPI) and, with competitor reach, earned **share of voice**. Honest methodology with AMEC caveats. Deterministic. |
+
+### Events group (v2.46+ — events & webinars)
+| Tool | What it does |
+|---|---|
+| `event_roi_planner` | **Event / webinar / field ROI.** Projects the funnel invites→registrations→attendees→leads→opportunities→won deals→revenue, plus cost per registration/attendee/lead, **ROI** and breakeven deals. Deterministic. |
+
+### Mobile / ASO group (v2.46+ — app growth)
+| Tool | What it does |
+|---|---|
+| `aso_planner` | **App Store Optimization & mobile growth.** From store impressions, tap-through and install-conversion rates → page views & installs; with LTV (or ARPDAU×lifetime) → revenue; with a paid CPI → paid-UA economics (LTV/CPI, breakeven). Includes an **ASO uplift scenario** (+pp to install conversion → extra installs & value). Deterministic. |
+
+### Content group (v2.46+ — content marketing)
+| Tool | What it does |
+|---|---|
+| `content_plan_roi` | **Compounding content-marketing ROI.** Treats content as an asset: simulates the library month-by-month over a horizon (ramp → plateau → decay) → cumulative visits, conversions, value vs. spend, **ROI**, **payback month** and exit run-rate. Shows why content pays back later but compounds. Deterministic. |
+
 ### Brand group (v2.23+ — brand lift)
 | Tool | What it does |
 |---|---|
@@ -342,7 +384,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 66 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 2 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 2 Retention/CRM + 1 Email/Lifecycle + 1 Partnerships);
+`tools/list` returns all 73 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 2 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 2 Retention/CRM + 1 Email/Lifecycle + 1 Partnerships + 1 Roles/Adoption + 1 SEO + 1 Social/SMM + 1 PR + 1 Events + 1 Mobile/ASO + 1 Content);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -385,7 +427,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (66 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (73 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit

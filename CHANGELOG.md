@@ -3,6 +3,52 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.46.0] — 2026-06-28
+
+Ninth wave — **profession coverage**: one connector for every marketer, not just
+the CMO. Adds a role router plus six discipline planners for under-served roles
+(SEO, SMM, PR, events, mobile/ASO, content). NECTARIN Intelligence now ships
+**73 tools / 50 guided prompts** spanning **22 marketing professions** — all
+installed and accessed through a single **Unyly** front door.
+
+### Added
+- **`role_playbook`** (new **Roles / Adoption** group) — the adoption engine. A
+  marketer states their profession in RU or EN (free-text, alias-matched) and gets a
+  TAILORED playbook: primary tools (each with a role-specific reason), the supporting
+  toolkit, an ordered end-to-end workflow, the KPIs that role owns and example
+  questions. Called without a role it lists all **22 supported professions** (CMO,
+  performance/PPC, SEO, SMM, content, brand, media planning, CRM/lifecycle, e-commerce/
+  marketplaces, influencer, PR, analytics, product/GTM, affiliate, growth, events,
+  mobile/ASO, creative/production, pricing/promo, compliance, agency, marketing ops).
+- **`seo_opportunity`** (new **SEO** group) — organic-growth model: applies a
+  position→CTR curve to keyword volumes to project current vs. target traffic,
+  incremental conversions & value per keyword, ranks opportunities and flags page-2
+  **quick wins**.
+- **`social_media_planner`** (new **Social / SMM** group) — organic reach, impressions,
+  engagements and follower growth per platform (VK/Telegram/Дзен/YouTube …), with
+  optional conversions & revenue and a low-organic-reach flag.
+- **`pr_value_estimator`** (new **PR / Communications** group) — deduplicated earned
+  reach, tier×sentiment quality-adjusted reach, advertising-equivalent reach value
+  (clearly labelled as context, not an endorsed KPI) and earned **share of voice**.
+- **`event_roi_planner`** (new **Events** group) — event/webinar funnel
+  (invites→registrations→attendees→leads→opportunities→deals→revenue), cost per
+  registration/attendee/lead, ROI and breakeven deals.
+- **`aso_planner`** (new **Mobile / ASO** group) — store funnel
+  (impressions→page views→installs), LTV revenue, paid-UA economics (LTV/CPI) and an
+  ASO uplift scenario (+pp to install conversion).
+- **`content_plan_roi`** (new **Content** group) — models content as a compounding
+  asset month-by-month over a horizon → cumulative visits/conversions/value vs. spend,
+  ROI, **payback month** and exit run-rate.
+- Seven guided prompts: **`my_role`**, `seo_forecast`, `social_plan`, `pr_value`,
+  `event_roi`, `aso_plan`, `content_roi` (**50 prompts** total).
+
+### Changed
+- `tools/list` now advertises **73 tools** across the new SEO, Social/SMM, PR, Events,
+  Mobile/ASO, Content and Roles/Adoption groups. Catalog resource, `/version`
+  `toolCount`, README/USAGE/OVERVIEW counts, the leadership deck and the test suite
+  updated accordingly. Title humanizer learns the `SEO`, `SMM`, `PR`, `ASO`, `EPC`,
+  `CRM` acronyms.
+
 ## [2.45.0] — 2026-06-28
 
 Eighth wave (3/3) — CPA / affiliate program economics (**66th tool**).
