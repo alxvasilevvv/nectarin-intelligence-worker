@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-55-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-56-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -220,6 +220,8 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 |---|---|
 | `geo_holdout` | **Geo-holdout incrementality test tool.** *Design*: from expected baseline conversions in the test geos + a target lift, returns the **minimum detectable lift (MDE)**, the baseline volume required, and a recommended test duration. *Measure*: from observed test-geo conversions vs. a counterfactual (scaled control), computes incremental conversions, lift %, a count-based (Poisson) **z-test**, p-value, significance and incremental CPA. Auto-detects mode. Deterministic. |
 
+| `incrementality_meta` | **Meta-analysis of multiple incrementality / A-B / geo tests.** Each test gives a lift % + SE (or 95% CI). Computes the **inverse-variance fixed-effect** pooled lift (z, p, CI), heterogeneity **Q & I²**, and the **DerSimonian–Laird random-effects** pooled lift (wider CI when tests disagree); returns per-test weights, both pooled estimates and an overall significance call — combine many small reads into one defensible number. |
+
 ### Competitive group (v2.30+ — war-gaming)
 | Tool | What it does |
 |---|---|
@@ -310,7 +312,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 55 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 5 Media + 2 Brand + 1 Production + 1 Experimentation + 1 Competitive);
+`tools/list` returns all 56 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 5 Media + 2 Brand + 1 Production + 2 Experimentation + 1 Competitive);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -353,7 +355,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (55 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (56 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit
@@ -510,6 +512,7 @@ interface, so going real is a one-line wiring change — no upstream edits.
   **`pacing_forecast`** (budget_pacing_forecast) for a trend-aware pacing forecast,
   **`audience_dedup`** (audience_overlap) for measured audience deduplication,
   **`creative_rotation_plan`** (creative_rotation) for fatigue-aware rotation,
-  **`utm_audit`** (utm_taxonomy_qa) for batch UTM taxonomy QA, and
+  **`utm_audit`** (utm_taxonomy_qa) for batch UTM taxonomy QA,
+  **`meta_analysis`** (incrementality_meta) to pool multiple tests, and
   **`exec_report`** (board_report) for a board-ready one-pager (audit + upside), and
   **`creative_fatigue_check`** (creative_fatigue) to spot burning-out creatives.

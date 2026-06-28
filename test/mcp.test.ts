@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(55);
+    expect(json.toolCount).toBe(56);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(55);
+    expect(tools).toHaveLength(56);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -92,6 +92,7 @@ describe("tools/list", () => {
     expect(names).toContain("audience_overlap");
     expect(names).toContain("creative_rotation");
     expect(names).toContain("utm_taxonomy_qa");
+    expect(names).toContain("incrementality_meta");
     expect(names).toContain("marketing_audit");
   });
 
@@ -187,8 +188,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(55);
-    expect(catalog.tools).toHaveLength(55);
+    expect(catalog.counts.tools).toBe(56);
+    expect(catalog.tools).toHaveLength(56);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -1510,6 +1511,35 @@ describe("premium tools (v2.1)", () => {
     expect(sc.consistencyScore).toBeLessThan(100);
   });
 
+  it("incrementality_meta pools tests and reports heterogeneity", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 99,
+      method: "tools/call",
+      params: {
+        name: "incrementality_meta",
+        arguments: {
+          tests: [
+            { name: "Geo Q1", liftPct: 8, se: 3 },
+            { name: "AB June", liftPct: 6, se: 2 },
+            { name: "Holdout South", liftPct: 10, se: 4 },
+          ],
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.testsPooled).toBe(3);
+    // Pooled lift should sit between the min and max inputs.
+    expect(sc.fixedEffect.pooledLiftPct).toBeGreaterThan(6);
+    expect(sc.fixedEffect.pooledLiftPct).toBeLessThan(10);
+    expect(sc.fixedEffect.significant).toBe(true);
+    expect(sc.heterogeneity.I2Pct).toBeGreaterThanOrEqual(0);
+    expect(["fixed_effect", "random_effects"]).toContain(sc.preferredModel);
+    const wSum = sc.perTest.reduce((s, t) => s + t.weightFixedPct, 0);
+    expect(wSum).toBeCloseTo(100, 0);
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -1591,7 +1621,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(55);
+    expect(parsed.result.tools.length).toBe(56);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -1674,7 +1704,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(55);
+    expect(json.result.tools).toHaveLength(56);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -1702,7 +1732,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(55);
+    expect(json.result.tools).toHaveLength(56);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -1712,10 +1742,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 32 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 33 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(32);
+    expect(json.result.prompts).toHaveLength(33);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -1744,6 +1774,7 @@ describe("prompts", () => {
     expect(names).toContain("audience_dedup");
     expect(names).toContain("creative_rotation_plan");
     expect(names).toContain("utm_audit");
+    expect(names).toContain("meta_analysis");
   });
 
   it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
@@ -2077,6 +2108,21 @@ describe("prompts", () => {
     const text = json.result.messages[0].content.text;
     expect(text).toContain("utm_taxonomy_qa");
     expect(text).toContain("utm_source=vk");
+  });
+
+  it("prompts/get meta_analysis embeds the tests and calls incrementality_meta", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 100,
+      method: "prompts/get",
+      params: {
+        name: "meta_analysis",
+        arguments: { tests: "Geo Q1:8:3; AB June:6:2; Holdout South:10:4" },
+      },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("incrementality_meta");
+    expect(text).toContain("Geo Q1:8:3");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {

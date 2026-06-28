@@ -3,6 +3,26 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.35.0] — 2026-06-28
+
+Fifth wave complete (3/3) — an incrementality meta-analysis tool (**56th tool**).
+NECTARIN Intelligence now ships **56 tools / 33 guided prompts**.
+
+### Added
+- **`incrementality_meta`** (Experimentation group, now 2 tools) — pools multiple
+  incrementality / A-B / geo-holdout tests (each a lift % + SE, or a 95% CI from which
+  SE is derived) into one estimate: the inverse-variance **fixed-effect** pooled lift
+  (z, p, CI), heterogeneity **Q & I²**, and the **DerSimonian–Laird random-effects**
+  pooled lift (wider CI when results disagree). Returns per-test weights, both pooled
+  estimates, a heterogeneity verdict and an overall significance call.
+  55 → **56 tools**.
+- **`meta_analysis`** guided prompt (**33 prompts** total).
+
+### Changed
+- `server.json` description + version, README (Tools badge 56, Experimentation now 2
+  tools), USAGE (catalogue 56, prompts 33, measurement flow), OVERVIEW, test counts
+  (56 tools / 33 prompts).
+
 ## [2.34.0] — 2026-06-28
 
 Fifth wave (2/3) — a batch UTM / taxonomy governance auditor (**55th tool**). Now **55

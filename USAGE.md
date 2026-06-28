@@ -37,7 +37,7 @@ stays on JSON, so existing clients are unaffected.
 
 ---
 
-## 2. Tool catalogue (55)
+## 2. Tool catalogue (56)
 
 ### Intelligence (11)
 | Tool | What it does |
@@ -148,24 +148,26 @@ stays on JSON, so existing clients are unaffected.
 |---|---|
 | `production_estimator` | From deliverables (asset type × qty × complexity) + a quality tier, applies an illustrative RU rate card → per-deliverable cost & effort, subtotal, contingency, optional rush, **total cost range** and a **critical-path timeline** (weeks). Heuristic planning ballpark. |
 
-### Experimentation (1) — incrementality
+### Experimentation (2) — incrementality, meta-analysis
 | Tool | What it does |
 |---|---|
 | `geo_holdout` | *Design*: baseline conversions + target lift → **MDE**, required volume and test duration. *Measure*: test vs counterfactual conversions → incremental, lift %, count-based (Poisson) **z-test**, p-value, significance, incremental CPA. Auto-detects mode. |
+| `incrementality_meta` | Pools ≥2 tests (lift % + SE or 95% CI) → **fixed-effect** & **random-effects** pooled lift with z/p/CI, heterogeneity **Q & I²**, per-test weights and overall significance. Combine many small reads into one number. |
 
 ### Competitive (1) — war-gaming
 | Tool | What it does |
 |---|---|
 | `competitive_response` | From your spend + competitor spend + a move (escalation %, new entrant, pullback) → **SOV erosion**, **CPM inflation**, effective-impression impact, the **defensive budget** to hold a target SOV, and a recommended posture (hold / partial match / defend or pivot). |
 
-Built‑in **prompts** (32): `build_media_plan`, `full_strategy`, `competitor_teardown`,
+Built‑in **prompts** (33): `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`,
 `launch_flight`, `performance_review`, `saturation_reallocation`, `mmm_planning`,
 `quarter_plan`, `account_audit`, `scenario_review`, `promo_review`, `exec_report`,
 `creative_fatigue_check`, `price_optimization`, `influencer_plan`, `olv_plan`,
 `brand_lift_study`, `omnichannel_reach`, `production_budget`, `flighting_plan`,
 `geo_test`, `sov_analysis`, `media_quality_check`, `competitive_wargame`,
-`pacing_forecast`, `audience_dedup`, `creative_rotation_plan`, `utm_audit`.
+`pacing_forecast`, `audience_dedup`, `creative_rotation_plan`, `utm_audit`,
+`meta_analysis`.
 **Resources:** `nectarin://methodology`, `nectarin://glossary`, `nectarin://catalog`
 (live JSON catalog of all tools + annotations + prompts). `tools/list` also
 returns a `title` and behavioral `annotations` (read-only / idempotent / open-world) per tool.
@@ -227,6 +229,7 @@ margin, breakeven uplift) → `unit_economics` to confirm.
 
 **Incrementality & measurement:**
 `geo_holdout` (design: MDE & required volume → measure: incremental lift) →
+`incrementality_meta` (pool several reads into one estimate) →
 `attribution_model` → `ab_test_planner` to roll out winners.
 
 **Competitive war-game:**

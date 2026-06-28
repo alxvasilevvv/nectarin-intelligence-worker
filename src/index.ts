@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.34.0";
+const SERVER_VERSION = "2.35.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1114,6 +1114,27 @@ const PROMPTS = [
       `3) Назови балл консистентности и грейд, разбери проблемы по типам (нет обязательных, регистр, пробелы, не-ASCII).\n` +
       `4) Покажи кластеры разнобоя (один смысл — разные написания) и предложи канонические значения.\n` +
       `5) Дай чек-лист исправлений и единый шаблон через utm_builder; дисклеймер про настройку аналитики.`,
+  },
+  {
+    name: "meta_analysis",
+    title: "Incrementality meta-analysis",
+    description:
+      "Pool multiple incrementality / A-B / geo tests into one estimate (incrementality_meta): fixed- & random-effects pooled lift, heterogeneity I² and overall significance.",
+    arguments: [
+      { name: "tests", description: "Tests as 'name:lift:se' separated by ';', e.g. 'Geo Q1:8:3; A/B июнь:5:2; Holdout юг:12:5'", required: true },
+      { name: "alpha", description: "Significance level (optional; default 0.05)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, аналитик измеримости (мета-анализ инкрементальных тестов) RU/CIS.\n` +
+      `Объедини несколько тестов в один сводный эффект.\n` +
+      `Тесты (name:lift%:se%): ${a.tests}\n` +
+      (a.alpha ? `α: ${a.alpha}.\n` : `α: 0.05.\n`) +
+      `\nШаги:\n` +
+      `1) Распарси тесты в массив {name, liftPct, se}.\n` +
+      `2) Вызови incrementality_meta(tests${a.alpha ? ", alpha" : ""}).\n` +
+      `3) Покажи сводный лифт (fixed- и random-effects), 95% ДИ, p-value и значимость.\n` +
+      `4) Объясни гетерогенность (Q, I²): согласуются ли тесты; какую модель предпочесть.\n` +
+      `5) Вывод: насколько надёжен общий эффект; дисклеймер про осторожность при высокой гетерогенности.`,
   },
 ];
 

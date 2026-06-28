@@ -190,4 +190,137 @@ const geoHoldout: ToolDef = {
   },
 };
 
-export const EXPERIMENTATION_TOOLS: ToolDef[] = [geoHoldout];
+// ── incrementality_meta ──────────────────────────────────────────────────────
+
+interface MetaTestIn {
+  name: string;
+  liftPct: number;
+  se?: number;
+  ciLow?: number;
+  ciHigh?: number;
+}
+
+const incrementalityMeta: ToolDef = {
+  name: "incrementality_meta",
+  description:
+    "Meta-analysis of multiple incrementality / A-B / geo-holdout tests. Each test contributes a lift (%) with a standard error (or a 95% CI, from which SE is derived). It computes the inverse-variance fixed-effect pooled lift (z, p-value, CI), the heterogeneity statistics Q and I², and the DerSimonian–Laird random-effects pooled lift (which widens the CI when results disagree). Returns per-test weights, both pooled estimates, a heterogeneity verdict and an overall significance call — to combine many small reads into one defensible number. Deterministic statistics on YOUR test results.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      tests: {
+        type: "array",
+        minItems: 2,
+        description: "Test results to pool",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string", description: "Test name/label" },
+            liftPct: { type: "number", description: "Measured lift, % (can be negative)" },
+            se: { type: "number", exclusiveMinimum: 0, description: "Standard error of the lift, % (preferred)" },
+            ciLow: { type: "number", description: "Alt: 95% CI lower bound, % (with ciHigh → SE)" },
+            ciHigh: { type: "number", description: "Alt: 95% CI upper bound, % (with ciLow → SE)" },
+          },
+          required: ["name", "liftPct"],
+          additionalProperties: false,
+        },
+      },
+      alpha: { type: "number", exclusiveMinimum: 0, maximum: 0.5, description: "Significance level (default 0.05)" },
+    },
+    required: ["tests"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const alpha = typeof input.alpha === "number" && input.alpha > 0 && input.alpha < 0.5 ? input.alpha : 0.05;
+    const zCrit = invNorm(1 - alpha / 2);
+    const raw = (input.tests ?? []) as MetaTestIn[];
+
+    const tests = raw
+      .map((t) => {
+        let se = typeof t.se === "number" && t.se > 0 ? t.se : NaN;
+        if (!(se > 0) && typeof t.ciLow === "number" && typeof t.ciHigh === "number" && t.ciHigh > t.ciLow) {
+          se = (t.ciHigh - t.ciLow) / (2 * 1.959963985);
+        }
+        return { name: String(t.name), lift: Number(t.liftPct), se };
+      })
+      .filter((t) => Number.isFinite(t.lift) && t.se > 0);
+
+    if (tests.length < 2) {
+      return {
+        content: [{ type: "text", text: "Ошибка: нужно ≥2 теста, у каждого liftPct и se (или ciLow+ciHigh)." }],
+        isError: true,
+      };
+    }
+
+    // Fixed-effect: inverse-variance weights.
+    const w = tests.map((t) => 1 / (t.se * t.se));
+    const sumW = w.reduce((s, x) => s + x, 0);
+    const pooledFE = tests.reduce((s, t, i) => s + w[i] * t.lift, 0) / sumW;
+    const seFE = Math.sqrt(1 / sumW);
+
+    // Heterogeneity.
+    const Q = tests.reduce((s, t, i) => s + w[i] * (t.lift - pooledFE) ** 2, 0);
+    const df = tests.length - 1;
+    const I2 = Q > df ? ((Q - df) / Q) * 100 : 0;
+    const sumW2 = w.reduce((s, x) => s + x * x, 0);
+    const C = sumW - sumW2 / sumW;
+    const tau2 = C > 0 ? Math.max(0, (Q - df) / C) : 0;
+
+    // Random-effects (DerSimonian–Laird).
+    const wRE = tests.map((t) => 1 / (t.se * t.se + tau2));
+    const sumWRE = wRE.reduce((s, x) => s + x, 0);
+    const pooledRE = tests.reduce((s, t, i) => s + wRE[i] * t.lift, 0) / sumWRE;
+    const seRE = Math.sqrt(1 / sumWRE);
+
+    const stat = (est: number, se: number) => {
+      const z = se > 0 ? est / se : 0;
+      const p = 2 * (1 - normalCdf(Math.abs(z)));
+      return { z: round(z, 3), p: round(p, 4), ciLow: round(est - zCrit * se, 2), ciHigh: round(est + zCrit * se, 2), significant: p < alpha };
+    };
+    const feStat = stat(pooledFE, seFE);
+    const reStat = stat(pooledRE, seRE);
+
+    const hetero = I2 >= 75 ? "high" : I2 >= 50 ? "moderate" : I2 >= 25 ? "low" : "negligible";
+    const preferred = I2 >= 50 ? "random_effects" : "fixed_effect";
+    const chosen = preferred === "random_effects" ? reStat : feStat;
+    const chosenLift = preferred === "random_effects" ? pooledRE : pooledFE;
+
+    const perTest = tests.map((t, i) => ({
+      name: t.name,
+      liftPct: round(t.lift, 2),
+      se: round(t.se, 3),
+      weightFixedPct: round((w[i] / sumW) * 100, 1),
+      weightRandomPct: round((wRE[i] / sumWRE) * 100, 1),
+    }));
+
+    const payload = {
+      alpha,
+      testsPooled: tests.length,
+      fixedEffect: { pooledLiftPct: round(pooledFE, 2), se: round(seFE, 3), ...feStat },
+      randomEffects: { pooledLiftPct: round(pooledRE, 2), se: round(seRE, 3), tau2: round(tau2, 3), ...reStat },
+      heterogeneity: { Q: round(Q, 2), df, I2Pct: round(I2, 1), level: hetero },
+      preferredModel: preferred,
+      perTest,
+      verdict:
+        `Сводный лифт (${preferred === "random_effects" ? "random-effects" : "fixed-effect"}): ${chosenLift >= 0 ? "+" : ""}${round(chosenLift, 2)}% ` +
+        `(95% ДИ ${chosen.ciLow}…${chosen.ciHigh}, p=${chosen.p}) — ${chosen.significant ? "статистически значим" : "НЕ значим"}. ` +
+        `Гетерогенность I²=${round(I2, 0)}% (${hetero}).`,
+      methodology:
+        "Inverse-variance fixed-effect: pooled=Σ(wᵢ·effᵢ)/Σwᵢ, wᵢ=1/seᵢ². Q=Σwᵢ(effᵢ−pooled)², I²=max(0,(Q−df)/Q). Random-effects (DerSimonian–Laird): τ²=max(0,(Q−df)/(Σw−Σw²/Σw)), wᵢ*=1/(seᵢ²+τ²). При I²≥50% предпочтительна random-effects модель.",
+      assumptions: [
+        "Эффекты заданы в одной шкале (лифт %), SE сопоставимы и корректны.",
+        "Тесты независимы; нет систематической ошибки отбора (publication bias не оценивается).",
+        "CI→SE предполагает нормальность и 95% уровень.",
+      ],
+      disclaimer: "Мета-оценка на ВАШИХ результатах, не гарантия. При высокой гетерогенности интерпретируйте сводный эффект осторожно.",
+    };
+
+    const summary =
+      `Мета-анализ ${tests.length} тестов: сводный лифт ${chosenLift >= 0 ? "+" : ""}${round(chosenLift, 2)}% ` +
+      `(${preferred === "random_effects" ? "RE" : "FE"}, 95% ДИ ${chosen.ciLow}…${chosen.ciHigh}, p=${chosen.p}, ${chosen.significant ? "значим" : "не значим"}). ` +
+      `I²=${round(I2, 0)}% (${hetero}).`;
+
+    return toContent(summary, payload);
+  },
+};
+
+export const EXPERIMENTATION_TOOLS: ToolDef[] = [geoHoldout, incrementalityMeta];
