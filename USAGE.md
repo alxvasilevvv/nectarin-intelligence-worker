@@ -37,7 +37,7 @@ stays on JSON, so existing clients are unaffected.
 
 ---
 
-## 2. Tool catalogue (53)
+## 2. Tool catalogue (54)
 
 ### Intelligence (11)
 | Tool | What it does |
@@ -116,10 +116,11 @@ stays on JSON, so existing clients are unaffected.
 |---|---|
 | `board_report` | **Orchestrator one-pager**: runs `marketing_audit` + `scenario_planner` and folds them into a board-ready brief — status + grade, headline metrics (spend/conversions/blended CPA, plus revenue/profit/ROI with `revenuePerConversion`), best/worst channel, risks, top recommendations, a **+15% budget upside** and a single next step. |
 
-### Creative Ops (1) — burnout detection
+### Creative Ops (2) — burnout detection & rotation
 | Tool | What it does |
 |---|---|
 | `creative_fatigue` | From each creative's daily CTR series (or impressions+clicks), finds peak CTR, decline from peak, trend, a 0–100 **fatigue score** + stage, and **days-to-refresh-threshold**; ranks worst-first and flags which to refresh now / prepare / monitor. |
+| `creative_rotation` | From creatives (performance % + impressions served) applies an exponential fatigue decay → water-fills next period's impressions to the best fatigue-adjusted value, **capped per creative** for variety; returns the impression split, statuses (scale/maintain/retire), **uplift vs even rotation** and how many fresh creatives to produce. |
 
 ### Influence (1) — Маркетинг влияния
 | Tool | What it does |
@@ -156,14 +157,14 @@ stays on JSON, so existing clients are unaffected.
 |---|---|
 | `competitive_response` | From your spend + competitor spend + a move (escalation %, new entrant, pullback) → **SOV erosion**, **CPM inflation**, effective-impression impact, the **defensive budget** to hold a target SOV, and a recommended posture (hold / partial match / defend or pivot). |
 
-Built‑in **prompts** (30): `build_media_plan`, `full_strategy`, `competitor_teardown`,
+Built‑in **prompts** (31): `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`,
 `launch_flight`, `performance_review`, `saturation_reallocation`, `mmm_planning`,
 `quarter_plan`, `account_audit`, `scenario_review`, `promo_review`, `exec_report`,
 `creative_fatigue_check`, `price_optimization`, `influencer_plan`, `olv_plan`,
 `brand_lift_study`, `omnichannel_reach`, `production_budget`, `flighting_plan`,
 `geo_test`, `sov_analysis`, `media_quality_check`, `competitive_wargame`,
-`pacing_forecast`, `audience_dedup`.
+`pacing_forecast`, `audience_dedup`, `creative_rotation_plan`.
 **Resources:** `nectarin://methodology`, `nectarin://glossary`, `nectarin://catalog`
 (live JSON catalog of all tools + annotations + prompts). `tools/list` also
 returns a `title` and behavioral `annotations` (read-only / idempotent / open-world) per tool.
@@ -191,6 +192,10 @@ to produce a deck, `compliance_check` if regulated, `book_consultation` to close
 
 **Creative testing loop:**
 `creative_variants` → `compliance_check` (risky ones) → `ab_test_planner` → ship winners.
+
+**Creative rotation & anti-fatigue:**
+`creative_fatigue` (spot burnout) → `creative_rotation` (fatigue-aware impression split,
+who to retire) → `creative_variants` (produce the replacements).
 
 **Always-on monitoring & retention:**
 `anomaly_detector` (daily CPA/CTR/spend) → `cohort_ltv` + `unit_economics` to size the impact.

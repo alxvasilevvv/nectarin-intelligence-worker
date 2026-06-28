@@ -21,6 +21,13 @@ function round(n: number, dp = 0): number {
 function clamp(n: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, n));
 }
+function ru(n: number): string {
+  try {
+    return Number(n).toLocaleString("ru-RU");
+  } catch {
+    return String(n);
+  }
+}
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -284,4 +291,156 @@ const creativeFatigue: ToolDef = {
   },
 };
 
-export const CREATIVE_OPS_TOOLS: ToolDef[] = [creativeFatigue];
+// ── creative_rotation ────────────────────────────────────────────────────────
+
+interface RotCreativeIn {
+  name: string;
+  performance: number; // CTR% or CVR% (value per impression proxy)
+  cumulativeImpressions: number;
+}
+
+const creativeRotation: ToolDef = {
+  name: "creative_rotation",
+  description:
+    "Creative rotation optimizer (portfolio allocation against fatigue). From a set of creatives — each with a performance metric (CTR% or CVR%) and the impressions already served — it applies an exponential fatigue decay (effectiveness halves every `halfLifeImpressions`), then water-fills the next period's impressions to the creatives with the highest fatigue-adjusted value, capped per creative (default 40%) to preserve rotation/variety. Returns the recommended impression share per creative, decay multiplier, status (scale / maintain / retire), the projected aggregate performance uplift vs. an even rotation, and how many fresh creatives to produce. Complements creative_fatigue (single-creative time-series). Deterministic — decision support, not a guarantee.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      creatives: {
+        type: "array",
+        minItems: 1,
+        description: "Creatives with current performance and impressions served so far",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string", description: "Creative name/id" },
+            performance: { type: "number", minimum: 0, description: "Performance metric — CTR% or CVR% (consistent across creatives)" },
+            cumulativeImpressions: { type: "number", minimum: 0, description: "Impressions already served (fatigue proxy)" },
+          },
+          required: ["name", "performance", "cumulativeImpressions"],
+          additionalProperties: false,
+        },
+      },
+      nextPeriodImpressions: { type: "number", exclusiveMinimum: 0, description: "Impressions to allocate next period" },
+      halfLifeImpressions: { type: "number", exclusiveMinimum: 0, description: "Impressions at which effectiveness halves (default 2,000,000)" },
+      maxSharePct: { type: "number", exclusiveMinimum: 0, maximum: 100, description: "Max impression share per creative (default 40)" },
+      performanceFloor: { type: "number", minimum: 0, description: "Retire creatives with performance below this (optional)" },
+    },
+    required: ["creatives", "nextPeriodImpressions"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const creatives = (input.creatives ?? []) as RotCreativeIn[];
+    if (!Array.isArray(creatives) || creatives.length === 0) {
+      return { content: [{ type: "text", text: "Ошибка: передай хотя бы один креатив (name, performance, cumulativeImpressions)." }], isError: true };
+    }
+    const N = Number(input.nextPeriodImpressions);
+    const halfLife = typeof input.halfLifeImpressions === "number" && input.halfLifeImpressions > 0 ? input.halfLifeImpressions : 2_000_000;
+    const maxShare = clamp(Number(input.maxSharePct ?? 40), 1, 100) / 100;
+    const floor = typeof input.performanceFloor === "number" && input.performanceFloor >= 0 ? input.performanceFloor : null;
+
+    const perfs = creatives.map((c) => Math.max(0, Number(c.performance)));
+    const medianPerf = [...perfs].sort((a, b) => a - b)[Math.floor(perfs.length / 2)] ?? 0;
+
+    const items = creatives.map((c) => {
+      const perf = Math.max(0, Number(c.performance));
+      const served = Math.max(0, Number(c.cumulativeImpressions));
+      const decay = Math.pow(0.5, served / halfLife); // 1 → fresh, 0.5 → at half-life
+      const value = perf * decay;
+      const belowFloor = floor != null ? perf < floor : perf < medianPerf * 0.5;
+      const retire = decay < 0.5 || belowFloor;
+      return { name: String(c.name), performance: round(perf, 3), served: round(served), decay: round(decay, 3), value, retire, status: "maintain" as string, allocImpressions: 0, sharePct: 0, expectedOutcomes: 0 };
+    });
+
+    // Water-fill allocation by fatigue-adjusted value among non-retired creatives,
+    // capped at maxShare each; redistribute the overflow iteratively.
+    const active = items.filter((i) => !i.retire && i.value > 0);
+    const pool = active.length > 0 ? active : items.filter((i) => i.value > 0);
+    const capImpr = N * maxShare;
+    const alloc = new Map<string, number>();
+    pool.forEach((i) => alloc.set(i.name, 0));
+    let remaining = N;
+    let fillable = pool.filter((i) => alloc.get(i.name)! < capImpr - 1e-9);
+    let guard = 0;
+    while (remaining > 1e-6 && fillable.length > 0 && guard < 100) {
+      guard++;
+      const wSum = fillable.reduce((s, i) => s + i.value, 0);
+      if (wSum <= 0) break;
+      let distributed = 0;
+      for (const i of fillable) {
+        const want = remaining * (i.value / wSum);
+        const cur = alloc.get(i.name)!;
+        const room = capImpr - cur;
+        const give = Math.min(want, room);
+        alloc.set(i.name, cur + give);
+        distributed += give;
+      }
+      remaining -= distributed;
+      fillable = pool.filter((i) => alloc.get(i.name)! < capImpr - 1e-9);
+      if (distributed <= 1e-6) break;
+    }
+
+    let totalExpected = 0;
+    for (const i of items) {
+      const a = alloc.get(i.name) ?? 0;
+      i.allocImpressions = round(a);
+      i.sharePct = round((a / N) * 100, 1);
+      // performance is a % rate per impression ⇒ outcomes = impressions × perf/100 × decay.
+      i.expectedOutcomes = round((a * (i.performance / 100) * i.decay));
+      totalExpected += a * (i.performance / 100) * i.decay;
+      i.status = i.retire ? "retire" : i.sharePct >= maxShare * 100 - 0.1 ? "scale" : i.sharePct > 0 ? "maintain" : "pause";
+    }
+
+    // Baseline: even rotation across ALL creatives (incl. fatigued) for comparison.
+    const evenEach = N / items.length;
+    const evenExpected = items.reduce((s, i) => s + evenEach * (i.performance / 100) * i.decay, 0);
+    const upliftPct = evenExpected > 0 ? ((totalExpected - evenExpected) / evenExpected) * 100 : 0;
+
+    const allocatedTotal = items.reduce((s, i) => s + i.allocImpressions, 0);
+    const unallocatedImpressions = Math.max(0, round(N - allocatedTotal));
+    const unallocatedSharePct = round((unallocatedImpressions / N) * 100, 1);
+
+    const retireList = items.filter((i) => i.retire).map((i) => i.name);
+    // Need replacements for retired creatives, plus enough fresh units to absorb the
+    // impressions left unallocated by the per-creative cap.
+    const newCreativesNeeded = Math.max(retireList.length, unallocatedSharePct > 1 ? Math.ceil(unallocatedSharePct / (maxShare * 100)) : 0);
+
+    items.sort((a, b) => b.allocImpressions - a.allocImpressions);
+
+    const payload = {
+      nextPeriodImpressions: round(N),
+      halfLifeImpressions: round(halfLife),
+      maxSharePct: round(maxShare * 100, 1),
+      creatives: items.map(({ value, ...rest }) => rest),
+      projectedOutcomes: round(totalExpected),
+      evenRotationOutcomes: round(evenExpected),
+      upliftVsEvenPct: round(upliftPct, 1),
+      unallocatedImpressions,
+      unallocatedSharePct,
+      retire: retireList,
+      newCreativesNeeded,
+      verdict:
+        retireList.length > 0 || unallocatedSharePct > 1
+          ? `${retireList.length ? `Вывести из ротации: ${retireList.join(", ")}. ` : ""}${unallocatedSharePct > 1 ? `${unallocatedSharePct}% показов не размещены под капом ${round(maxShare * 100, 0)}% — ` : ""}подготовь ${newCreativesNeeded} новый(х) креатив(ов); бюджет — в свежие топ-перформеры.`
+          : `Все креативы в форме — держи оптимизированную ротацию, прирост ~${round(upliftPct, 1)}% к равномерной.`,
+      methodology:
+        "Эффективность падает экспоненциально: decay = 0.5^(показы/период полураспада). Ценность = perf×decay. Показы следующего периода распределяются water-filling по ценности с капом на креатив (вариативность). Прогноз исходов = показы×perf%×decay. Аплифт — против равномерной ротации по всем креативам.",
+      assumptions: [
+        "Перформанс задан в одной метрике (CTR% или CVR%) и сопоставим между креативами.",
+        "Период полураспада — эвристика выгорания; калибруйте под свою историю.",
+        "Внутри периода decay считается приближённо постоянным.",
+      ],
+      disclaimer: "Эвристика на ВАШИХ данных, не гарантия. Подтверждайте ротацию замерами и тестом новых креативов.",
+    };
+
+    const top = items[0];
+    const summary =
+      `Ротация ${items.length} креативов на ${ru(round(N))} показов: лидер «${top?.name}» (${top?.sharePct}%). ` +
+      `Прогноз ~${ru(round(totalExpected))} исходов (+${round(upliftPct, 1)}% к равномерной). ` +
+      (retireList.length ? `Вывести: ${retireList.join(", ")}; новых креативов: ${newCreativesNeeded}.` : "Замен не требуется.");
+
+    return toContent(summary, payload);
+  },
+};
+
+export const CREATIVE_OPS_TOOLS: ToolDef[] = [creativeFatigue, creativeRotation];

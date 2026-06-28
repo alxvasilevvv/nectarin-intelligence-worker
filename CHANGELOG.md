@@ -3,6 +3,27 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.33.0] — 2026-06-28
+
+Fifth wave (1/3) — a creative rotation optimizer (**54th tool**). Now **54 tools / 31
+guided prompts**.
+
+### Added
+- **`creative_rotation`** (Creative Ops group, now 2 tools) — from a set of creatives
+  (performance % + impressions served), applies an **exponential fatigue decay**
+  (effectiveness halves every `halfLifeImpressions`), then **water-fills** the next
+  period's impressions to the highest fatigue-adjusted value, **capped per creative**
+  (default 40%) to preserve rotation/variety. Returns the recommended impression
+  share, decay multiplier, status (scale/maintain/retire), the projected aggregate
+  **uplift vs. an even rotation**, and how many fresh creatives to produce.
+  Complements `creative_fatigue` (single-creative time-series). 53 → **54 tools**.
+- **`creative_rotation_plan`** guided prompt (**31 prompts** total).
+
+### Changed
+- `server.json` description + version, README (Tools badge 54, Creative Ops now 2
+  tools), USAGE (catalogue 54, prompts 31, rotation flow), OVERVIEW, test counts (54
+  tools / 31 prompts).
+
 ## [2.32.0] — 2026-06-28
 
 Fourth wave complete (3/3) — a measured audience overlap / dedup analyzer (**53rd

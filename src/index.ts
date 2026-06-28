@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.32.0";
+const SERVER_VERSION = "2.33.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1068,6 +1068,29 @@ const PROMPTS = [
       `3) Объясни дедуп-охват vs «грязный» охват и уровень дублирования.\n` +
       `4) Назови самый аддитивный и самый избыточный сегмент; дай рекомендацию (частотный кап / перелив бюджета).\n` +
       `5) Предупреди: для 3+ сегментов оценка приближённая (нет тройных пересечений); точнее — single-source панель.`,
+  },
+  {
+    name: "creative_rotation_plan",
+    title: "Creative rotation against fatigue",
+    description:
+      "Plan the next-period creative rotation (creative_rotation): fatigue-adjusted impression split, which creatives to retire and how many fresh ones to produce.",
+    arguments: [
+      { name: "creatives", description: "Creatives as 'name:performance:impressions' separated by ';', e.g. 'A:1.8:500000; B:1.2:2500000; C:2.1:100000'", required: true },
+      { name: "nextPeriodImpressions", description: "Impressions to allocate next period", required: true },
+      { name: "maxSharePct", description: "Max share per creative, % (optional; default 40)", required: false },
+      { name: "halfLifeImpressions", description: "Impressions at which effectiveness halves (optional; default 2,000,000)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, специалист по креативной ротации и борьбе с выгоранием RU/CIS.\n` +
+      `Креативы (name:performance:impressions): ${a.creatives}\n` +
+      `Показов на следующий период: ${a.nextPeriodImpressions}.` +
+      (a.maxSharePct ? ` Макс. доля на креатив: ${a.maxSharePct}%.` : "") +
+      `\n\nШаги:\n` +
+      `1) Распарси креативы в массив {name, performance, cumulativeImpressions}.\n` +
+      `2) Вызови creative_rotation(creatives, nextPeriodImpressions${a.maxSharePct ? ", maxSharePct" : ""}${a.halfLifeImpressions ? ", halfLifeImpressions" : ""}).\n` +
+      `3) Покажи рекомендованную раскладку показов по креативам и статусы (scale / maintain / retire).\n` +
+      `4) Назови прирост к равномерной ротации, кого вывести и сколько новых креативов подготовить.\n` +
+      `5) Свяжи с creative_fatigue (динамика по дням) и creative_variants (генерация замен); дисклеймер про калибровку периода полураспада.`,
   },
 ];
 

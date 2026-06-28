@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-53-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-54-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -189,10 +189,11 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 |---|---|
 | `board_report` | **Executive one-pager (orchestrator).** Composes `marketing_audit` (health score, channel verdicts, risks, prioritized actions) + `scenario_planner` (a **+15% budget upside** scenario) into a board-ready brief: status + grade, headline metrics (spend, conversions, blended CPA, and **revenue/profit/ROI** with `revenuePerConversion`), best/worst channel, live risks, top recommendations, the budget upside and a single **next step**. Reuses the deterministic sub-tools verbatim — stays consistent with them. |
 
-### Creative Ops group (v2.19+ — burnout detection)
+### Creative Ops group (v2.19+ — burnout detection & rotation)
 | Tool | What it does |
 |---|---|
 | `creative_fatigue` | **Creative burnout detector.** From each creative's daily CTR series (`ctr[]` in %, or `impressions[]`+`clicks[]`), finds peak CTR, **decline from peak**, the recent least-squares trend, a 0–100 **fatigue score** + stage (fresh/maturing/fatigued/burnt), and — while CTR is still falling — the estimated **days until it crosses the refresh threshold** (default 70% of peak). Ranks creatives worst-first and recommends which to refresh now / prepare / monitor. Deterministic. |
+| `creative_rotation` | **Creative rotation optimizer.** From a set of creatives (performance % + impressions served), applies an **exponential fatigue decay** (effectiveness halves every `halfLifeImpressions`), then **water-fills** next period's impressions to the highest fatigue-adjusted value, **capped per creative** (default 40%) for variety. Returns the recommended impression share, decay, status (scale/maintain/retire), the **uplift vs. even rotation**, and how many fresh creatives to produce. Complements `creative_fatigue`. |
 
 ### Influence group (v2.21+ — Маркетинг влияния)
 | Tool | What it does |
@@ -308,7 +309,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 53 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 7 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 1 Creative Ops + 1 Influence + 5 Media + 2 Brand + 1 Production + 1 Experimentation + 1 Competitive);
+`tools/list` returns all 54 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 7 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 5 Media + 2 Brand + 1 Production + 1 Experimentation + 1 Competitive);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -351,7 +352,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (53 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (54 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit
@@ -506,6 +507,7 @@ interface, so going real is a one-line wiring change — no upstream edits.
   **`media_quality_check`** (media_quality_score) for delivery quality scoring,
   **`competitive_wargame`** (competitive_response) to war-game a competitor move,
   **`pacing_forecast`** (budget_pacing_forecast) for a trend-aware pacing forecast,
-  **`audience_dedup`** (audience_overlap) for measured audience deduplication, and
+  **`audience_dedup`** (audience_overlap) for measured audience deduplication,
+  **`creative_rotation_plan`** (creative_rotation) for fatigue-aware rotation, and
   **`exec_report`** (board_report) for a board-ready one-pager (audit + upside), and
   **`creative_fatigue_check`** (creative_fatigue) to spot burning-out creatives.
