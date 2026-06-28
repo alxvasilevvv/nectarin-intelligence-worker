@@ -3,6 +3,28 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.20.0] — 2026-06-28
+
+Pricing science: a profit-maximizing price optimizer with demand elasticity (41st tool).
+
+### Added
+- **`price_optimizer`** (Pricing & Promo group, now 2 tools) — from ≥2 historical
+  `(price, units)` observations it fits a constant-elasticity demand curve
+  `Q = a·P^(-e)` by log-log least squares, estimates the **price elasticity of
+  demand**, and — when demand is elastic (e>1) — computes the profit-maximizing
+  price `P* = cost·e/(e−1)` (markup rule) with projected units/revenue/profit and
+  the **profit uplift vs. an optional currentPrice**. Flags inelastic demand
+  (e≤1, no interior optimum), anomalous (e≤0) and low-confidence fits (n<3 or
+  R²<0.5). Deterministic, on the operator's own data. Complements `promo_planner`.
+  40 → **41 tools**.
+- **`price_optimization`** guided prompt (**18 prompts** total) — one-click optimal
+  price via `price_optimizer`.
+
+### Changed
+- `server.json` description + version, README (Tools badge 41, Pricing & Promo
+  group now 2 tools), USAGE (catalogue 41, prompts 18), test counts (41 tools /
+  18 prompts).
+
 ## [2.19.0] — 2026-06-28
 
 Creative ops: a CTR-based creative burnout/fatigue detector (40th tool).

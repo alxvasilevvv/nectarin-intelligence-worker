@@ -205,4 +205,183 @@ const promoPlanner: ToolDef = {
   },
 };
 
-export const PROMO_TOOLS: ToolDef[] = [promoPlanner];
+// ── price_optimizer ──────────────────────────────────────────────────────────
+
+interface PriceObs {
+  price: number;
+  units: number;
+}
+interface ElasticityFit {
+  elasticity: number; // e in Q = a·P^(-e)
+  a: number;
+  r2: number;
+  n: number;
+}
+
+/** Fit constant-elasticity demand Q = a·P^(-e) by log-log least squares. */
+function fitElasticity(obs: PriceObs[]): ElasticityFit | null {
+  const X: number[] = [];
+  const Y: number[] = [];
+  for (const o of obs) {
+    const p = Number(o.price);
+    const q = Number(o.units);
+    if (p > 0 && q > 0) {
+      X.push(Math.log(p));
+      Y.push(Math.log(q));
+    }
+  }
+  const n = X.length;
+  if (n < 2) return null;
+  const mx = X.reduce((s, v) => s + v, 0) / n;
+  const my = Y.reduce((s, v) => s + v, 0) / n;
+  let sxx = 0;
+  let sxy = 0;
+  for (let i = 0; i < n; i++) {
+    sxx += (X[i] - mx) ** 2;
+    sxy += (X[i] - mx) * (Y[i] - my);
+  }
+  if (sxx <= 0) return null; // no price variation ⇒ elasticity undefined
+  const b = sxy / sxx; // slope = -e
+  const lnA = my - b * mx;
+  let ssTot = 0;
+  let ssRes = 0;
+  for (let i = 0; i < n; i++) {
+    const pred = lnA + b * X[i];
+    ssRes += (Y[i] - pred) ** 2;
+    ssTot += (Y[i] - my) ** 2;
+  }
+  const r2 = ssTot > 0 ? 1 - ssRes / ssTot : 1;
+  return { elasticity: -b, a: Math.exp(lnA), r2, n };
+}
+
+const priceOptimizer: ToolDef = {
+  name: "price_optimizer",
+  description:
+    "Profit-maximizing price finder. From ≥2 historical (price, units) observations, fits a constant-elasticity demand curve Q = a·P^(-e) by log-log least squares, estimates the price elasticity of demand, and — when demand is elastic (e>1) — computes the profit-maximizing price P* = cost·e/(e−1) (standard markup rule), with projected units/revenue/profit and the uplift vs. an optional currentPrice. Flags inelastic demand (e≤1, no interior optimum) and low-confidence fits. Deterministic, on YOUR data — decision support, not a guarantee. Complements promo_planner (which evaluates a fixed discount).",
+  inputSchema: {
+    type: "object",
+    properties: {
+      observations: {
+        type: "array",
+        minItems: 2,
+        description: "Historical (price, units) points with varying prices, ≥2",
+        items: {
+          type: "object",
+          properties: {
+            price: { type: "number", exclusiveMinimum: 0, description: "Price point (RUB)" },
+            units: { type: "number", exclusiveMinimum: 0, description: "Units sold at that price (same period basis)" },
+          },
+          required: ["price", "units"],
+          additionalProperties: false,
+        },
+      },
+      unitCost: { type: "number", minimum: 0, description: "Variable cost per unit / COGS (RUB)" },
+      currentPrice: { type: "number", exclusiveMinimum: 0, description: "Optional current price to compare against the optimum" },
+      product: { type: "string", description: "Optional product/offer label" },
+    },
+    required: ["observations", "unitCost"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const obs = (input.observations ?? []) as PriceObs[];
+    const unitCost = Math.max(0, Number(input.unitCost));
+    const currentPrice = input.currentPrice != null ? Number(input.currentPrice) : null;
+    const fit = fitElasticity(obs);
+    if (!fit) {
+      return {
+        content: [
+          { type: "text", text: "Ошибка: нужно ≥2 наблюдений с РАЗНЫМИ положительными ценами и объёмами." },
+        ],
+        isError: true,
+      };
+    }
+
+    const e = fit.elasticity;
+    const lowConfidence = fit.n < 3 || fit.r2 < 0.5;
+    const warnings: string[] = [];
+    if (lowConfidence) {
+      warnings.push(`Низкая уверенность подгонки (R²=${round(fit.r2, 2)}, точек=${fit.n}) — добавь больше ценовых точек.`);
+    }
+
+    const demandAt = (p: number) => fit.a * Math.pow(p, -e);
+    const profitAt = (p: number) => (p - unitCost) * demandAt(p);
+
+    let optimalPrice: number | null = null;
+    let regime: "elastic" | "inelastic" | "anomalous";
+    if (e > 1) {
+      regime = "elastic";
+      optimalPrice = round((unitCost * e) / (e - 1), 2);
+    } else if (e > 0) {
+      regime = "inelastic";
+      warnings.push("Спрос неэластичен (e≤1): прибыль растёт с ценой — внутреннего оптимума нет, тестируй повышение цены осторожно.");
+    } else {
+      regime = "anomalous";
+      warnings.push("Оценённая эластичность ≤0 (объём растёт с ценой) — вероятно шум/смешанные факторы; не доверяй модели.");
+    }
+
+    const atOptimal =
+      optimalPrice != null
+        ? {
+            price: optimalPrice,
+            units: round(demandAt(optimalPrice), 1),
+            revenue: round(optimalPrice * demandAt(optimalPrice)),
+            profit: round(profitAt(optimalPrice)),
+            unitMargin: round(optimalPrice - unitCost, 2),
+          }
+        : null;
+
+    let current: Record<string, unknown> | null = null;
+    if (currentPrice != null && currentPrice > 0) {
+      const curProfit = profitAt(currentPrice);
+      current = {
+        price: round(currentPrice, 2),
+        units: round(demandAt(currentPrice), 1),
+        revenue: round(currentPrice * demandAt(currentPrice)),
+        profit: round(curProfit),
+        unitMargin: round(currentPrice - unitCost, 2),
+      };
+      if (atOptimal) {
+        (current as any).profitUpliftVsOptimal = round((atOptimal.profit as number) - curProfit);
+        (current as any).priceChangePct = round(((optimalPrice! - currentPrice) / currentPrice) * 100, 1);
+      }
+    }
+
+    const payload = {
+      product: input.product ? String(input.product) : null,
+      currency: "RUB",
+      model: "constant-elasticity demand: units = a·price^(-e); profit-max price P* = cost·e/(e−1) for e>1",
+      fit: {
+        elasticity: round(e, 3),
+        regime,
+        scaleA: round(fit.a, 4),
+        r2: round(fit.r2, 3),
+        points: fit.n,
+        lowConfidence,
+      },
+      unitCost: round(unitCost, 2),
+      optimalPrice,
+      atOptimal,
+      current,
+      warnings,
+      assumptions: [
+        "Спрос моделируется постоянной эластичностью Q=a·P^(-e), оценённой по лог-лог регрессии ваших точек.",
+        "Оптимум прибыли для e>1: P* = себестоимость·e/(e−1) (классическое правило наценки).",
+        "Эффекты конкуренции, восприятия цены и долгосрочной лояльности не моделируются.",
+      ],
+      disclaimer: "Модельная оценка на ВАШИХ данных, не гарантия. Проверяйте ценовые изменения A/B-тестом.",
+    };
+
+    const summary =
+      `Эластичность спроса e≈${round(e, 2)} (${regime}, R²=${round(fit.r2, 2)}). ` +
+      (optimalPrice != null
+        ? `Оптимальная цена ~${ru(optimalPrice)} ₽ (маржа ${ru(round(optimalPrice - unitCost, 2))} ₽/ед.)` +
+          (current && (current as any).profitUpliftVsOptimal != null
+            ? `, прибыль ${(current as any).profitUpliftVsOptimal >= 0 ? "+" : ""}${ru((current as any).profitUpliftVsOptimal)} ₽ к текущей цене.`
+            : ".")
+        : "Внутреннего оптимума нет (спрос неэластичен/аномален) — см. warnings.");
+
+    return toContent(summary, payload);
+  },
+};
+
+export const PROMO_TOOLS: ToolDef[] = [promoPlanner, priceOptimizer];

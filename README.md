@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-40-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-41-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -176,6 +176,7 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 | Tool | What it does |
 |---|---|
 | `promo_planner` | **Promo / discount P&L & break-even.** From regular price, variable unit cost and baseline period volume, computes the post-discount unit margin, the **break-even volume uplift** a promo must clear to avoid losing money, and — with an `expectedUpliftPct` — projected units/revenue/profit, **incremental profit** vs. baseline and **ROI on the markdown**. Supports an optional fixed promo cost and a pull-forward/cannibalization penalty. Returns a verdict (profitable / needs more uplift / margin-destroying). Deterministic trade-marketing math on your numbers. |
+| `price_optimizer` | **Profit-maximizing price finder.** From ≥2 historical (price, units) points, fits a constant-elasticity demand curve `Q = a·P^(-e)` by log-log least squares, estimates the **price elasticity of demand**, and — when demand is elastic (e>1) — computes the profit-max price `P* = cost·e/(e−1)` with projected units/revenue/profit and the **uplift vs. current price**. Flags inelastic demand (no interior optimum) and low-confidence fits. Deterministic; complements `promo_planner`. |
 
 ### Audit group (v2.15+ — account health diagnostic)
 | Tool | What it does |
@@ -271,7 +272,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 40 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 6 Premium + 1 MMM + 2 Planning + 1 Promo + 1 Audit + 1 Executive + 1 Creative Ops);
+`tools/list` returns all 41 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 6 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 1 Creative Ops);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -314,7 +315,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (40 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (41 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit
@@ -456,6 +457,7 @@ interface, so going real is a one-line wiring change — no upstream edits.
   (marketing_audit) for a health-scored account diagnostic + action plan, and
   **`scenario_review`** (scenario_planner) to compare conservative/base/aggressive
   budget scenarios head-to-head and recommend one by conversions, CPA or ROI, and
-  **`promo_review`** (promo_planner) for discount break-even & promo ROI, and
+  **`promo_review`** (promo_planner) for discount break-even & promo ROI,
+  **`price_optimization`** (price_optimizer) for the profit-maximizing price, and
   **`exec_report`** (board_report) for a board-ready one-pager (audit + upside), and
   **`creative_fatigue_check`** (creative_fatigue) to spot burning-out creatives.

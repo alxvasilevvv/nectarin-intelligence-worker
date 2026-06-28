@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.19.0";
+const SERVER_VERSION = "2.20.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -703,6 +703,35 @@ const PROMPTS = [
       `3) По каждому креативу: пик CTR, падение от пика, тренд, fatigue-скор и стадия (fresh/maturing/fatigued/burnt).\n` +
       `4) Назови, что обновлять СЕЙЧАС и что готовить к замене (с днями до порога).\n` +
       `5) Дай next-step по ротации. Предупреди: оценка только по динамике CTR, внешние факторы не разделяются.`,
+  },
+  {
+    name: "price_optimization",
+    title: "Profit-maximizing price (demand elasticity)",
+    description:
+      "Find the profit-maximizing price (price_optimizer): fits demand elasticity from your (price, units) points and computes the optimal price + projected profit uplift vs. the current price.",
+    arguments: [
+      {
+        name: "observations",
+        description:
+          "Historical price→units points as 'price:units', e.g. '1000:520, 900:640, 800:760' (vary the price)",
+        required: true,
+      },
+      { name: "unitCost", description: "Variable cost per unit (COGS) in RUB", required: true },
+      { name: "currentPrice", description: "Current price in RUB to compare vs the optimum (optional)", required: false },
+      { name: "product", description: "Product / offer label (optional)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, аналитик ценообразования RU/CIS.\n` +
+      `Оцени эластичность спроса и найди прибыль-максимизирующую цену.\n` +
+      (a.product ? `Продукт: ${a.product}.\n` : ``) +
+      `Точки (price:units): ${a.observations}\n` +
+      `Себестоимость ед.: ${a.unitCost} ₽.${a.currentPrice ? ` Текущая цена: ${a.currentPrice} ₽.` : ``}\n` +
+      `\nШаги:\n` +
+      `1) Распарси точки в массив {price, units}.\n` +
+      `2) Вызови price_optimizer(observations, unitCost${a.currentPrice ? ", currentPrice" : ""}${a.product ? ", product" : ""}).\n` +
+      `3) Объясни эластичность e и режим (elastic/inelastic): что значит для ценовой политики.\n` +
+      `4) Назови оптимальную цену, прогноз объёма/выручки/прибыли и прирост к текущей цене.\n` +
+      `5) Дай рекомендацию и предупреди: проверяйте ценовое изменение A/B-тестом; конкуренция/восприятие не моделируются.`,
   },
 ];
 
