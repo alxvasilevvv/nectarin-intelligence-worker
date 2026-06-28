@@ -37,7 +37,7 @@ stays on JSON, so existing clients are unaffected.
 
 ---
 
-## 2. Tool catalogue (50)
+## 2. Tool catalogue (51)
 
 ### Intelligence (11)
 | Tool | What it does |
@@ -149,13 +149,18 @@ stays on JSON, so existing clients are unaffected.
 |---|---|
 | `geo_holdout` | *Design*: baseline conversions + target lift → **MDE**, required volume and test duration. *Measure*: test vs counterfactual conversions → incremental, lift %, count-based (Poisson) **z-test**, p-value, significance, incremental CPA. Auto-detects mode. |
 
-Built‑in **prompts** (27): `build_media_plan`, `full_strategy`, `competitor_teardown`,
+### Competitive (1) — war-gaming
+| Tool | What it does |
+|---|---|
+| `competitive_response` | From your spend + competitor spend + a move (escalation %, new entrant, pullback) → **SOV erosion**, **CPM inflation**, effective-impression impact, the **defensive budget** to hold a target SOV, and a recommended posture (hold / partial match / defend or pivot). |
+
+Built‑in **prompts** (28): `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`,
 `launch_flight`, `performance_review`, `saturation_reallocation`, `mmm_planning`,
 `quarter_plan`, `account_audit`, `scenario_review`, `promo_review`, `exec_report`,
 `creative_fatigue_check`, `price_optimization`, `influencer_plan`, `olv_plan`,
 `brand_lift_study`, `omnichannel_reach`, `production_budget`, `flighting_plan`,
-`geo_test`, `sov_analysis`, `media_quality_check`.
+`geo_test`, `sov_analysis`, `media_quality_check`, `competitive_wargame`.
 **Resources:** `nectarin://methodology`, `nectarin://glossary`, `nectarin://catalog`
 (live JSON catalog of all tools + annotations + prompts). `tools/list` also
 returns a `title` and behavioral `annotations` (read-only / idempotent / open-world) per tool.
@@ -213,6 +218,10 @@ margin, breakeven uplift) → `unit_economics` to confirm.
 **Incrementality & measurement:**
 `geo_holdout` (design: MDE & required volume → measure: incremental lift) →
 `attribution_model` → `ab_test_planner` to roll out winners.
+
+**Competitive war-game:**
+`competitive_response` (SOV erosion, CPM inflation, defense budget) →
+`budget_optimizer` + `bid_simulator` (match efficiently) or `sov_tracker` (brand defense).
 
 **Sell NECTARIN:**
 `roi_calculator` → `value_forecast` → `lead_qualify` → `request_nectarin_proposal`

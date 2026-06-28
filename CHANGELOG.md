@@ -3,6 +3,26 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.30.0] — 2026-06-28
+
+Fourth wave — competitive war-gaming. Adds a competitive response simulator (**51st
+tool**) in a new Competitive group. Now **51 tools / 28 guided prompts**.
+
+### Added
+- **`competitive_response`** (new **Competitive** group) — given your spend, the
+  current competitor spend and a competitor move (spend escalation %, new entrant or
+  pullback), models the impact on your **Share of Voice**, **auction CPM inflation**
+  and **effective impressions** at a fixed budget; sizes the **defensive budget**
+  required to hold a target SOV (y = t·comp'/(1−t)); and recommends a posture
+  (hold / partial_match / defend_or_pivot). Deterministic auction-share dynamics.
+  50 → **51 tools**.
+- **`competitive_wargame`** guided prompt (**28 prompts** total).
+
+### Changed
+- `server.json` description + version, README (Tools badge 51, new Competitive
+  group), USAGE (catalogue 51, prompts 28, new flow), test counts (51 tools / 28
+  prompts).
+
 ## [2.29.0] — 2026-06-28
 
 Media quality: a delivery quality scorer (**50th tool**) — final feature of the third

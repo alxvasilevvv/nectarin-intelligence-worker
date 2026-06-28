@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.29.0";
+const SERVER_VERSION = "2.30.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -996,6 +996,32 @@ const PROMPTS = [
       `3) Перечисли флаги (низкая viewability, высокий фрод, brand-safety) и главный рычаг.\n` +
       `4) Дай вердикт: масштабировать / оптимизировать / отключить.\n` +
       `5) Next-step + дисклеймер: сверяйте с независимой верификацией (MRC-партнёр).`,
+  },
+  {
+    name: "competitive_wargame",
+    title: "Competitive response war-game",
+    description:
+      "Simulate a competitor's spend move and plan the response (competitive_response): SOV erosion, CPM inflation, impression impact and the defensive budget needed.",
+    arguments: [
+      { name: "yourSpend", description: "Your current ad spend (₽)", required: true },
+      { name: "competitorSpend", description: "Current total competitor spend in the category (₽)", required: true },
+      { name: "competitorIncreasePct", description: "Competitor spend change, % (negative = pullback)", required: true },
+      { name: "action", description: "Move type: spend_escalation | new_entrant | pullback (optional)", required: false },
+      { name: "targetSovPct", description: "SOV you want to defend, % (optional)", required: false },
+      { name: "cpmSensitivity", description: "CPM inflation sensitivity (optional; default 0.3)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, стратег по конкурентной борьбе на рынке RU/CIS.\n` +
+      `Смоделируй ход конкурента и спланируй ответ.\n` +
+      `Твой спенд: ${a.yourSpend} ₽. Спенд конкурентов: ${a.competitorSpend} ₽. ` +
+      `Ход: ${a.action || "spend_escalation"}, изменение ${a.competitorIncreasePct}%.` +
+      (a.targetSovPct ? ` Защищаемый SOV: ${a.targetSovPct}%.` : "") +
+      `\n\nШаги:\n` +
+      `1) Вызови competitive_response(yourSpend, competitorSpend, competitorIncreasePct${a.action ? ", action" : ""}${a.targetSovPct ? ", targetSovPct" : ""}${a.cpmSensitivity ? ", cpmSensitivity" : ""}).\n` +
+      `2) Объясни эрозию SOV, инфляцию CPM и влияние на показы при фиксированном бюджете.\n` +
+      `3) Назови защитный бюджет под целевой SOV и рекомендованную позицию (hold / partial_match / defend_or_pivot).\n` +
+      `4) Дай 2–3 тактики: матчинг давления, эффективность (budget_optimizer, bid_simulator) или уход от лобовой войны (дифференциация, бренд).\n` +
+      `5) Дисклеймер: SOV≈доля спенда, динамика зависит от аукциона и креатива.`,
   },
 ];
 

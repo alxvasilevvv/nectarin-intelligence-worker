@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-50-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-51-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -216,6 +216,11 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 |---|---|
 | `geo_holdout` | **Geo-holdout incrementality test tool.** *Design*: from expected baseline conversions in the test geos + a target lift, returns the **minimum detectable lift (MDE)**, the baseline volume required, and a recommended test duration. *Measure*: from observed test-geo conversions vs. a counterfactual (scaled control), computes incremental conversions, lift %, a count-based (Poisson) **z-test**, p-value, significance and incremental CPA. Auto-detects mode. Deterministic. |
 
+### Competitive group (v2.30+ — war-gaming)
+| Tool | What it does |
+|---|---|
+| `competitive_response` | **Competitive war-game simulator.** Given your spend, current competitor spend and a move (spend escalation %, new entrant, or pullback), models the impact on your **Share of Voice**, **auction CPM inflation** and **effective impressions** at a fixed budget, then sizes the **defensive budget** needed to hold a target SOV and recommends a posture (hold / partial match / defend or pivot). Deterministic auction-share dynamics. |
+
 ### Brand group (v2.23+ — brand lift)
 | Tool | What it does |
 |---|---|
@@ -301,7 +306,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 50 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 6 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 1 Creative Ops + 1 Influence + 4 Media + 2 Brand + 1 Production + 1 Experimentation);
+`tools/list` returns all 51 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 6 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 1 Creative Ops + 1 Influence + 4 Media + 2 Brand + 1 Production + 1 Experimentation + 1 Competitive);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -344,7 +349,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (50 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (51 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit
@@ -496,6 +501,7 @@ interface, so going real is a one-line wiring change — no upstream edits.
   **`flighting_plan`** (media_flowchart) for a weekly media flowchart,
   **`geo_test`** (geo_holdout) to design/measure a geo incrementality test,
   **`sov_analysis`** (sov_tracker) for Share of Voice & ESOV growth,
-  **`media_quality_check`** (media_quality_score) for delivery quality scoring, and
+  **`media_quality_check`** (media_quality_score) for delivery quality scoring,
+  **`competitive_wargame`** (competitive_response) to war-game a competitor move, and
   **`exec_report`** (board_report) for a board-ready one-pager (audit + upside), and
   **`creative_fatigue_check`** (creative_fatigue) to spot burning-out creatives.
