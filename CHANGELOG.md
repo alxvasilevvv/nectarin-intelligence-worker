@@ -3,6 +3,28 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.41.0] — 2026-06-28
+
+Seventh wave (3/4) — a multi-variant test results analyzer (**62nd tool**).
+NECTARIN Intelligence now ships **62 tools / 39 guided prompts**.
+
+### Added
+- **`creative_testing_matrix`** (Premium Analytics group, now 11 tools) — the READ side
+  of `ab_test_planner`. From ≥2 arms with observed visitors+conversions it picks a
+  control (named, else highest-traffic), then per arm computes CR, absolute & relative
+  lift, a pooled **two-proportion z-test** (z, two-tailed p) and significance under a
+  **multiple-comparison-corrected α** (Bonferroni / Šidák / none across k−1
+  comparisons). For non-significant arms it estimates the **additional sample per arm**
+  needed to detect the observed effect at the target power, and declares
+  **WINNER / LOSER / KEEP TESTING / INSUFFICIENT DATA** per arm plus a roll-out
+  recommendation and guardrails (no-peeking, SRM). 61 → **62 tools**.
+- **`creative_test_readout`** guided prompt (**39 prompts** total).
+
+### Changed
+- `tools/list` now advertises **62 tools**; the Premium Analytics group grows to 11.
+  Catalog resource, `/version` `toolCount`, README/USAGE/OVERVIEW counts and the test
+  suite updated accordingly.
+
 ## [2.40.0] — 2026-06-28
 
 Seventh wave (2/4) — an OLV/display frequency-cap optimizer (**61st tool**).

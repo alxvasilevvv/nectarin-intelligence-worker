@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(61);
+    expect(json.toolCount).toBe(62);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(61);
+    expect(tools).toHaveLength(62);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -98,6 +98,7 @@ describe("tools/list", () => {
     expect(names).toContain("share_of_search");
     expect(names).toContain("churn_predictor");
     expect(names).toContain("frequency_cap_optimizer");
+    expect(names).toContain("creative_testing_matrix");
     expect(names).toContain("marketing_audit");
   });
 
@@ -193,8 +194,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(61);
-    expect(catalog.tools).toHaveLength(61);
+    expect(catalog.counts.tools).toBe(62);
+    expect(catalog.tools).toHaveLength(62);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -1753,6 +1754,57 @@ describe("premium tools (v2.1)", () => {
     expect(capAt3.overCapWastedPct).toBeGreaterThan(0);
   });
 
+  it("creative_testing_matrix flags a clear winner against control", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 110,
+      method: "tools/call",
+      params: {
+        name: "creative_testing_matrix",
+        arguments: {
+          arms: [
+            { name: "Контроль", visitors: 50000, conversions: 1500 },
+            { name: "Вариант A", visitors: 50000, conversions: 1900 },
+            { name: "Вариант B", visitors: 50000, conversions: 1520 },
+          ],
+          control: "Контроль",
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.control.name).toBe("Контроль");
+    expect(sc.comparisons).toBe(2);
+    const a = sc.arms.find((x) => x.name === "Вариант A");
+    // +400 conv on 50k each is a large, significant lift.
+    expect(a.significant).toBe(true);
+    expect(a.decision).toBe("WINNER");
+    const b = sc.arms.find((x) => x.name === "Вариант B");
+    expect(b.significant).toBe(false);
+  });
+
+  it("creative_testing_matrix keeps testing when the effect is not yet significant", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 111,
+      method: "tools/call",
+      params: {
+        name: "creative_testing_matrix",
+        arguments: {
+          arms: [
+            { name: "Control", visitors: 800, conversions: 40 },
+            { name: "B", visitors: 800, conversions: 46 },
+          ],
+        },
+      },
+    });
+    const sc = json.result.structuredContent;
+    const b = sc.arms[0];
+    expect(b.significant).toBe(false);
+    expect(["KEEP_TESTING", "INSUFFICIENT_DATA"]).toContain(b.decision);
+    if (b.decision === "KEEP_TESTING") expect(b.additionalSamplePerArm).toBeGreaterThan(0);
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -1834,7 +1886,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(61);
+    expect(parsed.result.tools.length).toBe(62);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -1917,7 +1969,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(61);
+    expect(json.result.tools).toHaveLength(62);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -1945,7 +1997,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(61);
+    expect(json.result.tools).toHaveLength(62);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -1955,10 +2007,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 38 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 39 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(38);
+    expect(json.result.prompts).toHaveLength(39);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -1993,6 +2045,7 @@ describe("prompts", () => {
     expect(names).toContain("share_of_search_check");
     expect(names).toContain("churn_analysis");
     expect(names).toContain("frequency_cap_plan");
+    expect(names).toContain("creative_test_readout");
   });
 
   it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
@@ -2421,6 +2474,21 @@ describe("prompts", () => {
     expect(text).toContain("frequency_cap_optimizer");
     expect(text).toContain("1000000");
     expect(text).toContain("8000000");
+  });
+
+  it("prompts/get creative_test_readout embeds the arms and calls creative_testing_matrix", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 106,
+      method: "prompts/get",
+      params: {
+        name: "creative_test_readout",
+        arguments: { arms: "Контроль:10000:320; Вариант A:10100:372", control: "Контроль" },
+      },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("creative_testing_matrix");
+    expect(text).toContain("Контроль:10000:320");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {

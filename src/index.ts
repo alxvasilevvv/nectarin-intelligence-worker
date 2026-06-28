@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.40.0";
+const SERVER_VERSION = "2.41.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1260,6 +1260,29 @@ const PROMPTS = [
       `3) Сравни по капам net (1+) и эффективный (≥N) охват и прирост к плану без капа.\n` +
       `4) Назови рекомендуемый кап и сколько показов переаллоцируется.\n` +
       `5) Свяжи с reach_frequency (полная кривая частоты) и дай вывод; дисклеймер про настройки частоты в DSP и пост-кампейн данные.`,
+  },
+  {
+    name: "creative_test_readout",
+    title: "Multi-variant creative test read-out",
+    description:
+      "Analyse observed multi-variant creative/landing test results (creative_testing_matrix): per-arm lift, significance with multiple-comparison correction, winner/keep-testing decisions.",
+    arguments: [
+      { name: "arms", description: "Arms as 'name:visitors:conversions' separated by ';', e.g. 'Контроль:10000:320; Вариант A:10100:372; Вариант B:9900:300'", required: true },
+      { name: "control", description: "Name of the control arm (optional; default highest-traffic)", required: false },
+      { name: "alphaPct", description: "Significance level % (optional; default 5)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, аналитик экспериментов (мульти-вариантные тесты креативов/лендингов) RU/CIS.\n` +
+      `Разбери результаты теста и вынеси решение.\n` +
+      `Армы (name:visitors:conversions): ${a.arms}\n` +
+      (a.control ? `Контроль: ${a.control}.\n` : "") +
+      (a.alphaPct ? `Уровень значимости α: ${a.alphaPct}%.\n` : "") +
+      `\nШаги:\n` +
+      `1) Распарси армы в массив {name, visitors, conversions}.\n` +
+      `2) Вызови creative_testing_matrix(arms${a.control ? ", control" : ""}${a.alphaPct ? ", alphaPct" : ""}).\n` +
+      `3) Покажи по каждому арму CR, прирост к контролю, z/p и значимость (с поправкой на множественность).\n` +
+      `4) Назови решение по каждому (WINNER/LOSER/KEEP_TESTING/INSUFFICIENT_DATA) и сколько ещё выборки нужно.\n` +
+      `5) Дай рекомендацию по раскату и гардрейлы (no peeking, SRM); дисклеймер про частотную статистику.`,
   },
 ];
 

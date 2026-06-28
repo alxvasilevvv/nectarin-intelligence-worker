@@ -357,6 +357,14 @@ function invNorm(p: number): number {
   return -(((((c[0] * q + c[1]) * q + c[2]) * q + c[3]) * q + c[4]) * q + c[5]) / ((((d[0] * q + d[1]) * q + d[2]) * q + d[3]) * q + 1);
 }
 
+/** Standard normal CDF via the Abramowitz–Stegun erf approximation. */
+function normalCdf(z: number): number {
+  const t = 1 / (1 + 0.2316419 * Math.abs(z));
+  const dd = 0.3989422804014327 * Math.exp(-(z * z) / 2);
+  const p = dd * t * (0.31938153 + t * (-0.356563782 + t * (1.781477937 + t * (-1.821255978 + t * 1.330274429))));
+  return z >= 0 ? 1 - p : p;
+}
+
 const abTestPlanner: ToolDef = {
   name: "ab_test_planner",
   description:
@@ -1318,6 +1326,151 @@ const localize: ToolDef = {
 
 // ── Export the group ──────────────────────────────────────────────────────────
 
+// ═════════════════════════════════════════════════════════════════════════════
+// Tool 11: creative_testing_matrix — multi-variant test RESULTS analyzer
+// ═════════════════════════════════════════════════════════════════════════════
+
+const creativeTestingMatrix: ToolDef = {
+  name: "creative_testing_matrix",
+  description:
+    "Multi-variant creative/landing test RESULTS analyzer (the read side of ab_test_planner). From ≥2 arms with OBSERVED visitors + conversions, picks a control (named, else the highest-traffic arm), then for every other arm computes the conversion rate, the absolute & relative lift vs. control, a pooled two-proportion z-test (z, two-tailed p) and significance under a multiple-comparison-corrected α (Bonferroni or Šidák across k−1 comparisons). For non-significant arms it estimates the ADDITIONAL sample per arm needed to detect the observed effect at the target power. Declares WINNER / LOSER / KEEP TESTING / INSUFFICIENT DATA per arm, names the best arm and a roll-out recommendation. Deterministic frequentist statistics on YOUR data — decision support, not a guarantee.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      arms: {
+        type: "array",
+        minItems: 2,
+        description: "Test arms (creatives / landing variants) with observed data",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string", description: "Arm name" },
+            visitors: { type: "number", exclusiveMinimum: 0, description: "Visitors / impressions in this arm" },
+            conversions: { type: "number", minimum: 0, description: "Conversions in this arm" },
+          },
+          required: ["name", "visitors", "conversions"],
+          additionalProperties: false,
+        },
+      },
+      control: { type: "string", description: "Name of the control arm (default: highest-traffic arm)" },
+      alphaPct: { type: "number", exclusiveMinimum: 0, exclusiveMaximum: 100, description: "Significance level %, two-sided (default 5)" },
+      powerPct: { type: "number", exclusiveMinimum: 0, exclusiveMaximum: 100, description: "Power % for the 'additional sample needed' estimate (default 80)" },
+      correction: { type: "string", enum: ["bonferroni", "sidak", "none"], description: "Multiple-comparison correction (default bonferroni)" },
+    },
+    required: ["arms"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const arms = (input.arms ?? []) as Array<{ name: string; visitors: number; conversions: number }>;
+    if (!Array.isArray(arms) || arms.length < 2) {
+      return { content: [{ type: "text", text: "Ошибка: передай ≥2 арма с visitors и conversions." }], isError: true };
+    }
+    const clean = arms.map((a) => {
+      const n = Math.max(1, Number(a.visitors));
+      const x = clamp(Number(a.conversions), 0, n);
+      return { name: String(a.name), visitors: n, conversions: x, rate: x / n };
+    });
+
+    const alpha = Number(input.alphaPct ?? 5) / 100;
+    const power = Number(input.powerPct ?? 80) / 100;
+    const correction = (input.correction as string) ?? "bonferroni";
+    const comparisons = clean.length - 1;
+    const alphaAdj =
+      correction === "none" ? alpha
+      : correction === "sidak" ? 1 - Math.pow(1 - alpha, 1 / comparisons)
+      : alpha / comparisons; // bonferroni
+    const zAlpha = invNorm(1 - alphaAdj / 2);
+    const zBeta = invNorm(power);
+
+    // Resolve control: named, else highest-traffic arm.
+    let control = input.control ? clean.find((a) => a.name === String(input.control)) : undefined;
+    if (!control) control = [...clean].sort((a, b) => b.visitors - a.visitors)[0];
+    const c = control!;
+
+    const results = clean
+      .filter((a) => a.name !== c.name)
+      .map((a) => {
+        const p1 = c.rate;
+        const p2 = a.rate;
+        const absLift = p2 - p1;
+        const relLift = p1 > 0 ? absLift / p1 : null;
+        const pPool = (c.conversions + a.conversions) / (c.visitors + a.visitors);
+        const sePool = Math.sqrt(pPool * (1 - pPool) * (1 / c.visitors + 1 / a.visitors));
+        const z = sePool > 0 ? absLift / sePool : 0;
+        const pValue = 2 * (1 - normalCdf(Math.abs(z)));
+        const significant = pValue < alphaAdj;
+
+        // Additional sample/arm to detect the OBSERVED effect at target power (if any effect).
+        let requiredPerArm: number | null = null;
+        let additionalPerArm: number | null = null;
+        if (Math.abs(absLift) > 1e-9) {
+          requiredPerArm = Math.ceil(((zAlpha + zBeta) ** 2 * (p1 * (1 - p1) + p2 * (1 - p2))) / (absLift * absLift));
+          additionalPerArm = Math.max(0, requiredPerArm - Math.min(a.visitors, c.visitors));
+        }
+
+        const decision = significant
+          ? absLift > 0 ? "WINNER" : "LOSER"
+          : additionalPerArm != null && additionalPerArm > 0 ? "KEEP_TESTING" : "INSUFFICIENT_DATA";
+
+        return {
+          name: a.name,
+          visitors: a.visitors,
+          conversions: a.conversions,
+          ratePct: round(p2 * 100, 2),
+          absoluteLiftPp: round(absLift * 100, 2),
+          relativeLiftPct: relLift != null ? round(relLift * 100, 1) : null,
+          zScore: round(z, 3),
+          pValue: round(pValue, 4),
+          significant,
+          requiredSamplePerArm: requiredPerArm,
+          additionalSamplePerArm: additionalPerArm,
+          decision,
+        };
+      });
+
+    const winners = results.filter((r) => r.decision === "WINNER");
+    const bestArm = [...clean].sort((a, b) => b.rate - a.rate)[0];
+    const bestSignificant = winners.some((w) => w.name === bestArm.name) || bestArm.name === c.name;
+
+    const recommendation =
+      winners.length > 0
+        ? `Раскатывай «${winners.sort((a, b) => (b.relativeLiftPct ?? 0) - (a.relativeLiftPct ?? 0))[0].name}»: значимо лучше контроля (${winners[0].relativeLiftPct! > 0 ? "+" : ""}${winners.sort((a, b) => (b.relativeLiftPct ?? 0) - (a.relativeLiftPct ?? 0))[0].relativeLiftPct}% отн.).`
+        : results.some((r) => r.decision === "KEEP_TESTING")
+          ? `Победителя пока нет — продолжай тест: нужным армам не хватает выборки (см. additionalSamplePerArm).`
+          : `Значимых отличий нет и эффект мал — варианты эквивалентны; выбирай по стоимости/бренду или тестируй более смелые гипотезы.`;
+
+    const payload = {
+      control: { name: c.name, visitors: c.visitors, conversions: c.conversions, ratePct: round(c.rate * 100, 2) },
+      arms: results,
+      comparisons,
+      correction,
+      alphaPct: round(alpha * 100, 2),
+      alphaAdjustedPerComparison: round(alphaAdj, 4),
+      powerPct: round(power * 100, 0),
+      bestArm: { name: bestArm.name, ratePct: round(bestArm.rate * 100, 2), statisticallyConfirmed: bestSignificant },
+      recommendation,
+      guardrails: [
+        comparisons > 1 ? `Поправка на множественные сравнения (${correction}): α на сравнение = ${round(alphaAdj, 4)}.` : "Одно сравнение — поправка не требуется.",
+        "Не объявляй победителя раньше расчётной выборки (no peeking) — это раздувает ложноположительные.",
+        "Проверь SRM: фактический сплит трафика должен совпадать с ожидаемым.",
+        "«Лучший по CR» без значимости — ещё не победитель; смотри additionalSamplePerArm.",
+      ],
+      method:
+        "Pooled two-proportion z-test на каждый арм vs контроль: z=(p₂−p₁)/√(p̄(1−p̄)(1/n₁+1/n₂)); two-tailed p=2(1−Φ(|z|)). " +
+        "Значимость при α, скорректированной на k−1 сравнений (Bonferroni/Šidák). " +
+        "Доп. выборка/арм = (z_{1−α'/2}+z_{power})²·(p₁(1−p₁)+p₂(1−p₂))/(p₂−p₁)² − текущая.",
+      disclaimer: "Частотная статистика на ВАШИХ данных. Для последовательного подсматривания используйте sequential/Bayesian методы.",
+    };
+
+    const summary =
+      `Тест-матрица: контроль «${c.name}» ${round(c.rate * 100, 2)}%, ${results.length} вариант(а). ` +
+      (winners.length ? `Победитель: «${winners[0].name}» (p=${winners[0].pValue}). ` : `Значимого победителя нет. `) +
+      recommendation;
+
+    return toContent(summary, payload);
+  },
+};
+
 export const ANALYTICS_TOOLS: ToolDef[] = [
   complianceCheck,
   abTestPlanner,
@@ -1329,4 +1482,5 @@ export const ANALYTICS_TOOLS: ToolDef[] = [
   bidSimulator,
   reportExport,
   localize,
+  creativeTestingMatrix,
 ];

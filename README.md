@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-61-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-62-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -44,7 +44,7 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
   **Intelligence** tools (incl. the flagship `strategy_orchestrate` and the
   `budget_optimizer`), the 6 **Growth & Automation** tools, and the 3 **Premium
   Analytics** tools (see the tables below), each with a JSON-Schema `inputSchema`
-  + async handler. The Premium Analytics group now has **10** tools.
+  + async handler. The Premium Analytics group now has **11** tools.
 - **`src/growth.ts`** — the 6 **Growth & Automation** tools (the funnel layer):
   `roi_calculator`, `lead_qualify`, `request_nectarin_proposal`,
   `book_consultation`, `automation_recipe`, `value_forecast`. Deterministic,
@@ -150,6 +150,7 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 | `bid_simulator` | Auction bid/win-rate trade-off curve from benchmark CPC/conv-rate; recommends a bid for a target CPA or max conversions under a daily budget. |
 | `report_export` | Turns a strategy/analysis into a deck — slides (title+bullets+notes), full Markdown deck and a one-pager. Composable after `strategy_orchestrate`. |
 | `localize` | Translate + culturally adapt copy into RU/EN/KZ/UZ for CIS markets (LLM-backed, graceful fallback). |
+| `creative_testing_matrix` | **Multi-variant test RESULTS analyzer** (the read side of `ab_test_planner`). From ≥2 arms with observed visitors+conversions, picks a control, then per arm computes CR, absolute & relative lift, a pooled **two-proportion z-test** (z, p) and significance under a **multiple-comparison-corrected α** (Bonferroni/Šidák). For non-significant arms it estimates the **additional sample** needed at target power, declares **WINNER / LOSER / KEEP TESTING / INSUFFICIENT DATA** per arm, and gives a roll-out recommendation. |
 
 ### Premium group (v2.1+ — generate, monitor, project, operate)
 | Tool | What it does |
@@ -329,7 +330,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 61 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 1 Retention/CRM);
+`tools/list` returns all 62 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 1 Retention/CRM);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -372,7 +373,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (61 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (62 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit
