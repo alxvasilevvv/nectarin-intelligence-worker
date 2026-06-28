@@ -109,7 +109,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.50.0";
+const SERVER_VERSION = "2.51.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1576,6 +1576,57 @@ const PROMPTS = [
       `3) Объясни тарифы (free/pro/team/agency) и что разблокирует нужный уровень.\n` +
       `4) Если задана роль — предложи сразу начать с role_playbook для персонального набора.\n` +
       `5) Подчеркни: доступ, обновления и учёт потребления идут через Unyly (Unyly Connect = OAuth 2.1).`,
+  },
+  {
+    name: "skill",
+    title: "Run a marketing skill (playbook)",
+    description:
+      "Pick a composable end-to-end playbook (marketing_skill): from a goal or skill name, get the ordered workflow of tools to run, the inputs needed and the KPIs to watch.",
+    arguments: [
+      { name: "goal", description: "What you want to achieve, e.g. 'снизить CAC', 'поднять retention'", required: false },
+      { name: "skill", description: "Or a skill key directly, e.g. 'cut_cac', 'product_launch'", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence. Подбери и проведи готовый скил (сценарий).\n` +
+      (a.goal ? `Цель пользователя: «${a.goal}».\n` : "") +
+      (a.skill ? `Запрошенный скил: ${a.skill}.\n` : "") +
+      `\nШаги:\n` +
+      `1) Вызови marketing_skill(${a.skill ? `skill="${a.skill}"` : a.goal ? `goal="${a.goal}"` : ""}). Без аргументов — покажи каталог скилов.\n` +
+      `2) Изложи рабочий процесс по шагам: какой инструмент и зачем, что подать на вход.\n` +
+      `3) Запусти инструменты по порядку, передавая выход одного шага в следующий.\n` +
+      `4) Заверши KPI, за которыми следить, и предложи подключение для команды через Unyly.`,
+  },
+  {
+    name: "retention_forecast",
+    title: "Forecast retention & LTV from cohorts",
+    description:
+      "Fit a retention curve to cohort points and project D30/D90/D365 + LTV (cohort_retention_curve).",
+    arguments: [
+      { name: "points", description: "Retention points 'day:retention%', e.g. '1:40, 7:22, 30:12'", required: true },
+      { name: "arpuDaily", description: "Optional revenue per active user per day (RUB)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, аналитик удержания.\n` +
+      `Точки удержания: ${a.points}.\n` +
+      (a.arpuDaily ? `ARPU/день: ${a.arpuDaily} ₽.\n` : "") +
+      `\nРазбери строку точек в массив {day, retentionPct} и вызови cohort_retention_curve(points=[...]${a.arpuDaily ? `, arpuDaily=${a.arpuDaily}` : ""}).\n` +
+      `Покажи модель r(t)=a·t^(-b), R², прогноз D30/D90/D365${a.arpuDaily ? " и LTV" : ""}, и вердикт по качеству прогноза.`,
+  },
+  {
+    name: "viral_growth",
+    title: "Model a referral / viral loop",
+    description:
+      "Compute k-factor, amplification and referral economics (viral_loop).",
+    arguments: [
+      { name: "invitesPerUser", description: "Average invites per user (i)", required: true },
+      { name: "conversionPct", description: "Invite→signup conversion (c), %", required: true },
+      { name: "seedUsers", description: "Optional paid/seed users to amplify", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, growth-маркетолог.\n` +
+      `Вызови viral_loop(invitesPerUser=${a.invitesPerUser}, conversionPct=${a.conversionPct}${a.seedUsers ? `, seedUsers=${a.seedUsers}` : ""}).\n` +
+      `Объясни k-фактор (k=i·c), классификацию петли и множитель амплификации 1/(1−k)` +
+      (a.seedUsers ? ", и спрогнозируй итоговое число пользователей из seed." : "."),
   },
 ];
 

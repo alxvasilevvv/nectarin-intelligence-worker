@@ -3,6 +3,35 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.51.0] — 2026-06-29
+
+Fourteenth wave — **skills & growth science** (Phase B of `ROADMAP.md`): add an
+extensible playbook layer and two differentiated growth models. **77 tools / 54 prompts**.
+
+### Added — Skills layer
+- **`marketing_skill`** (new **Skills** group) — composable, end-to-end playbooks that
+  chain several tools into one repeatable job. No args ⇒ lists the catalogue (10 skills:
+  product launch, cut CAC, retention boost, creative refresh, budget reallocation,
+  SEO/content growth, social/influencer growth, board readout, marketplace scaling,
+  measurement setup). Given a `skill` key/alias or a free-text `goal` (RU/EN) ⇒ returns the
+  ordered workflow (tool + why), inputs needed and KPIs. Returns the plan only (does not run
+  the tools) — deterministic and extensible: add an entry to gain a new playbook.
+
+### Added — Growth Lab
+- **`cohort_retention_curve`** — fits a power-law retention curve r(t)=a·t^(−b) to your
+  cohort points (log-log least squares), projects D1/D7/D30/D90/D365, reports R² and (given
+  ARPU) an LTV estimate over a horizon.
+- **`viral_loop`** — referral/virality model: k-factor (i·c), amplification 1/(1−k),
+  seed→total projection and referral-incentive economics (profit per referred, break-even
+  ceiling).
+
+### Added — Prompts
+- `skill`, `retention_forecast`, `viral_growth` guided prompts (**54 prompts** total).
+
+### Changed
+- `tools/list`/catalog/`/version` now advertise **77 tools**. README/USAGE/OVERVIEW/tests
+  updated. Tests: +9 (skills + growth lab + prompt). 203 passing.
+
 ## [2.50.0] — 2026-06-29
 
 Thirteenth wave — **consumption transparency** (Phase A of the global roadmap, see

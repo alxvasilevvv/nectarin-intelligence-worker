@@ -24,7 +24,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(74);
+    expect(json.toolCount).toBe(77);
     expect(json.commit).toBeDefined();
   });
 });
@@ -35,7 +35,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(74);
+    expect(tools).toHaveLength(77);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -56,6 +56,9 @@ describe("tools/list", () => {
     expect(names).toContain("lead_qualify");
     expect(names).toContain("budget_optimizer");
     expect(names).toContain("strategy_orchestrate");
+    expect(names).toContain("marketing_skill");
+    expect(names).toContain("cohort_retention_curve");
+    expect(names).toContain("viral_loop");
     expect(names).toContain("compliance_check");
     expect(names).toContain("ab_test_planner");
     expect(names).toContain("unit_economics");
@@ -207,8 +210,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(74);
-    expect(catalog.tools).toHaveLength(74);
+    expect(catalog.counts.tools).toBe(77);
+    expect(catalog.tools).toHaveLength(77);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -2324,7 +2327,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(74);
+    expect(parsed.result.tools.length).toBe(77);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -2407,7 +2410,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(74);
+    expect(json.result.tools).toHaveLength(77);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -2435,7 +2438,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(74);
+    expect(json.result.tools).toHaveLength(77);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -2445,13 +2448,16 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 51 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 54 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(51);
+    expect(json.result.prompts).toHaveLength(54);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
+    expect(names).toContain("skill");
+    expect(names).toContain("retention_forecast");
+    expect(names).toContain("viral_growth");
     expect(names).toContain("launch_flight");
     expect(names).toContain("performance_review");
     expect(names).toContain("saturation_reallocation");
@@ -3103,6 +3109,18 @@ describe("prompts", () => {
     expect(text).toContain("anomaly_detector");
     expect(text).toContain("100,102,98,480");
   });
+
+  it("prompts/get skill embeds the goal and calls marketing_skill", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 67,
+      method: "prompts/get",
+      params: { name: "skill", arguments: { goal: "поднять retention" } },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("marketing_skill");
+    expect(text).toContain("поднять retention");
+  });
 });
 
 describe("Plan gating (monetization seam)", () => {
@@ -3275,5 +3293,89 @@ describe("Monthly quota + /usage dashboard", () => {
     const html = await res.text();
     expect(html).toContain("NECTARIN Intelligence");
     expect(html).toContain("Потребление");
+  });
+});
+
+describe("Skills layer (marketing_skill)", () => {
+  it("lists the skills catalogue with no arguments", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 800,
+      method: "tools/call",
+      params: { name: "marketing_skill", arguments: {} },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.count).toBeGreaterThanOrEqual(10);
+    expect(Array.isArray(sc.catalog)).toBe(true);
+    expect(sc.catalog.map((s: any) => s.skill)).toContain("cut_cac");
+  });
+
+  it("returns an ordered workflow for a skill key", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 801,
+      method: "tools/call",
+      params: { name: "marketing_skill", arguments: { skill: "retention_boost" } },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.matched).toBe(true);
+    expect(sc.skill).toBe("retention_boost");
+    expect(sc.workflow[0].tool).toBe("churn_predictor");
+    expect(sc.workflow.length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("matches a free-text RU goal to a skill", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 802,
+      method: "tools/call",
+      params: { name: "marketing_skill", arguments: { goal: "хочу снизить стоимость клиента" } },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.matched).toBe(true);
+    expect(sc.skill).toBe("cut_cac");
+  });
+});
+
+describe("Growth Lab tools", () => {
+  it("cohort_retention_curve fits a power-law and projects D30/D90/D365 + LTV", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 810,
+      method: "tools/call",
+      params: {
+        name: "cohort_retention_curve",
+        arguments: { points: [{ day: 1, retentionPct: 40 }, { day: 7, retentionPct: 22 }, { day: 30, retentionPct: 12 }], arpuDaily: 50 },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.model.b).toBeGreaterThan(0);
+    expect(sc.projected.find((p: any) => p.day === 30)).toBeDefined();
+    expect(sc.ltv.ltvRub).toBeGreaterThan(0);
+    expect(sc.model.r2).toBeGreaterThanOrEqual(0);
+  });
+
+  it("viral_loop computes k-factor and amplification", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 811,
+      method: "tools/call",
+      params: { name: "viral_loop", arguments: { invitesPerUser: 3, conversionPct: 20, seedUsers: 1000, ltvPerUser: 2000, incentivePerReferral: 500 } },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.kFactor).toBeCloseTo(0.6, 5);
+    expect(sc.amplificationMultiplier).toBeCloseTo(2.5, 3);
+    expect(sc.projection.totalUsers).toBe(2500);
+    expect(sc.incentive.profitable).toBe(true);
+  });
+
+  it("cohort_retention_curve rejects fewer than 2 valid points", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 812,
+      method: "tools/call",
+      params: { name: "cohort_retention_curve", arguments: { points: [{ day: 1, retentionPct: 40 }] } },
+    });
+    expect(json.result.isError).toBe(true);
   });
 });

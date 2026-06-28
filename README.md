@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-74-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-77-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -16,6 +16,12 @@ for the RU/CIS market. It runs entirely on a single Cloudflare Worker, serves MC
 over **Streamable HTTP (JSON-RPC 2.0)** with an **opt-in SSE** transport, ships
 with **mock/synthetic RU data** plus **KV real-data layering**, and a
 **KV-cached, model-agnostic LLM narrative** (DeepSeek wired in this deploy).
+
+> **New in 2.51 — skills & growth science:** an extensible **playbook layer**
+> (`marketing_skill`) chains tools into 10 repeatable end-to-end workflows (cut CAC,
+> retention boost, launch, measurement setup…), plus two growth models —
+> `cohort_retention_curve` (power-law fit + LTV) and `viral_loop` (k-factor + referral
+> economics). **77 tools / 54 prompts.**
 
 > **New in 2.50 — consumption transparency:** `tools/call` now returns **quota headers**
 > (`X-Plan`, `X-Quota-Limit/Used/Remaining/Period`) so clients see their allowance inline, plus
@@ -137,7 +143,7 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
 
 ---
 
-## Tools (74 total)
+## Tools (77 total)
 
 ### Intelligence group (inform + orchestrate)
 | Tool | What it does |
@@ -295,6 +301,17 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 |---|---|
 | `connect_via_unyly` | **Front door for install / access / upgrade — always through Unyly.** Returns the **tracked Unyly install link** (UTM-attributed by `source`/`role`/`plan`, with a `via=<partner>` tag), the manual MCP endpoint as a fallback, role-aware onboarding (pairs with `role_playbook`) and the access **tiers** (free / pro / team / agency). Unyly is the metering & governance point (Unyly Connect fronts OAuth 2.1). Links & guidance only — no PII, no network call. |
 
+### Skills group (v2.51+ — composable playbooks)
+| Tool | What it does |
+|---|---|
+| `marketing_skill` | **Extensible playbook engine.** No args ⇒ lists 10 end-to-end skills (cut CAC, retention boost, product launch, creative refresh, budget reallocation, SEO/content, social/influencer, board readout, marketplace scaling, measurement setup). Given a `skill` key/alias or free-text `goal` (RU/EN) ⇒ returns the ordered workflow (tool + why), inputs needed and KPIs. Returns the plan only. |
+
+### Growth Lab group (v2.51+ — growth science)
+| Tool | What it does |
+|---|---|
+| `cohort_retention_curve` | Fits a power-law retention curve r(t)=a·t^(−b) to your cohort points (log-log least squares), projects D1/D7/D30/D90/D365 + R², and (given ARPU) an LTV estimate over a horizon. |
+| `viral_loop` | Referral/virality model: k-factor (i·c), amplification 1/(1−k), seed→total projection and referral-incentive economics (profit per referred, break-even ceiling). |
+
 ### Roles / Adoption group (v2.46+ — one connector for every marketer)
 | Tool | What it does |
 |---|---|
@@ -416,7 +433,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 73 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 2 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 2 Retention/CRM + 1 Email/Lifecycle + 1 Partnerships + 1 Roles/Adoption + 1 SEO + 1 Social/SMM + 1 PR + 1 Events + 1 Mobile/ASO + 1 Content + 1 Distribution);
+`tools/list` returns all 77 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 2 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 2 Retention/CRM + 1 Email/Lifecycle + 1 Partnerships + 1 Roles/Adoption + 1 SEO + 1 Social/SMM + 1 PR + 1 Events + 1 Mobile/ASO + 1 Content + 1 Distribution + 1 Skills + 2 Growth Lab);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -459,7 +476,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (74 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (77 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit
