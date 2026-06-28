@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(35);
+    expect(json.toolCount).toBe(36);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(35);
+    expect(tools).toHaveLength(36);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -73,6 +73,7 @@ describe("tools/list", () => {
     expect(names).toContain("response_curve");
     expect(names).toContain("mmm_optimize");
     expect(names).toContain("gtm_calendar");
+    expect(names).toContain("marketing_audit");
   });
 
   it("annotations: pure tools are read-only/idempotent; LLM & funnel tools are flagged", async () => {
@@ -167,8 +168,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(35);
-    expect(catalog.tools).toHaveLength(35);
+    expect(catalog.counts.tools).toBe(36);
+    expect(catalog.tools).toHaveLength(36);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -829,6 +830,40 @@ describe("premium tools (v2.1)", () => {
     expect(sc.seasonalWindows.some((w: any) => w.signal === "peak")).toBe(true);
   });
 
+  it("marketing_audit scores channels vs benchmarks and recommends reallocation", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 73,
+      method: "tools/call",
+      params: {
+        name: "marketing_audit",
+        arguments: {
+          category: "ecom",
+          channels: [
+            { name: "Yandex Direct", spend: 900000, conversions: 900 },
+            { name: "VK Ads", spend: 600000, conversions: 60 },
+            { name: "Telegram Ads", spend: 200000, conversions: 0 },
+          ],
+          targetCpa: 1500,
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(typeof sc.healthScore).toBe("number");
+    expect(["A", "B", "C", "D"]).toContain(sc.grade);
+    expect(sc.channels).toHaveLength(3);
+    // Blended CPA = 1,700,000 / 960 ≈ 1771.
+    expect(sc.blendedCpa).toBeGreaterThan(0);
+    // The untracked Telegram channel (0 conversions) is flagged.
+    const tg = sc.channels.find((c: any) => c.name === "Telegram Ads");
+    expect(tg.verdict).toBe("untracked");
+    expect(tg.cpa).toBeNull();
+    // At least one prioritized recommendation is returned.
+    expect(sc.recommendations.length).toBeGreaterThan(0);
+    expect(sc.recommendations[0].priority).toBe(1);
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -910,7 +945,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(35);
+    expect(parsed.result.tools.length).toBe(36);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -993,7 +1028,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(35);
+    expect(json.result.tools).toHaveLength(36);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -1021,7 +1056,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(35);
+    expect(json.result.tools).toHaveLength(36);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -1031,10 +1066,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 12 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 13 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(12);
+    expect(json.result.prompts).toHaveLength(13);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -1043,6 +1078,7 @@ describe("prompts", () => {
     expect(names).toContain("saturation_reallocation");
     expect(names).toContain("mmm_planning");
     expect(names).toContain("quarter_plan");
+    expect(names).toContain("account_audit");
   });
 
   it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
@@ -1056,6 +1092,19 @@ describe("prompts", () => {
     expect(text).toContain("gtm_calendar");
     expect(text).toContain("ecom");
     expect(text).toContain("12000000");
+  });
+
+  it("prompts/get account_audit embeds the channels and calls marketing_audit", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 69,
+      method: "prompts/get",
+      params: { name: "account_audit", arguments: { category: "ecom", channels: "Yandex Direct:900000:520, VK Ads:600000:180", targetCpa: "1500" } },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("marketing_audit");
+    expect(text).toContain("Yandex Direct:900000:520");
+    expect(text).toContain("1500");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {

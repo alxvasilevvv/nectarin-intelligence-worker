@@ -3,6 +3,25 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.15.0] — 2026-06-28
+
+The premium "AI CMO" diagnostic: a full account health audit (36th tool).
+
+### Added
+- **`marketing_audit`** (new **Audit** group) — a senior-operator account health
+  audit. Takes current per-channel spend & conversions, scores each channel's CPA
+  against RU/CIS benchmarks (p25/p50/p75), flags **concentration risk** and
+  **untracked** spend, computes an overall **health score (0-100) + grade A–D**, and
+  returns a **prioritized action plan** with a concrete budget reallocation and
+  projected extra conversions / saved spend. Optional `targetCpa` vs blended CPA.
+  Deterministic; data-aware (respects KV / per-tenant overrides). 35 → **36 tools**.
+- **`account_audit`** guided prompt (**13 prompts** total) — one-click account audit
+  via `marketing_audit` with an explanation of the score, risks and action plan.
+
+### Changed
+- `version` `2.14.0` → `2.15.0`. Suite **93 tests** (tool/prompt counts,
+  marketing_audit scoring/verdict/recommendation assertions, account_audit prompt).
+
 ## [2.14.0] — 2026-06-28
 
 The senior-strategist planning layer: a phased go-to-market roadmap (35th tool).

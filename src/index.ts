@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.14.0";
+const SERVER_VERSION = "2.15.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -555,6 +555,33 @@ const PROMPTS = [
       `3) Покажи недельный пейсинг и объясни, почему спенд смещён в пиковые по сезонности недели (укажи пиковые/слабые месяцы из seasonalWindows).\n` +
       `4) Дай вехи (milestones) и понятный next-step под фазу теста.\n` +
       `5) Предупреди: план иллюстративный на mock-сезонности — каналы и пороги уточняются по факту фазы теста.`,
+  },
+  {
+    name: "account_audit",
+    title: "Marketing account audit (health score + action plan)",
+    description:
+      "Audit the current marketing account (marketing_audit): score each channel's CPA vs RU/CIS benchmarks, flag concentration & untracked spend, and return a prioritized action plan with a projected reallocation impact.",
+    arguments: [
+      { name: "category", description: "Industry category (realty, finance, ecom, retail, fmcg, auto, pharma, edtech)", required: true },
+      {
+        name: "channels",
+        description:
+          "Current spend & conversions per channel, e.g. 'Yandex Direct:900000:520, VK Ads:600000:180, Telegram Ads:300000:40' (name:spend:conversions)",
+        required: true,
+      },
+      { name: "targetCpa", description: "Optional business target CPA in RUB to compare blended CPA against", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, старший performance-директор RU/CIS.\n` +
+      `Проведи аудит маркетингового аккаунта и дай план действий.\n` +
+      `Категория: ${a.category}. Каналы (name:spend:conversions): ${a.channels}\n` +
+      (a.targetCpa ? `Целевой CPA: ${a.targetCpa} ₽.\n` : ``) +
+      `\nШаги:\n` +
+      `1) Распарси каналы в массив {name, spend, conversions}.\n` +
+      `2) Вызови marketing_audit(category, channels${a.targetCpa ? ", targetCpa" : ""}).\n` +
+      `3) Объясни health-скор и грейд: какие каналы лучше/хуже бенчмарка (p25/p50/p75), где риск концентрации и непрослеженный бюджет.\n` +
+      `4) Разверни приоритетные рекомендации с цифрами: сколько и откуда перелить, ожидаемый прирост конверсий и экономия.\n` +
+      `5) Дай чёткий next-step на ближайшую неделю. Предупреди, что бенчмарки иллюстративные, если не загружены реальные данные.`,
   },
 ];
 

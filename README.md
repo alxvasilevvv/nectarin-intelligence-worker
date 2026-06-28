@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-35-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-36-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -103,7 +103,7 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
 
 ---
 
-## Tools (35 total)
+## Tools (36 total)
 
 ### Intelligence group (inform + orchestrate)
 | Tool | What it does |
@@ -170,6 +170,11 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 | Tool | What it does |
 |---|---|
 | `gtm_calendar` | **Phased go-to-market roadmap.** Splits the horizon into **Test → Scale → Optimize** phases with goal-driven budget weights and channel emphasis, then builds a **week-by-week budget pacing curve** that leans spend into high-demand weeks using the category's monthly **seasonality index**. Returns per-phase objectives, KPIs and exit criteria, peak/soft **seasonal windows** inside the horizon, and milestones. Answers *when & in what sequence* (pairs with `media_plan`/`budget_optimizer` for *where*). Deterministic. |
+
+### Audit group (v2.15+ — account health diagnostic)
+| Tool | What it does |
+|---|---|
+| `marketing_audit` | **Senior account health audit.** Takes current per-channel spend & conversions, scores each channel's CPA against RU/CIS benchmarks (p25/p50/p75), flags **concentration risk** and **untracked** spend, computes an overall **health score (0-100) + grade A–D**, and returns a **prioritized action plan** with a concrete budget reallocation and projected extra conversions / saved spend. Optional `targetCpa` vs blended CPA. Deterministic; data-aware (KV / per-tenant). |
 
 > **Funnel logic & safety.** All Growth figures are synthetic/illustrative and
 > anchored to the same mock RU/CIS benchmarks (`src/data.ts`) — internally
@@ -250,7 +255,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 35 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 6 Premium + 1 MMM + 1 Planning);
+`tools/list` returns all 36 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 6 Premium + 1 MMM + 1 Planning + 1 Audit);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -293,7 +298,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (35 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (36 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit
@@ -417,7 +422,7 @@ interface, so going real is a one-line wiring change — no upstream edits.
   display `title` per tool. Pure tools are `readOnlyHint`/`idempotentHint` true,
   `openWorldHint` false; LLM-backed (`creative_variants`, `localize`) are
   non-idempotent/open-world; `request_nectarin_proposal` is not read-only.
-- Prompts (12): `build_media_plan`, **`full_strategy`** (one-shot flagship via
+- Prompts (13): `build_media_plan`, **`full_strategy`** (one-shot flagship via
   `strategy_orchestrate`), `competitor_teardown`, the two funnel
   orchestrators **`sell_nectarin_services`** (roi_calculator → value_forecast →
   lead_qualify → request_nectarin_proposal → book_consultation) and
@@ -430,5 +435,6 @@ interface, so going real is a one-line wiring change — no upstream edits.
   bid_simulator → budget_optimizer), **`saturation_reallocation`**
   (response_curve → pacing_monitor) for diminishing-returns budget splits, and
   **`mmm_planning`** (mmm_optimize) for time-series adstock + saturation modeling,
-  and **`quarter_plan`** (gtm_calendar) for a phased Test→Scale→Optimize roadmap
-  with seasonally-weighted weekly budget pacing.
+  **`quarter_plan`** (gtm_calendar) for a phased Test→Scale→Optimize roadmap
+  with seasonally-weighted weekly budget pacing, and **`account_audit`**
+  (marketing_audit) for a health-scored account diagnostic + action plan.

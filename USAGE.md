@@ -37,7 +37,7 @@ stays on JSON, so existing clients are unaffected.
 
 ---
 
-## 2. Tool catalogue (35)
+## 2. Tool catalogue (36)
 
 ### Intelligence (11)
 | Tool | What it does |
@@ -98,10 +98,15 @@ stays on JSON, so existing clients are unaffected.
 |---|---|
 | `gtm_calendar` | Phased **Test → Scale → Optimize** roadmap with goal-driven budget weights & channel emphasis, plus a **week-by-week budget pacing** curve weighted by the category's monthly seasonality. Returns per-phase objectives/KPIs/exit-criteria, peak/soft seasonal windows and milestones. Answers *when & in what order* (vs. `media_plan`/`budget_optimizer` for *where*). |
 
-Built‑in **prompts** (12): `build_media_plan`, `full_strategy`, `competitor_teardown`,
+### Audit (1) — account health diagnostic
+| Tool | What it does |
+|---|---|
+| `marketing_audit` | Scores current per-channel CPA vs RU/CIS benchmarks (p25/p50/p75), flags concentration risk & untracked spend, gives an overall **health score + grade A–D** and a **prioritized action plan** with a projected reallocation impact (extra conversions / saved budget). Optional `targetCpa`. |
+
+Built‑in **prompts** (13): `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`,
 `launch_flight`, `performance_review`, `saturation_reallocation`, `mmm_planning`,
-`quarter_plan`.
+`quarter_plan`, `account_audit`.
 **Resources:** `nectarin://methodology`, `nectarin://glossary`, `nectarin://catalog`
 (live JSON catalog of all tools + annotations + prompts). `tools/list` also
 returns a `title` and behavioral `annotations` (read-only / idempotent / open-world) per tool.
