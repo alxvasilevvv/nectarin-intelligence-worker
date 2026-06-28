@@ -3,6 +3,26 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.43.0] — 2026-06-28
+
+Eighth wave (1/3) — RFM customer segmentation (**64th tool**).
+NECTARIN Intelligence now ships **64 tools / 41 guided prompts**.
+
+### Added
+- **`rfm_segmenter`** (Retention / CRM group, now 2 tools) — from customers with
+  `recencyDays` + `frequency` + `monetary`, scores each on 1–5 quintiles (recency
+  inverted), combines R with the F/M average into the classic named segments
+  (Champions, Loyal, Potential Loyalist, New/Promising, Need Attention, About to Sleep,
+  At Risk, Can't Lose Them, Hibernating, Lost), sizes every segment (customers, share %,
+  total & average monetary, avg recency/frequency) and attaches a concrete CRM action.
+  Surfaces Champions revenue and revenue at risk. 63 → **64 tools**.
+- **`rfm_segmentation`** guided prompt (**41 prompts** total).
+
+### Changed
+- `tools/list` now advertises **64 tools**; the Retention/CRM group grows to 2. Catalog
+  resource, `/version` `toolCount`, README/USAGE/OVERVIEW counts and the test suite
+  updated accordingly.
+
 ## [2.42.0] — 2026-06-28
 
 Seventh wave (4/4) — a heuristic landing-page CRO audit (**63rd tool**).

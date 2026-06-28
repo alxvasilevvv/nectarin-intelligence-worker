@@ -195,4 +195,149 @@ const churnPredictor: ToolDef = {
   },
 };
 
-export const RETENTION_TOOLS: ToolDef[] = [churnPredictor];
+// ── rfm_segmenter ─────────────────────────────────────────────────────────────
+
+/** Score values into 1..5 by quintile rank. invert=true ⇒ smaller value scores higher. */
+function quintileScores(values: number[], invert: boolean): number[] {
+  const n = values.length;
+  const indexed = values.map((v, i) => ({ v, i }));
+  indexed.sort((a, b) => a.v - b.v);
+  const scores = new Array<number>(n);
+  for (let rank = 0; rank < n; rank++) {
+    // ascending rank → quintile 1..5
+    let q = Math.floor((rank / n) * 5) + 1;
+    if (q > 5) q = 5;
+    // For recency: smaller days = more recent = better, so invert (rank 0 → score 5).
+    const score = invert ? 6 - q : q;
+    scores[indexed[rank].i] = score;
+  }
+  return scores;
+}
+
+function rfmSegment(r: number, fm: number): { name: string; action: string } {
+  if (r >= 4 && fm >= 4) return { name: "Champions", action: "Поощряй и удерживай: ранний доступ, статусные привилегии, реферальная программа." };
+  if (r >= 3 && fm >= 4) return { name: "Loyal", action: "Допродажи и кросс-сейл, программа лояльности, сбор отзывов." };
+  if (r >= 4 && fm >= 3) return { name: "Potential Loyalist", action: "Веди к лояльности: онбординг, бандлы, подписка/повтор." };
+  if (r >= 4 && fm <= 2) return { name: "New / Promising", action: "Активируй: приветственная серия, лёгкое первое повторение, объясни ценность." };
+  if (r === 3 && fm <= 2) return { name: "Promising", action: "Подтолкни ко второй покупке: ограниченное предложение, релевантные рекомендации." };
+  if (r >= 3 && fm === 3) return { name: "Need Attention", action: "Реактивируй: персональные офферы, лимит по времени." };
+  if (r <= 2 && fm >= 5) return { name: "Can't Lose Them", action: "Срочно вернуть: выгодное персональное предложение, прямой контакт, опрос почему ушли." };
+  if (r <= 2 && fm >= 4) return { name: "At Risk", action: "Win-back: реактивация с сильным стимулом, напоминание о ценности." };
+  if (r <= 2 && fm === 3) return { name: "About to Sleep", action: "Реактивируй до оттока: триггерная серия, ограниченный бонус." };
+  if (r <= 1 && fm <= 2) return { name: "Lost", action: "Дешёвый реактивационный канал (email/push); не трать на них дорогой платный трафик." };
+  if (r <= 2 && fm <= 2) return { name: "Hibernating", action: "Низкочастотная реактивация; чисти список перед платными кампаниями." };
+  return { name: "Others", action: "Сегментируй точнее или собирай больше данных." };
+}
+
+const rfmSegmenter: ToolDef = {
+  name: "rfm_segmenter",
+  description:
+    "RFM (Recency–Frequency–Monetary) customer segmentation. From a list of customers with recencyDays + frequency + monetary, it scores each on 1–5 quintiles (recency inverted — more recent = higher), combines R with the F/M average into the classic named segments (Champions, Loyal, Potential Loyalist, At Risk, Can't Lose Them, Hibernating, Lost, …), then sizes every segment (customers, share %, total & average monetary) and attaches a concrete CRM action. Surfaces the revenue concentrated in Champions and the revenue at risk (At Risk + Can't Lose Them). Deterministic segmentation on YOUR data — decision support, not a guarantee.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      customers: {
+        type: "array",
+        minItems: 5,
+        description: "Customer records (≥5 for meaningful quintiles)",
+        items: {
+          type: "object",
+          properties: {
+            id: { type: "string", description: "Optional customer id/name" },
+            recencyDays: { type: "number", minimum: 0, description: "Days since last purchase (smaller = better)" },
+            frequency: { type: "number", minimum: 0, description: "Number of purchases" },
+            monetary: { type: "number", minimum: 0, description: "Total spend, ₽" },
+          },
+          required: ["recencyDays", "frequency", "monetary"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["customers"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const customers = (input.customers ?? []) as Array<{ id?: string; recencyDays: number; frequency: number; monetary: number }>;
+    if (!Array.isArray(customers) || customers.length < 5) {
+      return { content: [{ type: "text", text: "Ошибка: передай ≥5 клиентов с recencyDays, frequency, monetary." }], isError: true };
+    }
+    const recency = customers.map((c) => Number(c.recencyDays));
+    const freq = customers.map((c) => Number(c.frequency));
+    const money = customers.map((c) => Number(c.monetary));
+
+    const rScores = quintileScores(recency, true);
+    const fScores = quintileScores(freq, false);
+    const mScores = quintileScores(money, false);
+
+    const scored = customers.map((c, i) => {
+      const r = rScores[i];
+      const f = fScores[i];
+      const m = mScores[i];
+      const fm = Math.round((f + m) / 2);
+      const seg = rfmSegment(r, fm);
+      return { id: c.id ?? `#${i + 1}`, recencyDays: recency[i], frequency: freq[i], monetary: money[i], R: r, F: f, M: m, FM: fm, segment: seg.name, action: seg.action };
+    });
+
+    const totalCustomers = scored.length;
+    const totalMonetary = money.reduce((s, v) => s + v, 0);
+
+    const bySeg = new Map<string, { name: string; action: string; count: number; monetary: number; recSum: number; freqSum: number }>();
+    for (const s of scored) {
+      const e = bySeg.get(s.segment) ?? { name: s.segment, action: s.action, count: 0, monetary: 0, recSum: 0, freqSum: 0 };
+      e.count += 1;
+      e.monetary += s.monetary;
+      e.recSum += s.recencyDays;
+      e.freqSum += s.frequency;
+      bySeg.set(s.segment, e);
+    }
+    const segments = [...bySeg.values()]
+      .map((e) => ({
+        segment: e.name,
+        customers: e.count,
+        sharePct: round((e.count / totalCustomers) * 100, 1),
+        totalMonetary: round(e.monetary),
+        monetarySharePct: totalMonetary > 0 ? round((e.monetary / totalMonetary) * 100, 1) : 0,
+        avgMonetary: round(e.monetary / e.count),
+        avgRecencyDays: round(e.recSum / e.count),
+        avgFrequency: round(e.freqSum / e.count, 1),
+        action: e.action,
+      }))
+      .sort((a, b) => b.totalMonetary - a.totalMonetary);
+
+    const championsRevenue = segments.filter((s) => s.segment === "Champions").reduce((s, x) => s + x.totalMonetary, 0);
+    const atRiskRevenue = segments.filter((s) => ["At Risk", "Can't Lose Them", "About to Sleep"].includes(s.segment)).reduce((s, x) => s + x.totalMonetary, 0);
+    const topSeg = segments[0];
+
+    const payload = {
+      totalCustomers,
+      totalMonetary: round(totalMonetary),
+      segments,
+      championsRevenue: round(championsRevenue),
+      championsRevenueSharePct: totalMonetary > 0 ? round((championsRevenue / totalMonetary) * 100, 1) : 0,
+      atRiskRevenue: round(atRiskRevenue),
+      atRiskRevenueSharePct: totalMonetary > 0 ? round((atRiskRevenue / totalMonetary) * 100, 1) : 0,
+      customers: scored,
+      verdict:
+        `${totalCustomers} клиентов в ${segments.length} сегментах. Крупнейший по выручке — «${topSeg.segment}» (${topSeg.monetarySharePct}% выручки). ` +
+        `Champions держат ${round((championsRevenue / (totalMonetary || 1)) * 100, 0)}% выручки; под риском (At Risk/Can't Lose) ~${ru(round(atRiskRevenue))} ₽ — приоритет win-back.`,
+      methodology:
+        "Каждая метрика ранжируется по квинтилям и получает балл 1–5 (Recency инвертирован: меньше дней = выше). " +
+        "Сегмент определяется по R и среднему F/M (классическая карта RFM). Размер сегмента — число клиентов, доля, суммарная и средняя выручка.",
+      assumptions: [
+        "Квинтили считаются по предоставленной выборке — она должна репрезентировать базу.",
+        "F и M усредняются в один балл (FM); при необходимости разнесите их по своим правилам.",
+        "Окно наблюдения едино для всех клиентов.",
+      ],
+      disclaimer: "Сегментация на ВАШИХ данных — decision support, не гарантия отклика. Подтверждайте действия тестами реактивации.",
+    };
+
+    const summary =
+      `RFM: ${totalCustomers} клиентов → ${segments.length} сегментов. ` +
+      `Топ по выручке: «${topSeg.segment}» (${topSeg.monetarySharePct}%). ` +
+      `Под риском ~${ru(round(atRiskRevenue))} ₽ (${round((atRiskRevenue / (totalMonetary || 1)) * 100, 0)}% выручки) — нужен win-back.`;
+
+    return toContent(summary, payload);
+  },
+};
+
+export const RETENTION_TOOLS: ToolDef[] = [churnPredictor, rfmSegmenter];

@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(63);
+    expect(json.toolCount).toBe(64);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(63);
+    expect(tools).toHaveLength(64);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -101,6 +101,7 @@ describe("tools/list", () => {
     expect(names).toContain("creative_testing_matrix");
     expect(names).toContain("marketing_audit");
     expect(names).toContain("landing_cro_audit");
+    expect(names).toContain("rfm_segmenter");
   });
 
   it("annotations: pure tools are read-only/idempotent; LLM & funnel tools are flagged", async () => {
@@ -195,8 +196,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(63);
-    expect(catalog.tools).toHaveLength(63);
+    expect(catalog.counts.tools).toBe(64);
+    expect(catalog.tools).toHaveLength(64);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -1848,6 +1849,53 @@ describe("premium tools (v2.1)", () => {
     expect(json.result.isError).toBe(true);
   });
 
+  it("rfm_segmenter assigns named segments and sizes revenue", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 114,
+      method: "tools/call",
+      params: {
+        name: "rfm_segmenter",
+        arguments: {
+          customers: [
+            { id: "a", recencyDays: 5, frequency: 12, monetary: 200000 },
+            { id: "b", recencyDays: 15, frequency: 9, monetary: 150000 },
+            { id: "c", recencyDays: 40, frequency: 5, monetary: 60000 },
+            { id: "d", recencyDays: 120, frequency: 3, monetary: 25000 },
+            { id: "e", recencyDays: 300, frequency: 2, monetary: 12000 },
+            { id: "f", recencyDays: 450, frequency: 1, monetary: 3000 },
+          ],
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.totalCustomers).toBe(6);
+    expect(sc.segments.length).toBeGreaterThan(0);
+    // shares of customers sum to ~100%
+    const shareSum = sc.segments.reduce((s, x) => s + x.sharePct, 0);
+    expect(shareSum).toBeGreaterThan(95);
+    expect(shareSum).toBeLessThan(105);
+    // total monetary equals the sum of inputs
+    expect(sc.totalMonetary).toBe(450000);
+    // most-recent, high-value customer 'a' should land in a top segment
+    const a = sc.customers.find((c) => c.id === "a");
+    expect(a.R).toBe(5);
+  });
+
+  it("rfm_segmenter errors with fewer than 5 customers", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 115,
+      method: "tools/call",
+      params: {
+        name: "rfm_segmenter",
+        arguments: { customers: [{ recencyDays: 1, frequency: 1, monetary: 1 }] },
+      },
+    });
+    expect(json.result.isError).toBe(true);
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -1929,7 +1977,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(63);
+    expect(parsed.result.tools.length).toBe(64);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -2012,7 +2060,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(63);
+    expect(json.result.tools).toHaveLength(64);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -2040,7 +2088,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(63);
+    expect(json.result.tools).toHaveLength(64);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -2050,10 +2098,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 40 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 41 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(40);
+    expect(json.result.prompts).toHaveLength(41);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -2090,6 +2138,7 @@ describe("prompts", () => {
     expect(names).toContain("frequency_cap_plan");
     expect(names).toContain("creative_test_readout");
     expect(names).toContain("landing_cro_audit_run");
+    expect(names).toContain("rfm_segmentation");
   });
 
   it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
@@ -2549,6 +2598,21 @@ describe("prompts", () => {
     expect(text).toContain("landing_cro_audit");
     expect(text).toContain("1.5");
     expect(text).toContain("100000");
+  });
+
+  it("prompts/get rfm_segmentation embeds customers and calls rfm_segmenter", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 108,
+      method: "prompts/get",
+      params: {
+        name: "rfm_segmentation",
+        arguments: { customers: "12:8:120000; 90:2:15000; 400:1:3000" },
+      },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("rfm_segmenter");
+    expect(text).toContain("12:8:120000");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {

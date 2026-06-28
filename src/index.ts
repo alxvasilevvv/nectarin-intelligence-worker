@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.42.0";
+const SERVER_VERSION = "2.43.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1313,6 +1313,25 @@ const PROMPTS = [
       `3) Дай приоритизированный список проблем (вес × разрыв) с конкретными правками.\n` +
       `4) Назови прогноз роста конверсии и, если заданы визиты/чек, прирост заказов и выручки.\n` +
       `5) Подчеркни, что гипотезы нужно подтвердить A/B-тестом (ab_test_planner → creative_testing_matrix); дисклеймер про эвристику.`,
+  },
+  {
+    name: "rfm_segmentation",
+    title: "RFM customer segmentation",
+    description:
+      "Segment a customer base by RFM (rfm_segmenter): named segments with sizes, revenue share and a CRM action per segment, plus champions and at-risk revenue.",
+    arguments: [
+      { name: "customers", description: "Customers as 'recencyDays:frequency:monetary' separated by ';' (≥5), e.g. '12:8:120000; 90:2:15000; 400:1:3000; ...'", required: true },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, CRM-аналитик по сегментации клиентской базы (RFM) RU/CIS.\n` +
+      `Сегментируй базу и предложи действия.\n` +
+      `Клиенты (recencyDays:frequency:monetary): ${a.customers}\n` +
+      `\nШаги:\n` +
+      `1) Распарси клиентов в массив {recencyDays, frequency, monetary}.\n` +
+      `2) Вызови rfm_segmenter(customers).\n` +
+      `3) Покажи сегменты с размером, долей выручки и средним чеком.\n` +
+      `4) Назови, сколько выручки держат Champions и сколько под риском (At Risk/Can't Lose).\n` +
+      `5) Дай приоритезированный план действий по сегментам; дисклеймер: подтверждай реактивацию тестами.`,
   },
 ];
 
