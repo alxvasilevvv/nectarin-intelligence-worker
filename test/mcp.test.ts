@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(59);
+    expect(json.toolCount).toBe(60);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(59);
+    expect(tools).toHaveLength(60);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -96,6 +96,7 @@ describe("tools/list", () => {
     expect(names).toContain("search_planner");
     expect(names).toContain("retail_media_planner");
     expect(names).toContain("share_of_search");
+    expect(names).toContain("churn_predictor");
     expect(names).toContain("marketing_audit");
   });
 
@@ -191,8 +192,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(59);
-    expect(catalog.tools).toHaveLength(59);
+    expect(catalog.counts.tools).toBe(60);
+    expect(catalog.tools).toHaveLength(60);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -1681,6 +1682,52 @@ describe("premium tools (v2.1)", () => {
     expect(sc.sosShareGapPp).toBeNull();
   });
 
+  it("churn_predictor computes churn, revenue at risk and retention ROI", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 107,
+      method: "tools/call",
+      params: {
+        name: "churn_predictor",
+        arguments: {
+          monthlyChurnRatePct: 5,
+          customers: 10000,
+          arpuMonthly: 1000,
+          horizonMonths: 12,
+          reduceChurnByPp: 1.5,
+          programCost: 3000000,
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.monthlyChurnPct).toBe(5);
+    // annual churn 1-(0.95)^12 ≈ 46%
+    expect(sc.annualChurnPct).toBeGreaterThan(40);
+    expect(sc.avgLifetimeMonths).toBeCloseTo(20, 0);
+    expect(sc.ltvPerCustomer).toBeGreaterThan(0);
+    expect(sc.revenue.revenueAtRiskOverHorizon).toBeGreaterThan(0);
+    // lower churn ⇒ higher LTV
+    expect(sc.retentionInitiative.newLtv).toBeGreaterThan(sc.ltvPerCustomer);
+    expect(typeof sc.retentionInitiative.roiPct).toBe("number");
+  });
+
+  it("churn_predictor derives monthly churn from a cohort", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 108,
+      method: "tools/call",
+      params: {
+        name: "churn_predictor",
+        arguments: { customersStart: 1000, customersRetained: 820, periodMonths: 3 },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.churnSource).toBe("cohort");
+    // 1-(0.82)^(1/3) ≈ 6.4%
+    expect(sc.monthlyChurnPct).toBeCloseTo(6.4, 0);
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -1762,7 +1809,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(59);
+    expect(parsed.result.tools.length).toBe(60);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -1845,7 +1892,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(59);
+    expect(json.result.tools).toHaveLength(60);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -1873,7 +1920,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(59);
+    expect(json.result.tools).toHaveLength(60);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -1883,10 +1930,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 36 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 37 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(36);
+    expect(json.result.prompts).toHaveLength(37);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -1919,6 +1966,7 @@ describe("prompts", () => {
     expect(names).toContain("search_plan");
     expect(names).toContain("retail_media_plan");
     expect(names).toContain("share_of_search_check");
+    expect(names).toContain("churn_analysis");
   });
 
   it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
@@ -2315,6 +2363,22 @@ describe("prompts", () => {
     expect(text).toContain("share_of_search");
     expect(text).toContain("Наш бренд:120000");
     expect(text).toContain("35");
+  });
+
+  it("prompts/get churn_analysis embeds the inputs and calls churn_predictor", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 104,
+      method: "prompts/get",
+      params: {
+        name: "churn_analysis",
+        arguments: { churn: "5", customers: "10000", arpuMonthly: "1000", initiative: "1.5:3000000" },
+      },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("churn_predictor");
+    expect(text).toContain("10000");
+    expect(text).toContain("1.5:3000000");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {

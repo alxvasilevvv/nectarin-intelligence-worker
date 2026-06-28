@@ -32,6 +32,7 @@ import { EXPERIMENTATION_TOOLS } from "./geo.js";
 import { COMPETITIVE_TOOLS } from "./competitive.js";
 import { SEARCH_TOOLS } from "./search.js";
 import { RETAIL_TOOLS } from "./retail.js";
+import { RETENTION_TOOLS } from "./retention.js";
 import type { Env } from "./index.js";
 
 export interface JsonSchema {
@@ -416,6 +417,7 @@ export const ALL_TOOLS: ToolDef[] = [
   ...COMPETITIVE_TOOLS,
   ...SEARCH_TOOLS,
   ...RETAIL_TOOLS,
+  ...RETENTION_TOOLS,
 ];
 
 export const TOOLS_BY_NAME: Record<string, ToolDef> = Object.fromEntries(

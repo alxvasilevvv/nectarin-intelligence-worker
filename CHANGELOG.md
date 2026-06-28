@@ -3,6 +3,25 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.39.0] — 2026-06-28
+
+Seventh wave (1/4) — a churn & retention-economics tool (**60th tool**).
+NECTARIN Intelligence now ships **60 tools / 37 guided prompts**.
+
+### Added
+- **`churn_predictor`** (new **Retention / CRM** group) — resolves a monthly churn
+  rate from a direct %, a cohort (`customersStart`→`customersRetained` over N months)
+  or a monthly retention %, then computes **annualised churn**, **average lifetime**
+  (1/churn), a survival curve to the horizon, **customers & revenue retained vs. lost**,
+  and **LTV** (`ARPU/churn`, optionally discounted with an annual rate). Given a
+  retention initiative (`reduceChurnByPp` + `programCost`) it sizes the per-customer
+  LTV uplift, the total uplift and the **ROI of retention**. 59 → **60 tools**.
+- **`churn_analysis`** guided prompt (**37 prompts** total).
+
+### Changed
+- `tools/list` now advertises **60 tools**; catalog resource, `/version` `toolCount`,
+  README/USAGE/OVERVIEW counts and the integration test suite updated accordingly.
+
 ## [2.38.0] — 2026-06-28
 
 Sixth wave complete (3/3) — a Share-of-Search demand tracker (**59th tool**).

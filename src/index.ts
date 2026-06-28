@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.38.0";
+const SERVER_VERSION = "2.39.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1208,6 +1208,31 @@ const PROMPTS = [
       `3) Покажи SoS %, место в категории и тренд к прошлому периоду.\n` +
       `4) Объясни разрыв SoS↔доля рынка: опережает ли спрос долю (потенциал роста) или отстаёт (риск); назови прогноз доли.\n` +
       `5) Свяжи с sov_tracker (доля голоса/медиадавление) и дай вывод; дисклеймер: SoS — ранний сигнал, не точный прогноз.`,
+  },
+  {
+    name: "churn_analysis",
+    title: "Churn & retention economics",
+    description:
+      "Analyse churn and the economics of retention (churn_predictor): monthly/annual churn, lifetime, revenue at risk, LTV and the ROI of a retention initiative.",
+    arguments: [
+      { name: "churn", description: "Monthly churn % (e.g. '5'), OR a cohort 'start>retained over N мес' (e.g. '1000>820 over 3')", required: true },
+      { name: "customers", description: "Current active customers (optional, for revenue-at-risk)", required: false },
+      { name: "arpuMonthly", description: "ARPU per month in ₽ (optional)", required: false },
+      { name: "initiative", description: "Retention initiative 'reduceChurnByPp:programCost', e.g. '1.5:300000' (optional)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, аналитик удержания и CRM/lifecycle RU/CIS.\n` +
+      `Оцени отток и экономику удержания.\n` +
+      `Отток: ${a.churn}\n` +
+      (a.customers ? `Активных клиентов: ${a.customers}.\n` : "") +
+      (a.arpuMonthly ? `ARPU/мес: ${a.arpuMonthly} ₽.\n` : "") +
+      (a.initiative ? `Инициатива удержания (reduceChurnByPp:programCost): ${a.initiative}.\n` : "") +
+      `\nШаги:\n` +
+      `1) Преобразуй вход: либо monthlyChurnRatePct, либо customersStart+customersRetained+periodMonths.\n` +
+      `2) Вызови churn_predictor(... ${a.customers ? "customers, " : ""}${a.arpuMonthly ? "arpuMonthly, " : ""}${a.initiative ? "reduceChurnByPp, programCost, " : ""}horizonMonths=12).\n` +
+      `3) Покажи месячный/годовой отток, средний срок жизни и кривую выживаемости.\n` +
+      `4) Назови выручку под риском за горизонт и LTV на клиента.\n` +
+      `5) Если задана инициатива — посчитай прирост LTV и ROI удержания; дай вывод и дисклеймер про калибровку по когортам.`,
   },
 ];
 
