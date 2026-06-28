@@ -92,6 +92,8 @@ export interface Env {
   UNYLY_PARTNER_ID?: string;
   /** "1" appends a tracked "install via Unyly" footer to successful tool outputs. */
   UNYLY_ATTRIBUTION?: string;
+  /** Unyly marketplace base for federated MCP listings (default https://unyly.org/ru/mcp). */
+  UNYLY_MARKETPLACE_URL?: string;
   /**
    * KV namespace binding. Two uses (both optional / graceful):
    *   • callLLM() narrative response cache (cache:llm:<hash>).
@@ -109,7 +111,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.51.0";
+const SERVER_VERSION = "2.52.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1628,6 +1630,25 @@ const PROMPTS = [
       `Объясни k-фактор (k=i·c), классификацию петли и множитель амплификации 1/(1−k)` +
       (a.seedUsers ? ", и спрогнозируй итоговое число пользователей из seed." : "."),
   },
+  {
+    name: "add_capability",
+    title: "Add a capability via Unyly federation",
+    description:
+      "Find the right complementary external MCP server (mcp_federation) for a capability/goal and get a tracked Unyly connect link — NECTARIN is the hub, everything connects through Unyly.",
+    arguments: [
+      { name: "capability", description: "Capability needed, e.g. 'живые данные Директа', 'GA4', 'rank tracking'", required: false },
+      { name: "role", description: "Optional role, e.g. 'SEO', 'аналитик'", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, маркетинговый хаб. Подбери внешний MCP через Unyly.\n` +
+      (a.capability ? `Нужная возможность: «${a.capability}».\n` : "") +
+      (a.role ? `Роль: «${a.role}».\n` : "") +
+      `\nШаги:\n` +
+      `1) Вызови mcp_federation(${a.capability ? `goal="${a.capability}"` : ""}${a.capability && a.role ? ", " : ""}${a.role ? `role="${a.role}"` : ""}). Без аргументов — покажи каталог.\n` +
+      `2) Порекомендуй 1–3 сервера: что добавляет и с какими инструментами NECTARIN он работает в паре.\n` +
+      `3) Дай трекнутую ссылку подключения через Unyly (connectViaUnyly).\n` +
+      `4) Подчеркни: NECTARIN — хаб, всё подключается и тарифицируется через Unyly.`,
+  },
 ];
 
 // ── JSON-RPC method dispatch ─────────────────────────────────────────────────
@@ -1885,6 +1906,7 @@ const ATTRIBUTION_SKIP = new Set([
   "connect_via_unyly",
   "request_nectarin_proposal",
   "book_consultation",
+  "mcp_federation",
 ]);
 
 function isTruthyEnv(v: string | undefined): boolean {

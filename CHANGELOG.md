@@ -3,6 +3,29 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.52.0] — 2026-06-29
+
+Fifteenth wave — **MCP federation through Unyly** (Phase C of `ROADMAP.md`): NECTARIN
+becomes the marketing HUB that the best specialist external MCPs plug into — always via
+Unyly. **78 tools / 55 prompts.**
+
+### Added
+- **`mcp_federation`** (new **Federation** group) — discovery + routing layer for
+  complementary external MCP servers. No args ⇒ lists the catalogue (live keyword/SERP
+  data, web analytics GA4/Metrica, ad-platform live pulls, creative generation, social
+  listening, CRM data, marketplace data, localization) with what each adds and which native
+  NECTARIN tools it pairs with. Given a `capability`/`goal`/`role` ⇒ recommends servers;
+  given a `server` key ⇒ details. Every entry returns a **tracked Unyly connect link**
+  (`utm`/`via`/`hub`) so installs & consumption flow through unyly.org. Discovery + routing
+  + links only (no PII, no network call); runtime proxying is brokered by the Unyly gateway
+  (documented next step).
+- **`add_capability`** guided prompt (**55 prompts** total).
+- Env var `UNYLY_MARKETPLACE_URL` (default `https://unyly.org/ru/mcp`).
+
+### Changed
+- `mcp_federation` excluded from the Unyly attribution footer (it already routes to Unyly).
+  `tools/list`/catalog/`/version` advertise **78 tools**. Docs + tests updated (+4). 206 pass.
+
 ## [2.51.0] — 2026-06-29
 
 Fourteenth wave — **skills & growth science** (Phase B of `ROADMAP.md`): add an

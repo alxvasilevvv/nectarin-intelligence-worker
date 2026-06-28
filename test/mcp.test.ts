@@ -24,7 +24,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(77);
+    expect(json.toolCount).toBe(78);
     expect(json.commit).toBeDefined();
   });
 });
@@ -35,7 +35,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(77);
+    expect(tools).toHaveLength(78);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -59,6 +59,7 @@ describe("tools/list", () => {
     expect(names).toContain("marketing_skill");
     expect(names).toContain("cohort_retention_curve");
     expect(names).toContain("viral_loop");
+    expect(names).toContain("mcp_federation");
     expect(names).toContain("compliance_check");
     expect(names).toContain("ab_test_planner");
     expect(names).toContain("unit_economics");
@@ -210,8 +211,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(77);
-    expect(catalog.tools).toHaveLength(77);
+    expect(catalog.counts.tools).toBe(78);
+    expect(catalog.tools).toHaveLength(78);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -2327,7 +2328,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(77);
+    expect(parsed.result.tools.length).toBe(78);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -2410,7 +2411,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(77);
+    expect(json.result.tools).toHaveLength(78);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -2438,7 +2439,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(77);
+    expect(json.result.tools).toHaveLength(78);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -2448,16 +2449,17 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 54 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 55 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(54);
+    expect(json.result.prompts).toHaveLength(55);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
     expect(names).toContain("skill");
     expect(names).toContain("retention_forecast");
     expect(names).toContain("viral_growth");
+    expect(names).toContain("add_capability");
     expect(names).toContain("launch_flight");
     expect(names).toContain("performance_review");
     expect(names).toContain("saturation_reallocation");
@@ -3377,5 +3379,46 @@ describe("Growth Lab tools", () => {
       params: { name: "cohort_retention_curve", arguments: { points: [{ day: 1, retentionPct: 40 }] } },
     });
     expect(json.result.isError).toBe(true);
+  });
+});
+
+describe("MCP federation (Phase C)", () => {
+  it("lists the federation catalogue with Unyly connect links", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 820,
+      method: "tools/call",
+      params: { name: "mcp_federation", arguments: {} },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.count).toBeGreaterThanOrEqual(8);
+    expect(sc.catalog[0].connectViaUnyly).toContain("unyly.org");
+    expect(sc.catalog[0].connectViaUnyly).toContain("via=nectarin");
+  });
+
+  it("routes a capability/goal to the right server", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 821,
+      method: "tools/call",
+      params: { name: "mcp_federation", arguments: { goal: "нужны живые данные Яндекс Директа" } },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.matched).toBe(true);
+    expect(sc.recommendations[0].server).toBe("ad_platforms");
+  });
+
+  it("returns details for a specific server with a tracked link", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 822,
+      method: "tools/call",
+      params: { name: "mcp_federation", arguments: { server: "keyword_data", source: "deck" } },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.matched).toBe(true);
+    expect(sc.server.server).toBe("keyword_data");
+    expect(sc.server.connectViaUnyly).toContain("utm_source=deck");
+    expect(sc.server.pairsWith).toContain("seo_opportunity");
   });
 });

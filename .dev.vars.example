@@ -24,6 +24,8 @@ UNYLY_PARTNER_ID="nectarin"
 # UNYLY_ATTRIBUTION=1 appends a tracked "Сделано в NECTARIN · подключить через
 # Unyly" footer to successful tool outputs (viral loop). Off unless set.
 UNYLY_ATTRIBUTION="1"
+# Marketplace base for federated external MCPs (mcp_federation connect links).
+UNYLY_MARKETPLACE_URL="https://unyly.org/ru/mcp"
 
 # ── Optional, for when callLLM() is wired to a real model (production: use
 #    `wrangler secret put LLM_API_KEY` instead of putting it here) ──
