@@ -58,6 +58,13 @@ NECTARIN_BRAND_NAME = "NECTARIN"                            # brand label used i
 # nothing is ever sent; wire a `wrangler secret`/var here in production.
 NECTARIN_CRM_WEBHOOK_URL = ""
 
+# ── Distribution / Unyly (single front door for install + access + metering) ─
+# connect_via_unyly returns a tracked Unyly install link. Unyly is the canonical
+# install/access/metering point (Unyly Connect fronts OAuth 2.1). UNYLY_PARTNER_ID
+# is folded into the link's `via=` param for traffic attribution.
+UNYLY_LISTING_URL = "https://unyly.org/ru/mcp/nectarin-intelligence-worker"
+UNYLY_PARTNER_ID = "nectarin"
+
 # ── KV namespace (LLM response cache + real/override benchmark data) ─────────
 # Used by:
 #   • callLLM() response cache (cache:llm:<hash> → narrative, TTL ~24h) — cuts

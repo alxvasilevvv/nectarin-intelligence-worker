@@ -3,6 +3,29 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.47.0] — 2026-06-29
+
+Tenth wave — **distribution through Unyly**: make the connector self-distribute and
+route every install/access/onboarding through unyly.org (the single front door where
+Unyly Connect fronts OAuth 2.1 and the gateway can measure traffic & meter usage).
+NECTARIN Intelligence now ships **74 tools / 51 guided prompts**.
+
+### Added
+- **`connect_via_unyly`** (new **Distribution** group) — the front door. Returns the
+  **tracked Unyly install link** (UTM-attributed by `source`/`role`/`plan`, with a
+  `via=<UNYLY_PARTNER_ID>` partner tag), the manual MCP endpoint as a fallback,
+  role-aware onboarding (pairs with `role_playbook`) and the **access tiers**
+  (free / pro / team / agency) with what each unlocks. Use it whenever a user asks how
+  to connect, install, onboard a team or upgrade. Returns links & guidance only — no
+  PII, no network call. 73 → **74 tools**.
+- **`connect_unyly`** guided prompt (**51 prompts** total).
+- Env vars `UNYLY_LISTING_URL` (default the public listing) and `UNYLY_PARTNER_ID`
+  (attribution tag) in `Env`, `wrangler.toml` and `.dev.vars.example`.
+
+### Changed
+- `tools/list` now advertises **74 tools** with a new Distribution group. Catalog,
+  `/version`, README/USAGE/OVERVIEW counts and the test suite updated accordingly.
+
 ## [2.46.0] — 2026-06-28
 
 Ninth wave — **profession coverage**: one connector for every marketer, not just

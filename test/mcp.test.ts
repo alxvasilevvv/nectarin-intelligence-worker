@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(73);
+    expect(json.toolCount).toBe(74);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(73);
+    expect(tools).toHaveLength(74);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -111,6 +111,7 @@ describe("tools/list", () => {
     expect(names).toContain("aso_planner");
     expect(names).toContain("content_plan_roi");
     expect(names).toContain("role_playbook");
+    expect(names).toContain("connect_via_unyly");
   });
 
   it("annotations: pure tools are read-only/idempotent; LLM & funnel tools are flagged", async () => {
@@ -205,8 +206,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(73);
-    expect(catalog.tools).toHaveLength(73);
+    expect(catalog.counts.tools).toBe(74);
+    expect(catalog.tools).toHaveLength(74);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -2209,6 +2210,38 @@ describe("premium tools (v2.1)", () => {
     expect(sc.role.key).toBe("performance");
   });
 
+  it("connect_via_unyly returns a tracked Unyly install link with UTM attribution", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 139,
+      method: "tools/call",
+      params: { name: "connect_via_unyly", arguments: { role: "SEO", plan: "team", source: "deck" } },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.install.unylyInstallUrl).toContain("unyly.org");
+    expect(sc.install.unylyInstallUrl).toContain("utm_source=deck");
+    expect(sc.install.unylyInstallUrl).toContain("utm_medium=mcp_connector");
+    expect(sc.install.unylyInstallUrl).toContain("via=nectarin");
+    expect(sc.install.unylyInstallUrl).toContain("plan=team");
+    expect(sc.highlightedTier.plan).toBe("team");
+    expect(Array.isArray(sc.tiers)).toBe(true);
+    expect(sc.tiers.length).toBe(4);
+    expect(sc.roleOnboarding.firstStep).toContain("role_playbook");
+  });
+
+  it("connect_via_unyly defaults source to mcp when omitted", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 140,
+      method: "tools/call",
+      params: { name: "connect_via_unyly", arguments: {} },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.install.unylyInstallUrl).toContain("utm_source=mcp");
+    expect(sc.highlightedTier).toBeNull();
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -2290,7 +2323,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(73);
+    expect(parsed.result.tools.length).toBe(74);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -2373,7 +2406,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(73);
+    expect(json.result.tools).toHaveLength(74);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -2401,7 +2434,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(73);
+    expect(json.result.tools).toHaveLength(74);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -2411,10 +2444,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 50 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 51 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(50);
+    expect(json.result.prompts).toHaveLength(51);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -2461,6 +2494,7 @@ describe("prompts", () => {
     expect(names).toContain("event_roi");
     expect(names).toContain("aso_plan");
     expect(names).toContain("content_roi");
+    expect(names).toContain("connect_unyly");
   });
 
   it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
@@ -3003,6 +3037,19 @@ describe("prompts", () => {
     const text = json.result.messages[0].content.text;
     expect(text).toContain("content_plan_roi");
     expect(text).toContain("20000");
+  });
+
+  it("prompts/get connect_unyly embeds args and calls connect_via_unyly", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 163,
+      method: "prompts/get",
+      params: { name: "connect_unyly", arguments: { role: "SEO", plan: "team", source: "deck" } },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("connect_via_unyly");
+    expect(text).toContain("Unyly");
+    expect(text).toContain("SEO");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {

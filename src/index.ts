@@ -84,6 +84,11 @@ export interface Env {
   NECTARIN_CONTACT_EMAIL?: string;
   NECTARIN_BRAND_NAME?: string;
   NECTARIN_CRM_WEBHOOK_URL?: string;
+  // ── Distribution / Unyly (single front door for install + access + metering) ──
+  /** Unyly listing URL for `connect_via_unyly` (default the public listing). */
+  UNYLY_LISTING_URL?: string;
+  /** Partner/attribution id folded into the install link's `via=` param. */
+  UNYLY_PARTNER_ID?: string;
   /**
    * KV namespace binding. Two uses (both optional / graceful):
    *   • callLLM() narrative response cache (cache:llm:<hash>).
@@ -101,7 +106,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.46.0";
+const SERVER_VERSION = "2.47.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1545,6 +1550,28 @@ const PROMPTS = [
       `1) Вызови content_plan_roi(piecesPerMonth, costPerPiece, steadyStateVisitsPerPiece, valuePerConversion, conversionRatePct?, horizonMonths?).\n` +
       `2) Покажи помесячную динамику (накопленная ценность vs затраты), ROI, месяц окупаемости и рантрейт на конец горизонта.\n` +
       `3) Объясни, почему контент окупается позже, но компаундится; дисклеймер про длиннохвостое распределение трафика.`,
+  },
+  {
+    name: "connect_unyly",
+    title: "Connect / install via Unyly",
+    description:
+      "Show how to connect, install, onboard a team or upgrade NECTARIN Intelligence — always through Unyly (connect_via_unyly): tracked install link, manual MCP endpoint, role onboarding and the access tiers.",
+    arguments: [
+      { name: "role", description: "Optional role for tailored onboarding, e.g. 'SEO', 'таргетолог'", required: false },
+      { name: "plan", description: "Optional target tier: free | pro | team | agency", required: false },
+      { name: "source", description: "Optional attribution label (e.g. 'chat', 'deck', 'linkedin')", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, помощник по подключению через Unyly (единая точка входа).\n` +
+      (a.role ? `Роль пользователя: «${a.role}».\n` : "") +
+      (a.plan ? `Интересующий тариф: ${a.plan}.\n` : "") +
+      (a.source ? `Источник перехода: ${a.source}.\n` : "") +
+      `\nШаги:\n` +
+      `1) Вызови connect_via_unyly(${a.role ? `role="${a.role}"` : ""}${a.role && (a.plan || a.source) ? ", " : ""}${a.plan ? `plan="${a.plan}"` : ""}${a.plan && a.source ? ", " : ""}${a.source ? `source="${a.source}"` : ""}).\n` +
+      `2) Дай ссылку установки через Unyly (с UTM-метками) и краткую инструкцию; ручной MCP-endpoint — как запасной вариант.\n` +
+      `3) Объясни тарифы (free/pro/team/agency) и что разблокирует нужный уровень.\n` +
+      `4) Если задана роль — предложи сразу начать с role_playbook для персонального набора.\n` +
+      `5) Подчеркни: доступ, обновления и учёт потребления идут через Unyly (Unyly Connect = OAuth 2.1).`,
   },
 ];
 

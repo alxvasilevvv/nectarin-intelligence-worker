@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-73-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-74-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -17,7 +17,12 @@ over **Streamable HTTP (JSON-RPC 2.0)** with an **opt-in SSE** transport, ships
 with **mock/synthetic RU data** plus **KV real-data layering**, and a
 **KV-cached, model-agnostic LLM narrative** (DeepSeek wired in this deploy).
 
-> **New in 2.46 — profession coverage:** **73 tools across 22 marketing professions**,
+> **New in 2.47 — distribution through Unyly:** `connect_via_unyly` makes the connector
+> self-distribute — every install/onboarding/upgrade returns a **tracked Unyly link**
+> (UTM-attributed) so consumption, requests and installs all flow through the single
+> Unyly front door (the metering & governance point).
+
+> **New in 2.46 — profession coverage:** **74 tools across 22 marketing professions**,
 > with a **role router** (`role_playbook`) that maps any specialist's job — SEO, PPC,
 > SMM, CRM, brand, PR, media planning, analytics, e-commerce, mobile/ASO, content,
 > events, affiliate, creative, pricing, compliance, agency, marketing ops, CMO — to a
@@ -110,7 +115,7 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
 
 ---
 
-## Tools (73 total)
+## Tools (74 total)
 
 ### Intelligence group (inform + orchestrate)
 | Tool | What it does |
@@ -263,6 +268,11 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 |---|---|
 | `affiliate_program_planner` | **CPA / affiliate / partner-program economics** for RU networks (Admitad, Cityads, …) & direct partners. From AOV, gross margin, a commission model (% of AOV or fixed CPA), an optional network fee and validation rate, plus per-partner clicks & conversion → per-partner approved orders, payout, **EPC**, effective CPA, **ROAS** and net profit; ranks partners, blends the program, and derives the **sustainable commission ceiling** (`margin/(1+fee)`), flagging loss-making partners and checking a target CPA. Deterministic. |
 
+### Distribution group (v2.47+ — single Unyly front door)
+| Tool | What it does |
+|---|---|
+| `connect_via_unyly` | **Front door for install / access / upgrade — always through Unyly.** Returns the **tracked Unyly install link** (UTM-attributed by `source`/`role`/`plan`, with a `via=<partner>` tag), the manual MCP endpoint as a fallback, role-aware onboarding (pairs with `role_playbook`) and the access **tiers** (free / pro / team / agency). Unyly is the metering & governance point (Unyly Connect fronts OAuth 2.1). Links & guidance only — no PII, no network call. |
+
 ### Roles / Adoption group (v2.46+ — one connector for every marketer)
 | Tool | What it does |
 |---|---|
@@ -384,7 +394,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 73 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 2 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 2 Retention/CRM + 1 Email/Lifecycle + 1 Partnerships + 1 Roles/Adoption + 1 SEO + 1 Social/SMM + 1 PR + 1 Events + 1 Mobile/ASO + 1 Content);
+`tools/list` returns all 73 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 2 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 2 Retention/CRM + 1 Email/Lifecycle + 1 Partnerships + 1 Roles/Adoption + 1 SEO + 1 Social/SMM + 1 PR + 1 Events + 1 Mobile/ASO + 1 Content + 1 Distribution);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -427,7 +437,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (73 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (74 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit

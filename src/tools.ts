@@ -37,6 +37,7 @@ import { EMAIL_TOOLS } from "./email.js";
 import { PARTNERSHIP_TOOLS } from "./affiliate.js";
 import { DISCIPLINE_TOOLS } from "./disciplines.js";
 import { ROLE_TOOLS } from "./roles.js";
+import { DISTRIBUTION_TOOLS } from "./distribution.js";
 import type { Env } from "./index.js";
 
 export interface JsonSchema {
@@ -426,6 +427,7 @@ export const ALL_TOOLS: ToolDef[] = [
   ...PARTNERSHIP_TOOLS,
   ...DISCIPLINE_TOOLS,
   ...ROLE_TOOLS,
+  ...DISTRIBUTION_TOOLS,
 ];
 
 export const TOOLS_BY_NAME: Record<string, ToolDef> = Object.fromEntries(

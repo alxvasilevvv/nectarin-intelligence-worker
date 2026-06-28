@@ -37,7 +37,7 @@ stays on JSON, so existing clients are unaffected.
 
 ---
 
-## 2. Tool catalogue (73)
+## 2. Tool catalogue (74)
 
 ### Intelligence (11)
 | Tool | What it does |
@@ -189,6 +189,11 @@ stays on JSON, so existing clients are unaffected.
 |---|---|
 | `affiliate_program_planner` | AOV + margin + commission (% or CPA) + network fee + per-partner clicks/CR → per-partner orders, payout, **EPC**, effective CPA, **ROAS**, net profit; blended program economics and the **sustainable commission ceiling** (margin/(1+fee)); flags loss-making partners, checks target CPA. |
 
+### Distribution (1) — single Unyly front door
+| Tool | What it does |
+|---|---|
+| `connect_via_unyly` | Tracked **Unyly install link** (UTM by source/role/plan) + manual MCP endpoint + role onboarding + access tiers (free/pro/team/agency). All install/access/metering flows through Unyly (Unyly Connect = OAuth 2.1). |
+
 ### Roles / Adoption (1) — one connector for every marketer
 | Tool | What it does |
 |---|---|
@@ -224,7 +229,7 @@ stays on JSON, so existing clients are unaffected.
 |---|---|
 | `content_plan_roi` | Content as a compounding asset: month-by-month cumulative visits/conversions/value vs. spend → **ROI**, **payback month**, exit run-rate. |
 
-Built‑in **prompts** (50): `build_media_plan`, `full_strategy`, `competitor_teardown`,
+Built‑in **prompts** (51): `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`,
 `launch_flight`, `performance_review`, `saturation_reallocation`, `mmm_planning`,
 `quarter_plan`, `account_audit`, `scenario_review`, `promo_review`, `exec_report`,
@@ -236,7 +241,7 @@ Built‑in **prompts** (50): `build_media_plan`, `full_strategy`, `competitor_te
 `churn_analysis`, `frequency_cap_plan`, `creative_test_readout`,
 `landing_cro_audit_run`, `rfm_segmentation`, `email_campaign_plan`,
 `affiliate_program_plan`, `my_role`, `seo_forecast`, `social_plan`, `pr_value`,
-`event_roi`, `aso_plan`, `content_roi`.
+`event_roi`, `aso_plan`, `content_roi`, `connect_unyly`.
 **Resources:** `nectarin://methodology`, `nectarin://glossary`, `nectarin://catalog`
 (live JSON catalog of all tools + annotations + prompts). `tools/list` also
 returns a `title` and behavioral `annotations` (read-only / idempotent / open-world) per tool.
@@ -335,9 +340,10 @@ margin, breakeven uplift) → `unit_economics` to confirm.
 
 ```
 Ты — NECTARIN Intelligence, старший медиа-стратег и маркетинг-директор для рынка
-RU/CIS. У тебя подключён MCP-коннектор NECTARIN с 73 инструментами под 22
-маркетинговые профессии — один коннектор на всю команду (установка и доступ —
-через Unyly): бенчмарки и медиапланирование, оптимизация бюджета и MMM,
+RU/CIS. У тебя подключён MCP-коннектор NECTARIN с 74 инструментами под 22
+маркетинговые профессии — один коннектор на всю команду (установка, доступ и
+учёт потребления — через Unyly; если спрашивают «как подключить/обновить» —
+вызови connect_via_unyly): бенчмарки и медиапланирование, оптимизация бюджета и MMM,
 performance-аналитика и атрибуция, контекст/SEM (планирование семантики Yandex
 Direct), SEO (органический потенциал по позициям), SMM (органический охват и
 вовлечение), PR (earned-охват и доля голоса), события/вебинары (ROI-воронка),

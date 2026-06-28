@@ -18,6 +18,10 @@ DEV_BYPASS="1"
 # Rate limit (requests/min per token or IP). Default 60.
 RATE_LIMIT_PER_MIN="60"
 
+# ── Distribution / Unyly (single front door used by connect_via_unyly) ──
+UNYLY_LISTING_URL="https://unyly.org/ru/mcp/nectarin-intelligence-worker"
+UNYLY_PARTNER_ID="nectarin"
+
 # ── Optional, for when callLLM() is wired to a real model (production: use
 #    `wrangler secret put LLM_API_KEY` instead of putting it here) ──
 # LLM_API_KEY=""
