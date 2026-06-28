@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(51);
+    expect(json.toolCount).toBe(52);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(51);
+    expect(tools).toHaveLength(52);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -88,6 +88,7 @@ describe("tools/list", () => {
     expect(names).toContain("sov_tracker");
     expect(names).toContain("media_quality_score");
     expect(names).toContain("competitive_response");
+    expect(names).toContain("budget_pacing_forecast");
     expect(names).toContain("marketing_audit");
   });
 
@@ -183,8 +184,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(51);
-    expect(catalog.tools).toHaveLength(51);
+    expect(catalog.counts.tools).toBe(52);
+    expect(catalog.tools).toHaveLength(52);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -1370,6 +1371,32 @@ describe("premium tools (v2.1)", () => {
     expect(sc.defense.additionalSpendToDefend).toBeCloseTo(5_000_000, -3);
   });
 
+  it("budget_pacing_forecast projects overpacing from a rising trend", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 92,
+      method: "tools/call",
+      params: {
+        name: "budget_pacing_forecast",
+        arguments: {
+          totalBudget: 1_000_000,
+          daysTotal: 30,
+          daysElapsed: 10,
+          spendToDate: 300_000,
+          recentDailySpend: [40_000, 45_000, 50_000],
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.usedTrend).toBe(true);
+    // trend ~45k/day → 300k + 45k*20 = 1.2M ⇒ +20% over budget.
+    expect(sc.projectedEndSpend).toBeGreaterThan(1_000_000);
+    expect(sc.status).toBe("overpacing");
+    expect(sc.willExhaustEarly).toBe(true);
+    expect(sc.recommendedDailyRate).toBeCloseTo(35_000, -3);
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -1451,7 +1478,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(51);
+    expect(parsed.result.tools.length).toBe(52);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -1534,7 +1561,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(51);
+    expect(json.result.tools).toHaveLength(52);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -1562,7 +1589,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(51);
+    expect(json.result.tools).toHaveLength(52);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -1572,10 +1599,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 28 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 29 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(28);
+    expect(json.result.prompts).toHaveLength(29);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -1600,6 +1627,7 @@ describe("prompts", () => {
     expect(names).toContain("sov_analysis");
     expect(names).toContain("media_quality_check");
     expect(names).toContain("competitive_wargame");
+    expect(names).toContain("pacing_forecast");
   });
 
   it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
@@ -1873,6 +1901,21 @@ describe("prompts", () => {
     const text = json.result.messages[0].content.text;
     expect(text).toContain("competitive_response");
     expect(text).toContain("10000000");
+  });
+
+  it("prompts/get pacing_forecast embeds inputs and calls budget_pacing_forecast", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 85,
+      method: "prompts/get",
+      params: {
+        name: "pacing_forecast",
+        arguments: { totalBudget: "1000000", daysTotal: "30", daysElapsed: "10", spendToDate: "300000" },
+      },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("budget_pacing_forecast");
+    expect(text).toContain("1000000");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {

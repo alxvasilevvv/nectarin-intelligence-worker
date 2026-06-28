@@ -37,7 +37,7 @@ stays on JSON, so existing clients are unaffected.
 
 ---
 
-## 2. Tool catalogue (51)
+## 2. Tool catalogue (52)
 
 ### Intelligence (11)
 | Tool | What it does |
@@ -86,6 +86,7 @@ stays on JSON, so existing clients are unaffected.
 | `cohort_ltv` | Retention‑curve cohort LTV/NPV + LTV:CAC + payback. |
 | `utm_builder` | Consistent, validated UTM tracking URLs (normalize, encode, warn, naming convention). |
 | `pacing_monitor` | Budget pacing vs. even spend curve: status, projection, recommended daily spend. |
+| `budget_pacing_forecast` | **Trend-aware** forecast: projects landing spend from the recent daily run-rate → over/under-spend %, **days to exhaust**, recommended daily rate & % adjustment to land on budget; optional CPA pace. |
 | `response_curve` | Channel saturation / diminishing‑returns modeling + conversion‑maximizing budget reallocation (marginal CPA, uplift vs. current). |
 
 ### MMM (1) — marketing mix modeling
@@ -154,13 +155,14 @@ stays on JSON, so existing clients are unaffected.
 |---|---|
 | `competitive_response` | From your spend + competitor spend + a move (escalation %, new entrant, pullback) → **SOV erosion**, **CPM inflation**, effective-impression impact, the **defensive budget** to hold a target SOV, and a recommended posture (hold / partial match / defend or pivot). |
 
-Built‑in **prompts** (28): `build_media_plan`, `full_strategy`, `competitor_teardown`,
+Built‑in **prompts** (29): `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`,
 `launch_flight`, `performance_review`, `saturation_reallocation`, `mmm_planning`,
 `quarter_plan`, `account_audit`, `scenario_review`, `promo_review`, `exec_report`,
 `creative_fatigue_check`, `price_optimization`, `influencer_plan`, `olv_plan`,
 `brand_lift_study`, `omnichannel_reach`, `production_budget`, `flighting_plan`,
-`geo_test`, `sov_analysis`, `media_quality_check`, `competitive_wargame`.
+`geo_test`, `sov_analysis`, `media_quality_check`, `competitive_wargame`,
+`pacing_forecast`.
 **Resources:** `nectarin://methodology`, `nectarin://glossary`, `nectarin://catalog`
 (live JSON catalog of all tools + annotations + prompts). `tools/list` also
 returns a `title` and behavioral `annotations` (read-only / idempotent / open-world) per tool.
@@ -193,7 +195,7 @@ to produce a deck, `compliance_check` if regulated, `book_consultation` to close
 `anomaly_detector` (daily CPA/CTR/spend) → `cohort_ltv` + `unit_economics` to size the impact.
 
 **Launch & run a flight:**
-`utm_builder` (tag every link) → `pacing_monitor` (watch spend) → `budget_optimizer` (reallocate) → `anomaly_detector` (catch surprises).
+`utm_builder` (tag every link) → `pacing_monitor` / `budget_pacing_forecast` (watch & forecast spend) → `budget_optimizer` (reallocate) → `anomaly_detector` (catch surprises).
 
 **Influencer / KOL campaign (Маркетинг влияния):**
 `influencer_planner` (rank roster, flag fake ER, optimize mix) → `creative_variants`

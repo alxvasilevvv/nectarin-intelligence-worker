@@ -3,6 +3,25 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.31.0] — 2026-06-28
+
+Fourth wave (2/3) — a trend-aware budget pacing forecaster (**52nd tool**). Now **52
+tools / 29 guided prompts**.
+
+### Added
+- **`budget_pacing_forecast`** (Premium group, now 7 tools) — projects end-of-flight
+  spend from the **recent daily run-rate** (last N days when provided, else the flat
+  average), reporting the over/under-spend variance %, the **days to exhaust** the
+  budget at the current rate, the recommended daily rate (and % adjustment) to land
+  exactly on budget, and an optional CPA pace from conversions-to-date. Complements
+  `pacing_monitor` (a linear extrapolation) with a trend-based projection.
+  51 → **52 tools**.
+- **`pacing_forecast`** guided prompt (**29 prompts** total).
+
+### Changed
+- `server.json` description + version, README (Tools badge 52, Premium now 7 tools),
+  USAGE (catalogue 52, prompts 29), OVERVIEW, test counts (52 tools / 29 prompts).
+
 ## [2.30.0] — 2026-06-28
 
 Fourth wave — competitive war-gaming. Adds a competitive response simulator (**51st

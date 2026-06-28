@@ -701,6 +701,106 @@ const responseCurve: ToolDef = {
   },
 };
 
+/**
+ * budget_pacing_forecast — trend-aware end-of-flight projection. Unlike
+ * pacing_monitor (a linear extrapolation from spend-to-date), this projects the
+ * landing spend from the RECENT daily run-rate (last N days when provided),
+ * reports the projected over/under-spend %, the days-to-exhaust the budget, the
+ * recommended daily rate (and % adjustment) to land exactly on budget, and an
+ * optional CPA pace when conversions-to-date are given.
+ */
+const budgetPacingForecast: ToolDef = {
+  name: "budget_pacing_forecast",
+  description:
+    "Trend-aware budget pacing forecast. From the total budget, total/elapsed days and spend-to-date — and optionally the recent daily spend series — it projects end-of-flight spend from the RECENT run-rate (not just a flat average), the over/under-spend variance %, the days to exhaust the budget at the current rate, and the recommended daily rate (and % adjustment) to land exactly on budget. Optional conversions-to-date adds a CPA pace. Complements pacing_monitor (linear) with a trend-based projection. Deterministic; figures illustrative.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      totalBudget: { type: "number", exclusiveMinimum: 0, description: "Total budget for the flight (₽)" },
+      daysTotal: { type: "integer", exclusiveMinimum: 0, description: "Total days in the flight" },
+      daysElapsed: { type: "integer", exclusiveMinimum: 0, description: "Days elapsed so far" },
+      spendToDate: { type: "number", minimum: 0, description: "Actual spend so far (₽)" },
+      recentDailySpend: {
+        type: "array",
+        items: { type: "number", minimum: 0 },
+        description: "Optional recent daily spend (most-recent last) → trend run-rate; defaults to spendToDate/daysElapsed",
+      },
+      conversionsToDate: { type: "number", minimum: 0, description: "Optional conversions so far → CPA pace" },
+      onTrackBandPct: { type: "number", minimum: 1, maximum: 50, description: "± band considered on-track (default 5%)" },
+    },
+    required: ["totalBudget", "daysTotal", "daysElapsed", "spendToDate"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const totalBudget = Number(input.totalBudget);
+    const daysTotal = Math.round(Number(input.daysTotal));
+    const daysElapsed = clamp(Math.round(Number(input.daysElapsed)), 1, daysTotal);
+    const spendToDate = Math.max(0, Number(input.spendToDate));
+    const band = clamp(Number(input.onTrackBandPct ?? 5), 1, 50) / 100;
+    const remainingDays = daysTotal - daysElapsed;
+    const remainingBudget = totalBudget - spendToDate;
+
+    const flatDaily = spendToDate / daysElapsed;
+    const recent = Array.isArray(input.recentDailySpend)
+      ? (input.recentDailySpend as number[]).filter((x) => typeof x === "number" && x >= 0)
+      : [];
+    const trendDaily = recent.length > 0 ? recent.reduce((s, x) => s + x, 0) / recent.length : flatDaily;
+
+    const projectedEndSpend = spendToDate + trendDaily * remainingDays;
+    const projectedVariancePct = ((projectedEndSpend - totalBudget) / totalBudget) * 100;
+    const status =
+      projectedVariancePct > band * 100 ? "overpacing" : projectedVariancePct < -band * 100 ? "underpacing" : "on_track";
+
+    const daysToExhaust = trendDaily > 0 ? remainingBudget / trendDaily : Infinity;
+    const willExhaustEarly = Number.isFinite(daysToExhaust) && daysToExhaust < remainingDays;
+    const recommendedDailyRate = remainingDays > 0 ? Math.max(0, remainingBudget) / remainingDays : 0;
+    const recommendedAdjustmentPct = trendDaily > 0 ? (recommendedDailyRate / trendDaily - 1) * 100 : null;
+
+    const conv = typeof input.conversionsToDate === "number" && input.conversionsToDate > 0 ? input.conversionsToDate : null;
+    const cpaToDate = conv != null ? spendToDate / conv : null;
+    const projectedConversions = conv != null && spendToDate > 0 ? conv * (projectedEndSpend / spendToDate) : null;
+
+    const action =
+      status === "overpacing"
+        ? `Перелёт: при текущем темпе (~${ru(round(trendDaily))} ₽/день) к концу выйдет ${ru(round(projectedEndSpend))} ₽ (+${round(projectedVariancePct, 1)}%).` +
+          (willExhaustEarly ? ` Бюджет кончится за ~${round(daysToExhaust)} дн. (до конца ${remainingDays}).` : "") +
+          ` Снизь дневной до ~${ru(round(recommendedDailyRate))} ₽ (${recommendedAdjustmentPct != null ? round(recommendedAdjustmentPct, 0) : "—"}%).`
+        : status === "underpacing"
+          ? `Недолёт: прогноз ${ru(round(projectedEndSpend))} ₽ (${round(projectedVariancePct, 1)}%), останется ~${ru(round(totalBudget - projectedEndSpend))} ₽. Подними дневной до ~${ru(round(recommendedDailyRate))} ₽ (+${recommendedAdjustmentPct != null ? round(recommendedAdjustmentPct, 0) : "—"}%) или перелей в эффективные каналы (budget_optimizer).`
+          : `В графике: прогноз ${ru(round(projectedEndSpend))} ₽ (${round(projectedVariancePct, 1)}%). Держи дневной ~${ru(round(recommendedDailyRate))} ₽.`;
+
+    const payload = {
+      totalBudget: round(totalBudget),
+      daysTotal,
+      daysElapsed,
+      remainingDays,
+      spendToDate: round(spendToDate),
+      remainingBudget: round(remainingBudget),
+      currentDailyRate: round(trendDaily),
+      usedTrend: recent.length > 0,
+      flatDailyAvg: round(flatDaily),
+      projectedEndSpend: round(projectedEndSpend),
+      projectedVariancePct: round(projectedVariancePct, 1),
+      status,
+      daysToExhaust: Number.isFinite(daysToExhaust) ? round(daysToExhaust, 1) : null,
+      willExhaustEarly,
+      recommendedDailyRate: round(recommendedDailyRate),
+      recommendedAdjustmentPct: recommendedAdjustmentPct != null ? round(recommendedAdjustmentPct, 1) : null,
+      cpaToDate: cpaToDate != null ? round(cpaToDate) : null,
+      projectedConversions: projectedConversions != null ? round(projectedConversions) : null,
+      action,
+      disclaimer: "Прогноз по текущему run-rate; для сезонных флайтов учитывай seasonality_forecast и аукционную динамику.",
+    };
+
+    const summary =
+      `Прогноз пейсинга: «${status}», к концу ~${ru(round(projectedEndSpend))} ₽ (${projectedVariancePct >= 0 ? "+" : ""}${round(projectedVariancePct, 1)}% к бюджету). ` +
+      `Рекоменд. дневной ~${ru(round(recommendedDailyRate))} ₽${recommendedAdjustmentPct != null ? ` (${recommendedAdjustmentPct >= 0 ? "+" : ""}${round(recommendedAdjustmentPct, 0)}%)` : ""}.` +
+      (willExhaustEarly ? ` ⚠️ Бюджет кончится за ~${round(daysToExhaust)} дн.` : "");
+
+    return toContent(summary, payload);
+  },
+};
+
 export const PREMIUM_TOOLS: ToolDef[] = [
   creativeVariants,
   anomalyDetector,
@@ -708,4 +808,5 @@ export const PREMIUM_TOOLS: ToolDef[] = [
   utmBuilder,
   pacingMonitor,
   responseCurve,
+  budgetPacingForecast,
 ];

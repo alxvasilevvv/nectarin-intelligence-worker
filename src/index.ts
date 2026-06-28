@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.30.0";
+const SERVER_VERSION = "2.31.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1022,6 +1022,32 @@ const PROMPTS = [
       `3) Назови защитный бюджет под целевой SOV и рекомендованную позицию (hold / partial_match / defend_or_pivot).\n` +
       `4) Дай 2–3 тактики: матчинг давления, эффективность (budget_optimizer, bid_simulator) или уход от лобовой войны (дифференциация, бренд).\n` +
       `5) Дисклеймер: SOV≈доля спенда, динамика зависит от аукциона и креатива.`,
+  },
+  {
+    name: "pacing_forecast",
+    title: "Budget pacing forecast (trend-aware)",
+    description:
+      "Forecast end-of-flight spend from the recent run-rate (budget_pacing_forecast): over/under-spend %, days to exhaust and the recommended daily rate to land on budget.",
+    arguments: [
+      { name: "totalBudget", description: "Total flight budget (₽)", required: true },
+      { name: "daysTotal", description: "Total days in the flight", required: true },
+      { name: "daysElapsed", description: "Days elapsed so far", required: true },
+      { name: "spendToDate", description: "Actual spend so far (₽)", required: true },
+      { name: "recentDailySpend", description: "Optional recent daily spend (comma-separated, most-recent last)", required: false },
+      { name: "conversionsToDate", description: "Optional conversions so far (for CPA pace)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, специалист по контролю медиабюджета RU/CIS.\n` +
+      `Спрогнозируй пейсинг флайта и дай корректировку.\n` +
+      `Бюджет: ${a.totalBudget} ₽. Дней всего: ${a.daysTotal}, прошло: ${a.daysElapsed}. Потрачено: ${a.spendToDate} ₽.` +
+      (a.recentDailySpend ? ` Дневной расход (последние): ${a.recentDailySpend}.` : "") +
+      (a.conversionsToDate ? ` Конверсий: ${a.conversionsToDate}.` : "") +
+      `\n\nШаги:\n` +
+      (a.recentDailySpend ? `1) Распарси recentDailySpend в массив чисел.\n` : `1) Используй средний дневной расход.\n`) +
+      `2) Вызови budget_pacing_forecast(totalBudget, daysTotal, daysElapsed, spendToDate${a.recentDailySpend ? ", recentDailySpend" : ""}${a.conversionsToDate ? ", conversionsToDate" : ""}).\n` +
+      `3) Назови статус (overpacing / on_track / underpacing), прогноз к концу и отклонение %.\n` +
+      `4) Если бюджет кончится раньше — предупреди (дни до исчерпания); дай рекомендованный дневной и % корректировки.\n` +
+      `5) Next-step: budget_optimizer для перелива, дисклеймер про сезонность/аукцион.`,
   },
 ];
 

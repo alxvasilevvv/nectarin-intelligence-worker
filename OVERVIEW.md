@@ -1,7 +1,7 @@
 # NECTARIN Intelligence — что умеет
 
-**AI-маркетинг-директор для рынка RU/CIS прямо в Claude.** MCP-коннектор с **51
-детерминированным инструментом** и **28 готовыми сценариями (prompts)**, которые
+**AI-маркетинг-директор для рынка RU/CIS прямо в Claude.** MCP-коннектор с **52
+детерминированными инструментами** и **29 готовыми сценариями (prompts)**, которые
 закрывают полный цикл услуг агентства — от стратегии и медиапланирования до
 измеримости, брендинга и производства. Без галлюцинаций: каждый расчёт делает
 инструмент, а не модель.
@@ -17,7 +17,7 @@
 | Услуга Nectarin | Что спросить Claude | Инструменты |
 |---|---|---|
 | **Стратегия и медиапланирование** | «Собери стратегию запуска под бюджет X» | `strategy_orchestrate`, `media_plan`, `ru_benchmarks`, `audience_insights`, `budget_optimizer` |
-| **Performance & аналитика** | «Куда переложить бюджет? Где аномалии?» | `attribution_model`, `bid_simulator`, `mmm_optimize`, `anomaly_detector`, `pacing_monitor`, `funnel_model`, `cohort_ltv`, `unit_economics` |
+| **Performance & аналитика** | «Куда переложить бюджет? Где аномалии? Уложусь ли в бюджет?» | `attribution_model`, `bid_simulator`, `mmm_optimize`, `anomaly_detector`, `pacing_monitor`, `budget_pacing_forecast`, `funnel_model`, `cohort_ltv`, `unit_economics` |
 | **Маркетинг влияния (инфлюенсеры)** | «Оцени ростер блогеров и собери микс» | `influencer_planner` (ER-аномалии/фрод, CPM/CPV/CPE, eCPA, оптимизация микса) |
 | **Видеореклама / OLV** | «Спланируй охват и частоту» | `reach_frequency` (net reach, эфф. охват ≥N), `channel_overlap` (дедуп-охват), `media_flowchart` (флайтинг по неделям) |
 | **Брендинг** | «Замерь brand lift, оцени долю голоса» | `brand_lift` (z-тест/дизайн выборки), `sov_tracker` (SOV/ESOV → рост доли, Binet & Field) |
@@ -41,7 +41,7 @@
   OLV, Avito; комплаенс ОРД/ЕРИР; рубли по умолчанию.
 - **Полный цикл за один разговор.** От `strategy_orchestrate` одним вызовом до
   выгрузки презентации `report_export` и записи на консультацию.
-- **28 готовых сценариев.** Нажал prompt — Claude сам вызывает нужные инструменты в
+- **29 готовых сценариев.** Нажал prompt — Claude сам вызывает нужные инструменты в
   правильном порядке (медиаплан, brand lift, гео-тест, флайтинг, доля голоса и т.д.).
 
 ---
@@ -58,5 +58,5 @@
 
 ---
 
-*NECTARIN Intelligence · 51 инструмент · 28 сценариев · Cloudflare Workers (edge,
+*NECTARIN Intelligence · 52 инструмента · 29 сценариев · Cloudflare Workers (edge,
 MCP Streamable HTTP). Подробности — в `README.md` и `USAGE.md`.*
