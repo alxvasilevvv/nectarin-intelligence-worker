@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.25.0";
+const SERVER_VERSION = "2.26.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -881,6 +881,30 @@ const PROMPTS = [
       `3) Разбери смету по позициям, субтотал, контингенцию, rush, итог и вилку.\n` +
       `4) Объясни срок: критический путь + параллельные потоки, в неделях.\n` +
       `5) Дай рекомендации по оптимизации бюджета/сроков + дисклеймер: ставки иллюстративные, подтверждайте сметами подрядчиков.`,
+  },
+  {
+    name: "flighting_plan",
+    title: "Media flowchart / flighting plan",
+    description:
+      "Build a weekly media flowchart (media_flowchart): distribute a budget across weeks by a flighting pattern, with optional per-channel split.",
+    arguments: [
+      { name: "totalBudget", description: "Total media budget, RUB", required: true },
+      { name: "weeks", description: "Number of weeks in the flight", required: true },
+      { name: "pattern", description: "even | front_loaded | back_loaded | burst | pulse (optional; default even)", required: false },
+      { name: "channels", description: "Optional channel split as 'name:share%' separated by ';', e.g. 'OLV:50; Соцсети:30; Поиск:20'", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, медиапланер RU/CIS (медийная реклама).\n` +
+      `Построй недельный флоучарт распределения бюджета.\n` +
+      `Бюджет: ${a.totalBudget} ₽. Недель: ${a.weeks}.\n` +
+      (a.pattern ? `Паттерн: ${a.pattern}.\n` : `Паттерн: even.\n`) +
+      (a.channels ? `Сплит каналов (name:share%): ${a.channels}\n` : ``) +
+      `\nШаги:\n` +
+      (a.channels ? `1) Распарси каналы в массив {name, sharePct}.\n` : `1) Каналы не заданы — раскладка только по неделям.\n`) +
+      `2) Вызови media_flowchart(totalBudget, weeks${a.pattern ? ", pattern" : ""}${a.channels ? ", channels" : ""}).\n` +
+      `3) Покажи понедельную раскладку: бюджет, доля, накопительно; отметь on-air недели и пик.\n` +
+      (a.channels ? `4) Дай понедельный сплит по каналам.\n` : `4) Предложи, какой паттерн уместнее под цель (запуск/удержание/сезон).\n`) +
+      `5) Рекомендация по флайтингу + дисклеймер: плановая раскладка, учитывайте сезонность (seasonality_forecast) и аукцион.`,
   },
 ];
 

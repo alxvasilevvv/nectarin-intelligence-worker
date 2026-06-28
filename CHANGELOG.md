@@ -3,6 +3,23 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.26.0] — 2026-06-28
+
+Media flighting: a weekly media flowchart / flighting planner (47th tool) — final
+feature of the second wave (медийная реклама / flighting).
+
+### Added
+- **`media_flowchart`** (Media group, now 3 tools) — distributes a total budget
+  across N weeks by a flighting pattern (even / front_loaded / back_loaded / burst /
+  pulse), returning the per-week budget, share and cumulative spend, plus a
+  **per-channel split each on-air week** when channel shares are given. Reports the
+  peak week and on-air weeks. Deterministic scheduling math. 46 → **47 tools**.
+- **`flighting_plan`** guided prompt (**24 prompts** total).
+
+### Changed
+- `server.json` description + version, README (Tools badge 47, Media group now 3
+  tools), USAGE (catalogue 47, prompts 24), test counts (47 tools / 24 prompts).
+
 ## [2.25.0] — 2026-06-28
 
 Production: a creative production budget & timeline estimator (46th tool) — second

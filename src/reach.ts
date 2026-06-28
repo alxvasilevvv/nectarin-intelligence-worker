@@ -300,4 +300,146 @@ const channelOverlap: ToolDef = {
   },
 };
 
-export const MEDIA_TOOLS: ToolDef[] = [reachFrequency, channelOverlap];
+// ── media_flowchart ──────────────────────────────────────────────────────────
+
+type FlightPattern = "even" | "front_loaded" | "back_loaded" | "burst" | "pulse";
+
+interface ChannelSplitIn {
+  name: string;
+  sharePct: number;
+}
+
+function weekWeights(pattern: FlightPattern, weeks: number, burstWeeks: number): number[] {
+  const w: number[] = [];
+  for (let i = 0; i < weeks; i++) {
+    switch (pattern) {
+      case "front_loaded":
+        w.push(weeks - i);
+        break;
+      case "back_loaded":
+        w.push(i + 1);
+        break;
+      case "burst":
+        w.push(i < burstWeeks ? 1 : 0);
+        break;
+      case "pulse":
+        w.push(i % 2 === 0 ? 1 : 0);
+        break;
+      case "even":
+      default:
+        w.push(1);
+        break;
+    }
+  }
+  // Guard: if a pattern zeroed everything (e.g. burstWeeks=0), fall back to even.
+  if (w.every((x) => x === 0)) return new Array(weeks).fill(1);
+  return w;
+}
+
+const mediaFlowchart: ToolDef = {
+  name: "media_flowchart",
+  description:
+    "Media flighting / flowchart planner. Distributes a total budget across N weeks by a flighting pattern (even / front_loaded / back_loaded / burst / pulse), returning the per-week budget, share and cumulative spend, plus a per-channel split each week when channel shares are given. Reports the peak week and on-air weeks. Deterministic scheduling math on YOUR plan — a planning artifact, not a guarantee.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      totalBudget: { type: "number", exclusiveMinimum: 0, description: "Total media budget to distribute, RUB" },
+      weeks: { type: "number", exclusiveMinimum: 0, maximum: 104, description: "Number of weeks in the flight" },
+      pattern: {
+        type: "string",
+        enum: ["even", "front_loaded", "back_loaded", "burst", "pulse"],
+        description: "Flighting pattern (default even)",
+      },
+      burstWeeks: { type: "number", minimum: 1, description: "For 'burst': how many leading weeks are on-air (default ⌈weeks/3⌉)" },
+      channels: {
+        type: "array",
+        description: "Optional per-channel split (sharePct, auto-normalized) applied to every on-air week",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string", description: "Channel name" },
+            sharePct: { type: "number", exclusiveMinimum: 0, description: "Channel share, % (normalized across channels)" },
+          },
+          required: ["name", "sharePct"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["totalBudget", "weeks"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const totalBudget = Number(input.totalBudget);
+    const weeks = Math.round(Number(input.weeks));
+    if (!(totalBudget > 0) || !(weeks > 0)) {
+      return { content: [{ type: "text", text: "Ошибка: нужны totalBudget > 0 и weeks > 0." }], isError: true };
+    }
+    const pattern: FlightPattern = (["even", "front_loaded", "back_loaded", "burst", "pulse"] as FlightPattern[]).includes(
+      input.pattern as FlightPattern,
+    )
+      ? (input.pattern as FlightPattern)
+      : "even";
+    const burstWeeks =
+      typeof input.burstWeeks === "number" && input.burstWeeks >= 1
+        ? Math.min(Math.round(input.burstWeeks), weeks)
+        : Math.ceil(weeks / 3);
+
+    const rawChannels = (input.channels ?? []) as ChannelSplitIn[];
+    const shareSum = rawChannels.reduce((s, c) => s + (c.sharePct > 0 ? c.sharePct : 0), 0);
+    const channels =
+      rawChannels.length && shareSum > 0
+        ? rawChannels.map((c) => ({ name: String(c.name ?? ""), share: Math.max(0, c.sharePct) / shareSum }))
+        : null;
+
+    const weights = weekWeights(pattern, weeks, burstWeeks);
+    const wSum = weights.reduce((s, x) => s + x, 0);
+
+    let cumulative = 0;
+    const weekRows = weights.map((w, i) => {
+      const budget = (totalBudget * w) / wSum;
+      cumulative += budget;
+      const row: Record<string, unknown> = {
+        week: i + 1,
+        onAir: w > 0,
+        budget: round(budget),
+        sharePct: round((budget / totalBudget) * 100, 1),
+        cumulative: round(cumulative),
+      };
+      if (channels && budget > 0) {
+        row.channels = channels.map((c) => ({ name: c.name, budget: round(budget * c.share) }));
+      }
+      return row;
+    });
+
+    const onAirWeeks = weekRows.filter((r) => r.onAir).length;
+    const peak = weekRows.reduce((best, r) => ((r.budget as number) > (best.budget as number) ? r : best), weekRows[0]);
+
+    const payload = {
+      pattern,
+      totalBudget: round(totalBudget),
+      weeks,
+      onAirWeeks,
+      burstWeeks: pattern === "burst" ? burstWeeks : undefined,
+      channelSplit: channels ? channels.map((c) => ({ name: c.name, sharePct: round(c.share * 100, 1) })) : null,
+      flowchart: weekRows,
+      peakWeek: { week: peak.week, budget: peak.budget },
+      avgWeeklyOnAir: onAirWeeks > 0 ? round(totalBudget / onAirWeeks) : 0,
+      methodology:
+        "Pattern → weekly weights (even=1; front/back=linear ramp; burst=first N weeks; pulse=every other week), normalized to the total budget. Channel split normalizes shares and applies them to every on-air week.",
+      assumptions: [
+        "Распределение по неделям — плановая раскладка, без учёта аукционной динамики и сезонных коэффициентов (см. seasonality_forecast).",
+        "Доли каналов одинаковы во все недели on-air; при необходимости меняйте вручную по фазам.",
+      ],
+      disclaimer: "Плановый флоучарт, не гарантия доставки. Корректируйте под реальные закупки и сезонность.",
+    };
+
+    const summary =
+      `Медиа-флоучарт (${pattern}): ${ru(round(totalBudget))} ₽ на ${weeks} нед. (${onAirWeeks} нед. on-air). ` +
+      `Пик — неделя ${peak.week}: ${ru(peak.budget as number)} ₽.` +
+      (channels ? ` Сплит по ${channels.length} каналам.` : "");
+
+    return toContent(summary, payload);
+  },
+};
+
+export const MEDIA_TOOLS: ToolDef[] = [reachFrequency, channelOverlap, mediaFlowchart];
