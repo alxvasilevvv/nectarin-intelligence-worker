@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-97-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-102-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -38,11 +38,15 @@ with **mock/synthetic RU data** plus **KV real-data layering**, and a
 > bridge decomposing the change into volume/efficiency/AOV drivers), `conjoint_analysis` (part-worth
 > utilities → attribute importance, share-of-preference logit & willingness-to-pay) and `tam_sam_som`
 > (top-down/bottom-up market-sizing funnel with a reality check & CAGR projection).
+> v2.61 deepens **autonomy (Phase D)**: `benchmark_kpi_check` (KPI vs RU/CIS bands),
+> `alert_to_skill` (breaches → marketing_skill playbook + first tool), plus launch tools
+> `brand_health_index` and `gtm_launch_readiness`, and a **tenant data scaffold**
+> (`tenant_metrics_snapshot`, KV key `tenant:<id>:metrics`, mode via `NECTARIN_TENANT_DATA_MODE`).
 > v2.60 wires the **live Unyly federation gateway**: set `UNYLY_GATEWAY_TOKEN` (self-issued in the
 > Unyly dashboard) and `federation_invoke` proxies any registered server at
 > `gateway.unyly.org/mcp/<slug>` — one token, no per-server URL config. Per-server `FED_<KEY>_URL`
 > overrides still work.
-> **97 tools / 72 prompts.**
+> **102 tools / 77 prompts.**
 
 > **New in 2.51 — skills & growth science:** an extensible **playbook layer**
 > (`marketing_skill`) chains tools into 10 repeatable end-to-end workflows (cut CAC,
@@ -518,7 +522,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 97 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 2 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 2 Retention/CRM + 1 Email/Lifecycle + 1 Partnerships + 1 Roles/Adoption + 1 SEO + 1 Social/SMM + 1 PR + 1 Events + 1 Mobile/ASO + 1 Content + 1 Distribution + 1 Skills + 2 Growth Lab + 2 Federation + 3 Expansion + 4 B2B & CX + 3 Ops & Autonomy + 2 Marketing Ops & Leadership + 3 Foresight & Strategy + 3 Market & Revenue Science);
+`tools/list` returns all 102 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 2 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 2 Retention/CRM + 1 Email/Lifecycle + 1 Partnerships + 1 Roles/Adoption + 1 SEO + 1 Social/SMM + 1 PR + 1 Events + 1 Mobile/ASO + 1 Content + 1 Distribution + 1 Skills + 2 Growth Lab + 2 Federation + 3 Expansion + 4 B2B & CX + 5 Ops & Autonomy + 2 Marketing Ops & Leadership + 3 Foresight & Strategy + 3 Market & Revenue Science + 2 Launch & Brand Health + 1 Tenant Data);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -561,7 +565,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (97 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (102 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit
@@ -638,6 +642,11 @@ each other's data source, and no tool code changes. An absent/invalid header (or
 no KV) transparently falls back to the shared data. Reported by `/health` &
 `/version` (`perTenant`). To populate a tenant:
 `npx wrangler kv key put --remote --namespace-id <id> "tenant:acme:benchmarks:retail" '<json>'`.
+
+**Tenant metrics (v2.61):** store a read-only metrics blob at `tenant:<id>:metrics`
+(e.g. `{ "updatedAt": "2026-Q2", "metrics": { "CPA": { "value": 1800, "target": 1500 } } }`).
+Set `NECTARIN_TENANT_DATA_MODE=kv` to read from KV (default `mock` returns a demo blob).
+Use `tenant_metrics_snapshot(tenantId=…)` or chain into `kpi_alert_engine` / `benchmark_kpi_check`.
 
 ### Swapping the data source (mock → real)
 1. Provide the datasets in **`DATA_SCHEMA.md`** (`benchmarks`, `playbooks`,

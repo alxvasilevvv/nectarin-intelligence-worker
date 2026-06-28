@@ -114,10 +114,12 @@ export interface Env {
    */
   RATE_LIMITER?: DurableNamespaceLike;
   // Future binding: NECTARIN_DB?: D1Database (per-tenant relational data).
+  /** Tenant metrics mode: "mock" (default) | "kv" (read tenant:<id>:metrics from NECTARIN_KV). */
+  NECTARIN_TENANT_DATA_MODE?: string;
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.60.0";
+const SERVER_VERSION = "2.61.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1932,6 +1934,85 @@ const PROMPTS = [
       (a.population ? `Снизу-вверх: население=${a.population}, проникновение=${a.penetrationPct ?? "?"}%, достижимая доля=${a.obtainableSharePct ?? "?"}%, ARPU=${a.arpu ?? "?"}.\n` : "") +
       `\nВызови tam_sam_som(${a.tam ? `tam=${a.tam}, samSharePct=${a.samSharePct}, somSharePct=${a.somSharePct}` : `population=${a.population}, penetrationPct=${a.penetrationPct}, obtainableSharePct=${a.obtainableSharePct}, arpu=${a.arpu}`}${a.cagrPct ? `, cagrPct=${a.cagrPct}` : ""}${a.years ? `, years=${a.years}` : ""}).\n` +
       `Покажи TAM/SAM/SOM (₽ и клиенты), SOM как % TAM, reality-check и проекцию SOM при наличии CAGR.`,
+  },
+  {
+    name: "benchmark_check",
+    title: "Check KPI vs RU benchmarks",
+    description:
+      "Grade a KPI against RU/CIS p25/p50/p75 bands and route breaches to the next tool (benchmark_kpi_check).",
+    arguments: [
+      { name: "category", description: `Industry category (${CATEGORIES.join(", ")})`, required: true },
+      { name: "kpi", description: "CPM | CTR | CPA | VTR", required: true },
+      { name: "value", description: "Current KPI value", required: true },
+      { name: "platform", description: "Optional platform filter", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, монитор перформанса с RU/CIS бенчмарками.\n` +
+      `Категория: ${a.category}, KPI: ${a.kpi}, значение: ${a.value}${a.platform ? `, площадка: ${a.platform}` : ""}.\n` +
+      `\nВызови benchmark_kpi_check(category="${a.category}", kpi="${a.kpi}", value=${a.value}${a.platform ? `, platform="${a.platform}"` : ""}).\n` +
+      `Покажи положение vs p25/p50/p75, severity, band и рекомендованный инструмент NECTARIN при нарушении.`,
+  },
+  {
+    name: "alert_skill",
+    title: "Route alerts to a marketing skill",
+    description:
+      "Turn KPI breaches into a skill playbook + first tool to call (alert_to_skill).",
+    arguments: [
+      { name: "alerts", description: "Alerts as 'name:severity:deviationPct:suggestedTool' separated by ';', e.g. 'CPA:critical:33:budget_optimizer; CTR:warning:12:creative_testing_matrix'", required: false },
+      { name: "goal", description: "Optional goal to bias skill matching, e.g. 'снизить CAC'", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, автономный ops-маркетолог.\n` +
+      (a.alerts ? `Алёрты: ${a.alerts}.\n` : "") +
+      (a.goal ? `Цель: ${a.goal}.\n` : "") +
+      `\nРазбери алёрты в массив alerts [{name, severity?, deviationPct?, suggestedTool?}]${a.goal ? " и/или передай goal" : ""} и вызови alert_to_skill(${a.alerts ? "alerts=[...]" : ""}${a.alerts && a.goal ? ", " : ""}${a.goal ? `goal="${a.goal}"` : ""}).\n` +
+      `Покажи matched marketing_skill, цепочку инструментов и firstToolToCall — предложи запустить его.`,
+  },
+  {
+    name: "brand_health",
+    title: "Score brand health index",
+    description:
+      "Compute a 0–100 brand health index from funnel inputs and NPS (brand_health_index).",
+    arguments: [
+      { name: "awareness", description: "Aided awareness, %", required: true },
+      { name: "consideration", description: "Consideration, %", required: true },
+      { name: "preference", description: "Preference, %", required: true },
+      { name: "nps", description: "NPS (−100..+100)", required: true },
+      { name: "brand", description: "Optional brand name", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, бренд-менеджер.\n` +
+      `Вызови brand_health_index(awareness=${a.awareness}, consideration=${a.consideration}, preference=${a.preference}, nps=${a.nps}${a.brand ? `, brand="${a.brand}"` : ""}).\n` +
+      `Покажи индекс 0–100, band (Weak/Average/Strong/Leader), вклад компонентов и слабое звено.`,
+  },
+  {
+    name: "launch_readiness",
+    title: "Assess GTM launch readiness",
+    description:
+      "Score launch pillars 0–5 and get go/no-go + gaps (gtm_launch_readiness).",
+    arguments: [
+      { name: "scores", description: "Pillars as 'product:4;messaging:3;channels:4;ops:3;legal:2' (0–5 each)", required: true },
+      { name: "category", description: `Optional category (${CATEGORIES.join(", ")}) for compliance`, required: false },
+      { name: "launch", description: "Optional launch name", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, product/GTM lead.\n` +
+      `Оценки: ${a.scores}${a.category ? `, категория: ${a.category}` : ""}${a.launch ? `, launch: ${a.launch}` : ""}.\n` +
+      `\nРазбери строку в scores {product, messaging, channels, ops, legal} (0–5) и вызови gtm_launch_readiness(scores={...}${a.category ? `, category="${a.category}"` : ""}${a.launch ? `, launch="${a.launch}"` : ""}).\n` +
+      `Покажи readiness %, verdict (GO / conditional / NO-GO), gaps <3/5 и compliance note.`,
+  },
+  {
+    name: "tenant_snapshot",
+    title: "Read tenant metrics snapshot",
+    description:
+      "Fetch read-only tenant metrics from KV or demo mock (tenant_metrics_snapshot).",
+    arguments: [
+      { name: "tenantId", description: "Tenant id (KV key tenant:<id>:metrics)", required: true },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, marketing ops.\n` +
+      `Вызови tenant_metrics_snapshot(tenantId="${a.tenantId}").\n` +
+      `Покажи source (mock/kv), metrics blob и note; предложи прогнать kpi_alert_engine по метрикам если есть value/target.`,
   },
 ];
 

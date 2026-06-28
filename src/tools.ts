@@ -47,6 +47,8 @@ import { AUTONOMY_TOOLS } from "./autonomy.js";
 import { LEADERSHIP_TOOLS } from "./leadership.js";
 import { FORESIGHT_TOOLS } from "./foresight.js";
 import { MARKETS_TOOLS } from "./markets.js";
+import { LAUNCH_TOOLS } from "./launch.js";
+import { TENANT_TOOLS } from "./tenant.js";
 import type { Env } from "./index.js";
 
 export interface JsonSchema {
@@ -446,6 +448,8 @@ export const ALL_TOOLS: ToolDef[] = [
   ...LEADERSHIP_TOOLS,
   ...FORESIGHT_TOOLS,
   ...MARKETS_TOOLS,
+  ...LAUNCH_TOOLS,
+  ...TENANT_TOOLS,
 ];
 
 export const TOOLS_BY_NAME: Record<string, ToolDef> = Object.fromEntries(

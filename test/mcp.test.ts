@@ -24,7 +24,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(97);
+    expect(json.toolCount).toBe(102);
     expect(json.commit).toBeDefined();
   });
 });
@@ -35,7 +35,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(97);
+    expect(tools).toHaveLength(102);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -71,6 +71,11 @@ describe("tools/list", () => {
     expect(names).toContain("kpi_alert_engine");
     expect(names).toContain("marketing_budget_allocator");
     expect(names).toContain("autonomous_plan");
+    expect(names).toContain("benchmark_kpi_check");
+    expect(names).toContain("alert_to_skill");
+    expect(names).toContain("brand_health_index");
+    expect(names).toContain("gtm_launch_readiness");
+    expect(names).toContain("tenant_metrics_snapshot");
     expect(names).toContain("marketing_okr_planner");
     expect(names).toContain("content_calendar_planner");
     expect(names).toContain("demand_forecast");
@@ -230,8 +235,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(97);
-    expect(catalog.tools).toHaveLength(97);
+    expect(catalog.counts.tools).toBe(102);
+    expect(catalog.tools).toHaveLength(102);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -1529,7 +1534,7 @@ describe("premium tools (v2.1)", () => {
   it("utm_taxonomy_qa scores consistency and finds variant clusters", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
-      id: 97,
+      id: 102,
       method: "tools/call",
       params: {
         name: "utm_taxonomy_qa",
@@ -2347,7 +2352,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(97);
+    expect(parsed.result.tools.length).toBe(102);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -2430,7 +2435,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(97);
+    expect(json.result.tools).toHaveLength(102);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -2458,7 +2463,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(97);
+    expect(json.result.tools).toHaveLength(102);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -2471,7 +2476,7 @@ describe("prompts", () => {
   it("prompts/list returns all 72 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(72);
+    expect(json.result.prompts).toHaveLength(77);
     expect(names).toContain("roi_waterfall");
     expect(names).toContain("conjoint");
     expect(names).toContain("market_sizing");
@@ -4116,6 +4121,68 @@ describe("Ops & Autonomy tools (v2.56)", () => {
     });
     expect(json.result.isError).toBe(true);
   });
+
+  it("benchmark_kpi_check grades value vs RU/CIS bands and routes breaches", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 867,
+      method: "tools/call",
+      params: {
+        name: "benchmark_kpi_check",
+        arguments: { category: "ecom", kpi: "CPA", value: 8000, platform: "VK Ads" },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.severity).toBeDefined();
+    expect(sc.bands.p50).toBeGreaterThan(0);
+    expect(sc.category).toBe("ecom");
+    if (sc.severity !== "ok") {
+      expect(sc.suggestedTool).toBeTruthy();
+    }
+  });
+
+  it("benchmark_kpi_check errors on missing inputs", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 868,
+      method: "tools/call",
+      params: { name: "benchmark_kpi_check", arguments: { category: "ecom" } },
+    });
+    expect(json.error ?? json.result?.isError).toBeTruthy();
+  });
+
+  it("alert_to_skill matches breaches to a marketing skill workflow", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 869,
+      method: "tools/call",
+      params: {
+        name: "alert_to_skill",
+        arguments: {
+          alerts: [
+            { name: "CPA", severity: "critical", deviationPct: 33, suggestedTool: "budget_optimizer" },
+          ],
+        },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.matchedSkill.key).toBe("cut_cac");
+    expect(sc.firstToolToCall).toBeTruthy();
+    expect(sc.workflow).toHaveLength(3);
+  });
+
+  it("alert_to_skill errors when no breaches or goal", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 870,
+      method: "tools/call",
+      params: {
+        name: "alert_to_skill",
+        arguments: { alerts: [{ name: "ROAS", severity: "ok" }] },
+      },
+    });
+    expect(json.result.isError).toBe(true);
+  });
 });
 
 describe("Marketing Ops & Leadership tools (v2.57)", () => {
@@ -4499,6 +4566,98 @@ describe("Market & Revenue Science tools (v2.59)", () => {
       method: "tools/call",
       // no tam and no population ⇒ handler-level validation ⇒ tool isError result
       params: { name: "tam_sam_som", arguments: { samSharePct: 10 } },
+    });
+    expect(json.result.isError).toBe(true);
+  });
+});
+
+describe("Launch & tenant tools (v2.61)", () => {
+  it("brand_health_index computes weighted index and band", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 910,
+      method: "tools/call",
+      params: {
+        name: "brand_health_index",
+        arguments: { awareness: 65, consideration: 45, preference: 30, nps: 20, brand: "Demo" },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.index).toBeGreaterThan(0);
+    expect(sc.band).toBeDefined();
+    expect(sc.weakestLever.key).toBeDefined();
+  });
+
+  it("brand_health_index errors on missing inputs", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 911,
+      method: "tools/call",
+      params: { name: "brand_health_index", arguments: { awareness: 50 } },
+    });
+    expect(json.error ?? json.result?.isError).toBeTruthy();
+  });
+
+  it("gtm_launch_readiness scores pillars and returns verdict", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 912,
+      method: "tools/call",
+      params: {
+        name: "gtm_launch_readiness",
+        arguments: {
+          scores: { product: 4, messaging: 3, channels: 4, ops: 3, legal: 2 },
+          category: "pharma",
+          launch: "Q3 SKU",
+        },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.readinessPct).toBeGreaterThan(0);
+    expect(sc.verdict).toBeDefined();
+    expect(sc.regulated).toBe(true);
+    expect(sc.gaps.some((g: any) => g.key === "legal")).toBe(true);
+  });
+
+  it("gtm_launch_readiness errors on empty scores", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 913,
+      method: "tools/call",
+      params: { name: "gtm_launch_readiness", arguments: { scores: {} } },
+    });
+    expect(json.result.isError).toBe(true);
+  });
+
+  it("tenant_metrics_snapshot returns mock demo blob by default", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 914,
+      method: "tools/call",
+      params: { name: "tenant_metrics_snapshot", arguments: { tenantId: "demo-co" } },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.source).toBe("mock");
+    expect(sc.metrics).toBeTruthy();
+    expect(sc.kvKey).toBe("tenant:demo-co:metrics");
+  });
+
+  it("tenant_metrics_snapshot errors without tenantId", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 915,
+      method: "tools/call",
+      params: { name: "tenant_metrics_snapshot", arguments: {} },
+    });
+    expect(json.error ?? json.result?.isError).toBeTruthy();
+  });
+
+  it("tenant_metrics_snapshot handler-rejects blank tenantId", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 916,
+      method: "tools/call",
+      params: { name: "tenant_metrics_snapshot", arguments: { tenantId: "  " } },
     });
     expect(json.result.isError).toBe(true);
   });

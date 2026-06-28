@@ -3,6 +3,31 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.61.0] — 2026-06-29
+
+Twenty-fourth wave — **autonomy deepening (Phase D), launch tools & tenant scaffold** of
+`ROADMAP.md`. **102 tools / 77 prompts.**
+
+### Added
+- **`benchmark_kpi_check`** (Ops & Autonomy) — compare a KPI value against RU/CIS p25/p50/p75
+  bands (same data layer as `ru_benchmarks`), grade ok/watch/warning/critical and route
+  breaches via ACTION_MAP to the next NECTARIN tool.
+- **`alert_to_skill`** (Ops & Autonomy, pro+) — turn KPI breaches into an ordered workflow:
+  alert → matched `marketing_skill` recipe → tool chain → `firstToolToCall`. Deterministic;
+  does not execute tools.
+- **`brand_health_index`** (Launch & Brand Health) — composite 0–100 score from
+  awareness/consideration/preference/NPS (+ optional funnel efficiency) with benchmark bands.
+- **`gtm_launch_readiness`** (Launch & Brand Health) — single-launch scorecard (product,
+  messaging, channels, ops, legal 0–5) → readiness %, go/no-go/conditional verdict and gaps.
+  Distinct from `marketing_maturity_assessment`.
+- **`tenant_metrics_snapshot`** (Tenant Data scaffold) — read-only tenant metrics from KV key
+  `tenant:<id>:metrics` when `NECTARIN_TENANT_DATA_MODE=kv`, else demo mock blob.
+- Env `NECTARIN_TENANT_DATA_MODE` (`mock` | `kv`, default mock) in `Env`, `wrangler.toml`.
+- Guided prompts **`benchmark_check`**, **`alert_skill`**, **`brand_health`**, **`launch_readiness`**, **`tenant_snapshot`** (**77 prompts**).
+
+### Changed
+- Docs (README/USAGE/OVERVIEW/ROADMAP) updated. Tests: +11 (272 pass).
+
 ## [2.60.0] — 2026-06-29
 
 Twenty-third wave — **live Unyly federation gateway** (Phase C gateway integration of

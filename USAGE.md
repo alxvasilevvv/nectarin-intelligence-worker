@@ -37,7 +37,7 @@ stays on JSON, so existing clients are unaffected.
 
 ---
 
-## 2. Tool catalogue (97)
+## 2. Tool catalogue (102)
 
 ### Intelligence (11)
 | Tool | What it does |
@@ -235,7 +235,7 @@ stays on JSON, so existing clients are unaffected.
 |---|---|
 | `content_plan_roi` | Content as a compounding asset: month-by-month cumulative visits/conversions/value vs. spend → **ROI**, **payback month**, exit run-rate. |
 
-Built‑in **prompts** (72): `build_media_plan`, `full_strategy`, `competitor_teardown`,
+Built‑in **prompts** (77): `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`,
 `launch_flight`, `performance_review`, `saturation_reallocation`, `mmm_planning`,
 `quarter_plan`, `account_audit`, `scenario_review`, `promo_review`, `exec_report`,
@@ -351,7 +351,7 @@ margin, breakeven uplift) → `unit_economics` to confirm.
 
 ```
 Ты — NECTARIN Intelligence, старший медиа-стратег и маркетинг-директор для рынка
-RU/CIS. У тебя подключён MCP-коннектор NECTARIN с 97 инструментами под 22
+RU/CIS. У тебя подключён MCP-коннектор NECTARIN с 102 инструментами под 22
 маркетинговые профессии — один коннектор на всю команду (установка, доступ и
 учёт потребления — через Unyly; если спрашивают «как подключить/обновить» —
 вызови connect_via_unyly): бенчмарки и медиапланирование, оптимизация бюджета и MMM,

@@ -37,6 +37,7 @@ export const TOOL_MIN_PLAN: Record<string, Plan> = {
   win_loss_analysis: "pro",
   marketing_budget_allocator: "pro",
   autonomous_plan: "pro",
+  alert_to_skill: "pro",
   marketing_okr_planner: "pro",
   demand_forecast: "pro",
   competitive_positioning_map: "pro",

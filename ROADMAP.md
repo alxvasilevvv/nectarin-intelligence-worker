@@ -97,6 +97,11 @@
   `conjoint_analysis` (part-worth conjoint: важность атрибутов, доля предпочтения через
   логит и WTP) и `tam_sam_som` (воронка размера рынка top-down/bottom-up с reality-check
   и проекцией SOM по CAGR).
+- **v2.61 — автономия (Phase D) + launch + tenant scaffold** (готово):
+  `benchmark_kpi_check` (KPI vs RU/CIS p25/p50/p75 + ACTION_MAP),
+  `alert_to_skill` (алёрты → marketing_skill + first tool, pro+),
+  `brand_health_index`, `gtm_launch_readiness` (scorecard одного launch),
+  `tenant_metrics_snapshot` + `NECTARIN_TENANT_DATA_MODE` (KV key `tenant:<id>:metrics`).
 - Подключение данных клиента (KV/D1/коннекторы рекламных кабинетов) без переделки тулов.
 - Автономные сценарии/алёрты (anomaly → действие), отчётность для правления.
 
@@ -112,7 +117,7 @@
 Пользователь (Claude/Cursor)
         │
         ▼
-NECTARIN Intelligence (хаб)  ──►  собственные 97 инструментов
+NECTARIN Intelligence (хаб)  ──►  собственные 102 инструмента
         │
         └─►  Unyly gateway  ──►  внешние MCP (SEO-данные, биржи, креатив, аналитика…)
                    │

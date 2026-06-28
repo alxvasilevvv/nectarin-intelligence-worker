@@ -72,6 +72,9 @@ UNYLY_GATEWAY_URL = "https://gateway.unyly.org"
 # successful tool outputs (viral distribution loop). Off by default in code.
 UNYLY_ATTRIBUTION = "1"
 
+# Tenant metrics scaffold: "mock" (default, demo blob) | "kv" (read tenant:<id>:metrics).
+NECTARIN_TENANT_DATA_MODE = "mock"
+
 # ── KV namespace (LLM response cache + real/override benchmark data) ─────────
 # Used by:
 #   • callLLM() response cache (cache:llm:<hash> → narrative, TTL ~24h) — cuts

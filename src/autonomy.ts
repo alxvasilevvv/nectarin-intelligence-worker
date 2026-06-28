@@ -18,6 +18,8 @@
  */
 
 import type { ToolDef, ToolResult } from "./tools.js";
+import { CATEGORIES, KPIS, PLATFORMS, getMetric, type Kpi, type Platform } from "./data.js";
+import { matchSkill } from "./skills.js";
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -438,4 +440,272 @@ const autonomousPlan: ToolDef = {
   },
 };
 
-export const AUTONOMY_TOOLS: ToolDef[] = [kpiAlertEngine, marketingBudgetAllocator, autonomousPlan];
+// ── 4. Benchmark KPI check (autonomy Phase D) ────────────────────────────────
+
+function normalizeKpi(name: string): Kpi | null {
+  const u = name.trim().toUpperCase();
+  if (u === "CPM" || u === "CTR" || u === "CPA" || u === "VTR") return u as Kpi;
+  if (/cpm|стоимост.*1000/i.test(name)) return "CPM";
+  if (/ctr|кликаб/i.test(name)) return "CTR";
+  if (/cpa|cac|cpl/i.test(name)) return "CPA";
+  if (/vtr|досмотр|completion/i.test(name)) return "VTR";
+  return null;
+}
+function kpiDirection(kpi: Kpi): "higher_better" | "lower_better" {
+  return kpi === "CPA" || kpi === "CPM" ? "lower_better" : "higher_better";
+}
+async function blendedBenchmark(
+  category: string,
+  kpi: Kpi,
+  platform?: Platform
+): Promise<{ p25: number; p50: number; p75: number; platform: string | null } | null> {
+  if (platform) {
+    const range = await getMetric(category, platform, kpi);
+    return range ? { ...range, platform } : null;
+  }
+  const ranges: Array<{ p25: number; p50: number; p75: number }> = [];
+  for (const p of PLATFORMS) {
+    const r = await getMetric(category, p, kpi);
+    if (r) ranges.push(r);
+  }
+  if (ranges.length === 0) return null;
+  const avg = (key: "p25" | "p50" | "p75") =>
+    round(ranges.reduce((a, r) => a + r[key], 0) / ranges.length, kpi === "CTR" || kpi === "VTR" ? 2 : 0);
+  return { p25: avg("p25"), p50: avg("p50"), p75: avg("p75"), platform: null };
+}
+function bandSeverity(
+  value: number,
+  bands: { p25: number; p50: number; p75: number },
+  dir: "higher_better" | "lower_better"
+): { severity: string; band: string; deviationPct: number } {
+  const { p25, p50, p75 } = bands;
+  if (dir === "lower_better") {
+    if (value <= p25) return { severity: "ok", band: "below p25 (top quartile)", deviationPct: round(((value - p50) / Math.abs(p50)) * 100, 1) };
+    if (value <= p50) return { severity: "watch", band: "p25–p50", deviationPct: round(((value - p50) / Math.abs(p50)) * 100, 1) };
+    if (value <= p75) return { severity: "warning", band: "p50–p75", deviationPct: round(((value - p50) / Math.abs(p50)) * 100, 1) };
+    return { severity: "critical", band: "above p75 (worst quartile)", deviationPct: round(((value - p50) / Math.abs(p50)) * 100, 1) };
+  }
+  if (value >= p75) return { severity: "ok", band: "above p75 (top quartile)", deviationPct: round(((p50 - value) / Math.abs(p50)) * 100, 1) };
+  if (value >= p50) return { severity: "watch", band: "p50–p75", deviationPct: round(((p50 - value) / Math.abs(p50)) * 100, 1) };
+  if (value >= p25) return { severity: "warning", band: "p25–p50", deviationPct: round(((p50 - value) / Math.abs(p50)) * 100, 1) };
+  return { severity: "critical", band: "below p25 (worst quartile)", deviationPct: round(((p50 - value) / Math.abs(p50)) * 100, 1) };
+}
+
+const benchmarkKpiCheck: ToolDef = {
+  name: "benchmark_kpi_check",
+  description:
+    "AUTONOMY (Phase D): compare a KPI value against RU/CIS benchmark bands (p25/p50/p75) instead of a manual target. Give category, kpi (CPM|CTR|CPA|VTR or alias), current value and optional platform — it pulls bands from the same data layer as ru_benchmarks, grades ok/watch/warning/critical vs. the spread, and routes breaches to a recommended action + NECTARIN tool (ACTION_MAP). Complements kpi_alert_engine (manual targets) for benchmark-native alerting.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      category: { type: "string", enum: CATEGORIES, description: "Industry category" },
+      kpi: { type: "string", enum: KPIS, description: "Metric: CPM, CTR, CPA or VTR" },
+      value: { type: "number", description: "Current KPI value" },
+      platform: { type: "string", enum: PLATFORMS, description: "Optional platform filter" },
+      metricName: { type: "string", description: "Optional display name for routing (default kpi)" },
+    },
+    required: ["category", "kpi", "value"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const category = typeof input?.category === "string" ? input.category : "";
+    const kpiRaw = typeof input?.kpi === "string" ? input.kpi : "";
+    const value = num(input?.value);
+    const platform = typeof input?.platform === "string" ? (input.platform as Platform) : undefined;
+    const kpi = normalizeKpi(kpiRaw) ?? normalizeKpi(String(input?.metricName ?? ""));
+    if (!category || !kpi || value === null) {
+      return errResult("Нужны category, kpi (CPM|CTR|CPA|VTR) и value.");
+    }
+    const bands = await blendedBenchmark(category, kpi, platform);
+    if (!bands) {
+      return errResult(`Нет бенчмарков для ${kpi} в категории «${category}»${platform ? ` / ${platform}` : ""}.`);
+    }
+    const dir = kpiDirection(kpi);
+    const { severity, band, deviationPct } = bandSeverity(value, bands, dir);
+    const name = typeof input?.metricName === "string" && input.metricName.trim() ? input.metricName.trim() : kpi;
+    const act = severity === "ok" ? null : actionFor(name);
+
+    const summary =
+      `${name} = ${value} vs RU/CIS p50 ${bands.p50} (${band}) → ${severity.toUpperCase()}.` +
+      (act ? ` Действие: ${act.tool}.` : " В пределах бенчмарка.");
+
+    return toContent(summary, {
+      tool: "benchmark_kpi_check",
+      category,
+      kpi,
+      platform: bands.platform ?? platform ?? null,
+      value,
+      direction: dir,
+      bands: { p25: bands.p25, p50: bands.p50, p75: bands.p75 },
+      band,
+      severity,
+      deviationPctFromP50: deviationPct,
+      recommendedAction: act?.action ?? null,
+      suggestedTool: act?.tool ?? null,
+      note: "Severity vs. p25/p50/p75 spread (ru_benchmarks data layer). lower_better для CPA/CPM, higher_better для CTR/VTR.",
+    });
+  },
+};
+
+// ── 5. Alert → skill routing (autonomy Phase D) ──────────────────────────────
+
+const ALERT_SKILL_MAP: Array<{ kw: RegExp; skill: string; reason: string }> = [
+  { kw: /cpa|cac|cpl|cpc|cost|spend|drr|расход/i, skill: "cut_cac", reason: "Снижение стоимости клиента" },
+  { kw: /churn|отток|retention|удержан|ltv/i, skill: "retention_boost", reason: "Удержание и LTV" },
+  { kw: /ctr|креатив|creative|fatigue|частот/i, skill: "creative_refresh", reason: "Обновление креатива" },
+  { kw: /budget|бюджет|pacing|пейсинг|romi|roas/i, skill: "budget_reallocation", reason: "Перераспределение бюджета" },
+  { kw: /seo|organic|органик|контент|content/i, skill: "seo_growth", reason: "Органический рост" },
+  { kw: /social|smm|инфлюенс|influencer/i, skill: "social_growth", reason: "SMM и инфлюенс" },
+  { kw: /nps|csat|cx|лояльн/i, skill: "retention_boost", reason: "CX и лояльность" },
+  { kw: /utm|increment|geo|measurement|измерим/i, skill: "measurement_setup", reason: "Измеримость" },
+  { kw: /marketplace|ozon|wildberries|drr|ритейл/i, skill: "marketplace_scaling", reason: "Маркетплейсы" },
+  { kw: /launch|gtm|запуск/i, skill: "product_launch", reason: "GTM запуск" },
+];
+function skillForAlert(name: string, suggestedTool?: string): { skillKey: string; reason: string } | null {
+  for (const m of ALERT_SKILL_MAP) if (m.kw.test(name)) return { skillKey: m.skill, reason: m.reason };
+  if (suggestedTool) {
+    const byTool: Record<string, string> = {
+      budget_optimizer: "cut_cac",
+      churn_predictor: "retention_boost",
+      creative_testing_matrix: "creative_refresh",
+      funnel_model: "cut_cac",
+      nps_analysis: "retention_boost",
+    };
+    const key = byTool[suggestedTool];
+    if (key) return { skillKey: key, reason: `Маршрут из ${suggestedTool}` };
+  }
+  return null;
+}
+
+const alertToSkill: ToolDef = {
+  name: "alert_to_skill",
+  description:
+    "AUTONOMY (Phase D): turns KPI breaches (output of kpi_alert_engine / benchmark_kpi_check) into an ORDERED workflow — alert summary → matched marketing_skill recipe → tool chain → first tool to call. Give `alerts` [{name, severity?, suggestedTool?, deviationPct?}] and/or raw `metrics`. Deterministic skill matching via the skills catalogue (matchSkill); does NOT execute tools. Complements autonomous_plan (generic remediation) with playbook-native routing. Pro+.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      alerts: {
+        type: "array",
+        description: "Alerts from kpi_alert_engine / benchmark_kpi_check",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string" },
+            severity: { type: "string", enum: ["critical", "warning", "watch", "ok"] },
+            suggestedTool: { type: "string" },
+            deviationPct: { type: "number" },
+            recommendedAction: { type: "string" },
+          },
+          required: ["name"],
+          additionalProperties: true,
+        },
+      },
+      metrics: {
+        type: "array",
+        description: "Optional raw metrics to evaluate first (same shape as kpi_alert_engine)",
+        items: { type: "object", additionalProperties: true },
+      },
+      goal: { type: "string", description: "Optional free-text goal to bias skill matching" },
+    },
+    additionalProperties: false,
+  },
+  async handler(input) {
+    let alerts: Array<Record<string, unknown>> = Array.isArray(input?.alerts)
+      ? input.alerts.filter(isRecord)
+      : [];
+
+    if (alerts.length === 0 && Array.isArray(input?.metrics) && input.metrics.length > 0) {
+      const inner = await kpiAlertEngine.handler({ metrics: input.metrics });
+      const sc = inner.structuredContent;
+      if (sc && Array.isArray(sc.alerts)) alerts = sc.alerts.filter(isRecord);
+    }
+
+    const breaches = alerts.filter((a) => {
+      const sev = String(a.severity ?? "");
+      return sev === "critical" || sev === "warning" || sev === "watch";
+    });
+    if (breaches.length === 0 && !input?.goal) {
+      return errResult("Нужны alerts с нарушениями (severity critical|warning|watch) и/или goal.");
+    }
+
+    breaches.sort(
+      (a, b) =>
+        (SEV_RANK[String(b.severity)] - SEV_RANK[String(a.severity)]) ||
+        (Number(b.deviationPct ?? 0) - Number(a.deviationPct ?? 0))
+    );
+
+    const primary = breaches[0];
+    const primaryName = primary ? String(primary.name) : "";
+    const skillHint = primary
+      ? skillForAlert(primaryName, typeof primary.suggestedTool === "string" ? primary.suggestedTool : undefined)
+      : null;
+    const goal = typeof input?.goal === "string" ? input.goal.trim() : "";
+    const query = goal || skillHint?.skillKey || primaryName;
+    const skill = matchSkill(query);
+
+    const workflow: Array<Record<string, unknown>> = [];
+    workflow.push({
+      step: 1,
+      phase: "Alert",
+      issue: breaches.length > 0 ? `${breaches.length} breach(es), top: «${primaryName}» (${primary?.severity})` : `Goal: ${goal}`,
+      action: primary?.recommendedAction ?? primary?.suggestedTool ?? "Review alerts",
+    });
+
+    if (skill) {
+      workflow.push({
+        step: 2,
+        phase: "Skill",
+        skillKey: skill.key,
+        title: skill.title,
+        outcome: skill.outcome,
+        toolChain: skill.steps.map((s, i) => ({ order: i + 1, tool: s.tool, why: s.why })),
+      });
+    } else {
+      workflow.push({
+        step: 2,
+        phase: "Skill",
+        skillKey: null,
+        note: "Подходящий marketing_skill не найден — используйте autonomous_plan.",
+        fallbackTool: "autonomous_plan",
+      });
+    }
+
+    const firstTool =
+      skill?.steps[0]?.tool ??
+      (typeof primary?.suggestedTool === "string" ? primary.suggestedTool : "kpi_alert_engine");
+
+    workflow.push({
+      step: 3,
+      phase: "First action",
+      recommendedTool: firstTool,
+      owner: ownerFor(firstTool),
+      note: "Запустите первый инструмент цепочки; выход → вход следующего шага.",
+    });
+
+    const summary =
+      breaches.length > 0
+        ? `Алёрт «${primaryName}» (${primary?.severity}) → скил «${skill?.key ?? "—"}» → старт: ${firstTool}.`
+        : `Цель «${goal}» → скил «${skill?.key ?? "—"}» → старт: ${firstTool}.`;
+
+    return toContent(summary, {
+      tool: "alert_to_skill",
+      breachCount: breaches.length,
+      primaryAlert: primary ?? null,
+      matchedSkill: skill
+        ? { key: skill.key, title: skill.title, steps: skill.steps.length, kpis: skill.kpis }
+        : null,
+      skillMatchQuery: query,
+      workflow,
+      firstToolToCall: firstTool,
+      note: "Детерминированный alert→skill→tool маршрут. Не выполняет инструменты — только рецепт. Pro+ tier.",
+    });
+  },
+};
+
+export const AUTONOMY_TOOLS: ToolDef[] = [
+  kpiAlertEngine,
+  marketingBudgetAllocator,
+  autonomousPlan,
+  benchmarkKpiCheck,
+  alertToSkill,
+];

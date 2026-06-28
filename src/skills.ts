@@ -191,7 +191,7 @@ const SKILLS: Skill[] = [
   },
 ];
 
-function matchSkill(query: string): Skill | null {
+export function matchSkill(query: string): Skill | null {
   const q = query.trim().toLowerCase();
   if (!q) return null;
   const byKey = SKILLS.find((s) => s.key === q);

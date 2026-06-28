@@ -39,6 +39,9 @@ UNYLY_MARKETPLACE_URL="https://unyly.org/ru/mcp"
 # FED_KEYWORD_DATA_URL="https://custom.example/mcp"
 # FED_KEYWORD_DATA_TOKEN="..."
 
+# Tenant metrics scaffold (v2.61): "mock" (default) | "kv"
+# NECTARIN_TENANT_DATA_MODE="mock"
+
 # ── Optional, for when callLLM() is wired to a real model (production: use
 #    `wrangler secret put LLM_API_KEY` instead of putting it here) ──
 # LLM_API_KEY=""
