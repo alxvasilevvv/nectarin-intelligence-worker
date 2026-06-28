@@ -24,7 +24,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(79);
+    expect(json.toolCount).toBe(82);
     expect(json.commit).toBeDefined();
   });
 });
@@ -35,7 +35,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(79);
+    expect(tools).toHaveLength(82);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -61,6 +61,9 @@ describe("tools/list", () => {
     expect(names).toContain("viral_loop");
     expect(names).toContain("mcp_federation");
     expect(names).toContain("federation_invoke");
+    expect(names).toContain("marketing_maturity_assessment");
+    expect(names).toContain("martech_stack_roi");
+    expect(names).toContain("pricing_psm");
     expect(names).toContain("compliance_check");
     expect(names).toContain("ab_test_planner");
     expect(names).toContain("unit_economics");
@@ -212,8 +215,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(79);
-    expect(catalog.tools).toHaveLength(79);
+    expect(catalog.counts.tools).toBe(82);
+    expect(catalog.tools).toHaveLength(82);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -2329,7 +2332,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(79);
+    expect(parsed.result.tools.length).toBe(82);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -2412,7 +2415,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(79);
+    expect(json.result.tools).toHaveLength(82);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -2440,7 +2443,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(79);
+    expect(json.result.tools).toHaveLength(82);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -2450,10 +2453,12 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 55 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 57 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(55);
+    expect(json.result.prompts).toHaveLength(57);
+    expect(names).toContain("maturity_check");
+    expect(names).toContain("pricing_research");
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -3124,6 +3129,31 @@ describe("prompts", () => {
     expect(text).toContain("marketing_skill");
     expect(text).toContain("поднять retention");
   });
+
+  it("prompts/get maturity_check embeds scores and calls marketing_maturity_assessment", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 68,
+      method: "prompts/get",
+      params: { name: "maturity_check", arguments: { scores: "strategy:3, data:2", company: "Acme" } },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("marketing_maturity_assessment");
+    expect(text).toContain("strategy:3, data:2");
+    expect(text).toContain("Acme");
+  });
+
+  it("prompts/get pricing_research embeds respondents and calls pricing_psm", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 69,
+      method: "prompts/get",
+      params: { name: "pricing_research", arguments: { respondents: "100/200/400/600; 120/220/420/650" } },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("pricing_psm");
+    expect(text).toContain("100/200/400/600");
+  });
 });
 
 describe("Plan gating (monetization seam)", () => {
@@ -3488,5 +3518,122 @@ describe("MCP federation (Phase C)", () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe("expansion tools (v2.54)", () => {
+  it("marketing_maturity_assessment computes a weighted index, level and roadmap", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 840,
+      method: "tools/call",
+      params: {
+        name: "marketing_maturity_assessment",
+        arguments: { company: "Acme", scores: { strategy: 4, data: 2, measurement: 2, channels: 4, martech: 3, team: 3, creative: 5 } },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.overallScore).toBeGreaterThan(0);
+    expect(sc.overallScore).toBeLessThanOrEqual(100);
+    expect(sc.level).toBeGreaterThanOrEqual(1);
+    expect(sc.level).toBeLessThanOrEqual(5);
+    expect(sc.dimensionsAssessed).toBe(7);
+    expect(Array.isArray(sc.roadmap)).toBe(true);
+    // weakest weighted shortfall (data/measurement at 2) should headline the roadmap
+    expect(["Данные и аналитика", "Измеримость и атрибуция"]).toContain(sc.roadmap[0].dimension);
+  });
+
+  it("marketing_maturity_assessment reports unassessed dimensions and errors on empty", async () => {
+    const { json: partial } = await rpc({
+      jsonrpc: "2.0",
+      id: 841,
+      method: "tools/call",
+      params: { name: "marketing_maturity_assessment", arguments: { scores: { strategy: 3 } } },
+    });
+    expect(partial.result.structuredContent.dimensionsAssessed).toBe(1);
+    expect(partial.result.structuredContent.notAssessed).toContain("data");
+
+    const { json: empty } = await rpc({
+      jsonrpc: "2.0",
+      id: 842,
+      method: "tools/call",
+      params: { name: "marketing_maturity_assessment", arguments: { scores: {} } },
+    });
+    expect(empty.result.isError).toBe(true);
+  });
+
+  it("martech_stack_roi finds waste, redundancy and consolidation savings", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 843,
+      method: "tools/call",
+      params: {
+        name: "martech_stack_roi",
+        arguments: {
+          tools: [
+            { name: "GA4", annualCost: 0, utilizationPct: 80, category: "analytics" },
+            { name: "Amplitude", annualCost: 1200000, utilizationPct: 20, category: "analytics", satisfaction: 2 },
+            { name: "Mailtool", annualCost: 600000, utilizationPct: 90, category: "email" },
+            { name: "OldESP", annualCost: 300000, utilizationPct: 10, category: "esp" },
+          ],
+        },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.totals.toolCount).toBe(4);
+    expect(sc.totals.totalAnnualSpend).toBe(2100000);
+    // Amplitude is the lower-scored analytics tool ⇒ redundant vs GA4
+    expect(sc.redundancy.some((r: any) => r.name === "Amplitude" && r.keptInstead === "GA4")).toBe(true);
+    // OldESP at 10% util (sole in its category) ⇒ low-utilization cut candidate
+    expect(sc.lowUtilizationCandidates.some((t: any) => t.name === "OldESP")).toBe(true);
+    expect(sc.totals.projectedSavings).toBe(1500000);
+    expect(sc.totals.utilizationRoi).toBeGreaterThan(0);
+  });
+
+  it("pricing_psm locates OPP/IPP and the acceptable price band", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 844,
+      method: "tools/call",
+      params: {
+        name: "pricing_psm",
+        arguments: {
+          respondents: [
+            { tooCheap: 100, cheap: 200, expensive: 400, tooExpensive: 600 },
+            { tooCheap: 120, cheap: 220, expensive: 420, tooExpensive: 650 },
+            { tooCheap: 90, cheap: 180, expensive: 380, tooExpensive: 580 },
+            { tooCheap: 150, cheap: 260, expensive: 460, tooExpensive: 700 },
+            { tooCheap: 110, cheap: 210, expensive: 410, tooExpensive: 620 },
+          ],
+        },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.respondentsValid).toBe(5);
+    expect(typeof sc.optimalPricePoint).toBe("number");
+    expect(typeof sc.indifferencePricePoint).toBe("number");
+    expect(Array.isArray(sc.acceptablePriceRange)).toBe(true);
+    // PMC ≤ PME (lower bound below upper bound)
+    expect(sc.acceptablePriceRange[0]).toBeLessThanOrEqual(sc.acceptablePriceRange[1]);
+    expect(Array.isArray(sc.curve)).toBe(true);
+  });
+
+  it("pricing_psm drops non-monotonic respondents and errors when too few remain", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 845,
+      method: "tools/call",
+      params: {
+        name: "pricing_psm",
+        arguments: {
+          respondents: [
+            { tooCheap: 500, cheap: 200, expensive: 400, tooExpensive: 600 }, // non-monotonic
+            { tooCheap: 100, cheap: 200, expensive: 400, tooExpensive: 600 },
+          ],
+        },
+      },
+    });
+    expect(json.result.isError).toBe(true);
+    expect(json.result.structuredContent.dropped).toBeGreaterThanOrEqual(1);
   });
 });

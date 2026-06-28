@@ -41,6 +41,7 @@ import { DISTRIBUTION_TOOLS } from "./distribution.js";
 import { SKILL_TOOLS } from "./skills.js";
 import { GROWTHLAB_TOOLS } from "./growthlab.js";
 import { FEDERATION_TOOLS } from "./federation.js";
+import { EXPANSION_TOOLS } from "./expansion.js";
 import type { Env } from "./index.js";
 
 export interface JsonSchema {
@@ -434,6 +435,7 @@ export const ALL_TOOLS: ToolDef[] = [
   ...SKILL_TOOLS,
   ...GROWTHLAB_TOOLS,
   ...FEDERATION_TOOLS,
+  ...EXPANSION_TOOLS,
 ];
 
 export const TOOLS_BY_NAME: Record<string, ToolDef> = Object.fromEntries(

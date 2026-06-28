@@ -111,7 +111,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.53.0";
+const SERVER_VERSION = "2.54.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1648,6 +1648,37 @@ const PROMPTS = [
       `2) Порекомендуй 1–3 сервера: что добавляет и с какими инструментами NECTARIN он работает в паре.\n` +
       `3) Дай трекнутую ссылку подключения через Unyly (connectViaUnyly).\n` +
       `4) Подчеркни: NECTARIN — хаб, всё подключается и тарифицируется через Unyly.`,
+  },
+  {
+    name: "maturity_check",
+    title: "Assess marketing maturity (CMO scorecard)",
+    description:
+      "Score 7 capability dimensions 0–5 and get a 0–100 maturity index, level (Nascent→Leading) and a prioritized 90-day roadmap (marketing_maturity_assessment).",
+    arguments: [
+      { name: "scores", description: "Per-dimension 0–5, e.g. 'strategy:3, data:2, measurement:2, channels:4, martech:3, team:3, creative:4'", required: true },
+      { name: "company", description: "Optional company/brand name", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, консультант по маркетинговой трансформации.\n` +
+      (a.company ? `Компания: «${a.company}».\n` : "") +
+      `Оценки: ${a.scores}.\n` +
+      `\nРазбери строку в объект scores (ключи strategy, data, measurement, channels, martech, team, creative; значения 0–5) и вызови marketing_maturity_assessment(scores={...}${a.company ? `, company="${a.company}"` : ""}).\n` +
+      `Покажи индекс зрелости, уровень 1–5, сильные стороны и разрывы, затем озвучь приоритетный 90-дневный роадмап. Предложи команде подключение через Unyly.`,
+  },
+  {
+    name: "pricing_research",
+    title: "Van Westendorp price research (PSM)",
+    description:
+      "From survey respondents' four price points, find OPP/IPP and the acceptable price band (pricing_psm).",
+    arguments: [
+      { name: "respondents", description: "Rows 'tooCheap/cheap/expensive/tooExpensive', e.g. '100/200/400/600; 150/250/450/700; ...'", required: true },
+      { name: "currency", description: "Currency label (default ₽)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, продуктовый аналитик ценообразования.\n` +
+      `Ответы опроса: ${a.respondents}.\n` +
+      `\nРазбери строки в массив respondents [{tooCheap, cheap, expensive, tooExpensive}] и вызови pricing_psm(respondents=[...]${a.currency ? `, currency="${a.currency}"` : ""}).\n` +
+      `Объясни OPP (оптимальная цена), IPP (точка безразличия) и приемлемый диапазон PMC→PME; дай рекомендацию по стартовой цене.`,
   },
 ];
 

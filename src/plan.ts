@@ -30,6 +30,8 @@ export const TOOL_MIN_PLAN: Record<string, Plan> = {
   report_export: "pro",
   board_report: "team",
   federation_invoke: "team",
+  marketing_maturity_assessment: "pro",
+  martech_stack_roi: "pro",
 };
 
 /**

@@ -3,6 +3,29 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.54.0] — 2026-06-29
+
+Seventeenth wave — **profession expansion** (Phase D groundwork of `ROADMAP.md`): three
+methodology-grounded models that widen coverage to the CMO/transformation, marketing-ops/RevOps
+and product/pricing-research roles. **82 tools / 57 prompts.**
+
+### Added
+- **`marketing_maturity_assessment`** (new **Expansion** group) — CMO/transformation scorecard.
+  Rates 7 weighted dimensions 0–5 (strategy, data, measurement, channels, martech, team, creative)
+  ⇒ a 0–100 maturity index, level 1 Nascent→5 Leading, per-dimension strengths/gaps and a
+  prioritized 90-day roadmap. Gated **pro+**.
+- **`martech_stack_roi`** (Expansion) — marketing-ops/RevOps stack auditor. From tools
+  (cost, utilization, category, optional satisfaction) ⇒ wasted spend, category redundancy
+  (keep best-utilized, flag the rest), low-utilization cut candidates, projected consolidation
+  savings and a utilization-weighted ROI proxy. Gated **pro+**.
+- **`pricing_psm`** (Expansion) — Van Westendorp Price Sensitivity Meter. From respondents'
+  four price points it builds the four cumulative curves and locates OPP, IPP and the
+  acceptable band PMC→PME; drops non-monotonic respondents.
+- Guided prompts **`maturity_check`** and **`pricing_research`** (**57 prompts** total).
+
+### Changed
+- `tools/list`/catalog/`/version` advertise **82 tools**. Docs + tests updated (+7). 216 pass.
+
 ## [2.53.0] — 2026-06-29
 
 Sixteenth wave — **MCP federation runtime** (Phase C-runtime of `ROADMAP.md`): NECTARIN can now
