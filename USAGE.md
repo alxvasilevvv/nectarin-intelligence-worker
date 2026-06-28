@@ -37,7 +37,7 @@ stays on JSON, so existing clients are unaffected.
 
 ---
 
-## 2. Tool catalogue (49)
+## 2. Tool catalogue (50)
 
 ### Intelligence (11)
 | Tool | What it does |
@@ -125,12 +125,13 @@ stays on JSON, so existing clients are unaffected.
 |---|---|
 | `influencer_planner` | Evaluates an influencer/KOL roster: per-creator reach, CPM/CPV/CPE, estimated target reach & conversions, eCPA, value score and **fraud flags** (ER vs. typical band for the follower tier). With a `budget`, greedily builds the best mix and reports blended reach/conversions/CPA/CPM. |
 
-### Media (3) — OLV / display reach & frequency, cross-channel, flighting
+### Media (4) — OLV / display reach & frequency, cross-channel, flighting, quality
 | Tool | What it does |
 |---|---|
 | `reach_frequency` | From budget+CPM (or impressions) and the audience universe, gives gross impressions, GRPs, **net reach** (people & %), average frequency, contact distribution and **effective reach at ≥N exposures** (Poisson). Optional `frequencyCap` estimates over-cap waste and reallocatable reach; returns cost-per-reached-person + verdict. |
 | `channel_overlap` | From a shared universe + ≥2 channels' reach, gives the combined **deduplicated net reach** (Sainsbury), gross summed reach, duplication (people & %) and each channel's **incremental unique reach** (leave-one-out); flags most additive / most duplicated. |
 | `media_flowchart` | Distributes a budget across N weeks by a flighting pattern (even / front_loaded / back_loaded / burst / pulse) → per-week budget, share, cumulative spend, and a **per-channel split** each on-air week; reports peak week & on-air weeks. |
+| `media_quality_score` | From a placement's delivered metrics (viewability, IVT/bot, completion, brand-safe, on-target) → weighted **0–100 quality score** + A–F grade, per-metric assessment vs thresholds, flags and the biggest lever. Scores YOUR delivery (vs `supplier_quality` lookup). |
 
 ### Brand (2) — brand lift, share of voice
 | Tool | What it does |
@@ -148,13 +149,13 @@ stays on JSON, so existing clients are unaffected.
 |---|---|
 | `geo_holdout` | *Design*: baseline conversions + target lift → **MDE**, required volume and test duration. *Measure*: test vs counterfactual conversions → incremental, lift %, count-based (Poisson) **z-test**, p-value, significance, incremental CPA. Auto-detects mode. |
 
-Built‑in **prompts** (26): `build_media_plan`, `full_strategy`, `competitor_teardown`,
+Built‑in **prompts** (27): `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`,
 `launch_flight`, `performance_review`, `saturation_reallocation`, `mmm_planning`,
 `quarter_plan`, `account_audit`, `scenario_review`, `promo_review`, `exec_report`,
 `creative_fatigue_check`, `price_optimization`, `influencer_plan`, `olv_plan`,
 `brand_lift_study`, `omnichannel_reach`, `production_budget`, `flighting_plan`,
-`geo_test`, `sov_analysis`.
+`geo_test`, `sov_analysis`, `media_quality_check`.
 **Resources:** `nectarin://methodology`, `nectarin://glossary`, `nectarin://catalog`
 (live JSON catalog of all tools + annotations + prompts). `tools/list` also
 returns a `title` and behavioral `annotations` (read-only / idempotent / open-world) per tool.

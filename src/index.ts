@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.28.0";
+const SERVER_VERSION = "2.29.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -965,6 +965,37 @@ const PROMPTS = [
       `3) Объясни SOV, ESOV (избыточная доля голоса) и прогноз изменения доли рынка.\n` +
       `4) Скажи, инвестирует ли бренд в рост или недоинвестирует; ${a.targetShareGrowthPp ? "назови нужный SOV/спенд под цель." : "сколько SOV нужно для роста."}\n` +
       `5) Рекомендация по медиадавлению + дисклеймер: связь ESOV→рост усреднённая (Binet & Field), калибруйте под категорию.`,
+  },
+  {
+    name: "media_quality_check",
+    title: "Media delivery quality check",
+    description:
+      "Score a placement's delivery quality (media_quality_score): viewability, IVT/bot, completion, brand safety, on-target → 0–100 score, grade, flags and the biggest lever.",
+    arguments: [
+      { name: "placement", description: "Placement / supplier / line-item label", required: true },
+      { name: "isVideo", description: "true for video placements (optional)", required: false },
+      { name: "viewabilityPct", description: "Viewable impressions, %", required: false },
+      { name: "invalidTrafficPct", description: "Invalid/bot (IVT) traffic, %", required: false },
+      { name: "completionPct", description: "Video completion rate (VTR), % (video)", required: false },
+      { name: "brandSafePct", description: "Brand-safe impressions, %", required: false },
+      { name: "onTargetPct", description: "In-geo / on-target, %", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, специалист по качеству медиа-трафика RU/CIS.\n` +
+      `Оцени качество доставки площадки и дай вывод.\n` +
+      `Площадка: ${a.placement}.${a.isVideo ? " Тип: видео." : ""}\n` +
+      `Метрики:` +
+      (a.viewabilityPct ? ` viewability ${a.viewabilityPct}%;` : "") +
+      (a.invalidTrafficPct ? ` IVT ${a.invalidTrafficPct}%;` : "") +
+      (a.completionPct ? ` completion ${a.completionPct}%;` : "") +
+      (a.brandSafePct ? ` brand-safe ${a.brandSafePct}%;` : "") +
+      (a.onTargetPct ? ` on-target ${a.onTargetPct}%;` : "") +
+      `\n\nШаги:\n` +
+      `1) Вызови media_quality_score(placement${a.isVideo ? ", isVideo" : ""}${a.viewabilityPct ? ", viewabilityPct" : ""}${a.invalidTrafficPct ? ", invalidTrafficPct" : ""}${a.completionPct ? ", completionPct" : ""}${a.brandSafePct ? ", brandSafePct" : ""}${a.onTargetPct ? ", onTargetPct" : ""}).\n` +
+      `2) Назови общий скор и грейд (A–F), разбери каждую метрику vs порог.\n` +
+      `3) Перечисли флаги (низкая viewability, высокий фрод, brand-safety) и главный рычаг.\n` +
+      `4) Дай вердикт: масштабировать / оптимизировать / отключить.\n` +
+      `5) Next-step + дисклеймер: сверяйте с независимой верификацией (MRC-партнёр).`,
   },
 ];
 

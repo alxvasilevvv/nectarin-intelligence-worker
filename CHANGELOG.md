@@ -3,6 +3,25 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.29.0] — 2026-06-28
+
+Media quality: a delivery quality scorer (**50th tool**) — final feature of the third
+wave. NECTARIN Intelligence now ships **50 tools / 27 guided prompts**.
+
+### Added
+- **`media_quality_score`** (Media group, now 4 tools) — from a placement's OWN
+  delivered metrics (viewability %, IVT/bot %, video completion %, brand-safe %,
+  on-target %), computes a weighted **0–100 quality score** and an A–F grade, scores
+  each metric vs. RU/MRC-style thresholds (viewability ≥50% display / ≥70% video,
+  IVT <3%, brand-safe ≥95%, on-target ≥70%), flags problems and names the biggest
+  lever. Complements `supplier_quality` (a benchmark lookup) — this scores YOUR
+  actual delivery. Deterministic. 49 → **50 tools**.
+- **`media_quality_check`** guided prompt (**27 prompts** total).
+
+### Changed
+- `server.json` description + version, README (Tools badge 50, Media group now 4
+  tools), USAGE (catalogue 50, prompts 27), test counts (50 tools / 27 prompts).
+
 ## [2.28.0] — 2026-06-28
 
 Brand growth: a Share-of-Voice / ESOV growth tracker (49th tool) — second feature of

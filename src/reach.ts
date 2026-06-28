@@ -442,4 +442,170 @@ const mediaFlowchart: ToolDef = {
   },
 };
 
-export const MEDIA_TOOLS: ToolDef[] = [reachFrequency, channelOverlap, mediaFlowchart];
+// ── media_quality_score ──────────────────────────────────────────────────────
+
+function clamp01to100(n: number): number {
+  return Math.max(0, Math.min(100, n));
+}
+
+const mediaQualityScore: ToolDef = {
+  name: "media_quality_score",
+  description:
+    "Media delivery quality scorer. From a placement's OWN delivered metrics (viewability %, invalid/bot traffic %, video completion %, brand-safe %, in-geo/on-target %), computes a weighted 0–100 quality score and an A–F grade, scores each metric vs. RU market thresholds (MRC-style), flags problems (low viewability, high IVT, weak completion/brand-safety), and gives a verdict + the biggest lever. Complements supplier_quality (which is a benchmark lookup) — this scores YOUR actual delivery. Deterministic, decision support, not a guarantee.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      placement: { type: "string", description: "Placement / supplier / line-item label" },
+      isVideo: { type: "boolean", description: "Treat as video (uses video viewability threshold & completion). Default false." },
+      viewabilityPct: { type: "number", minimum: 0, maximum: 100, description: "Viewable impressions, %" },
+      invalidTrafficPct: { type: "number", minimum: 0, maximum: 100, description: "Invalid/bot (IVT) traffic, %" },
+      completionPct: { type: "number", minimum: 0, maximum: 100, description: "Video completion rate (VTR), % (video only)" },
+      brandSafePct: { type: "number", minimum: 0, maximum: 100, description: "Brand-safe impressions, %" },
+      onTargetPct: { type: "number", minimum: 0, maximum: 100, description: "In-geo / on-target-audience, %" },
+    },
+    required: [],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const isVideo = input.isVideo === true;
+    const num = (v: unknown): number | null => (typeof v === "number" && v >= 0 ? Math.min(100, v) : null);
+
+    const viewability = num(input.viewabilityPct);
+    const ivt = num(input.invalidTrafficPct);
+    const completion = num(input.completionPct);
+    const brandSafe = num(input.brandSafePct);
+    const onTarget = num(input.onTargetPct);
+
+    if ([viewability, ivt, completion, brandSafe, onTarget].every((v) => v == null)) {
+      return {
+        content: [{ type: "text", text: "Ошибка: передай хотя бы одну метрику доставки (viewabilityPct, invalidTrafficPct, completionPct, brandSafePct, onTargetPct)." }],
+        isError: true,
+      };
+    }
+
+    // Thresholds (RU market, MRC-style illustrative): {good, target weight}.
+    const viewTarget = isVideo ? 70 : 50; // MRC: 2s/50% video, 1s/50% display; RU практика выше
+    interface Metric {
+      key: string;
+      label: string;
+      value: number | null;
+      score: number | null; // 0..100 sub-score
+      weight: number;
+      assessment: string;
+      flag: boolean;
+    }
+    const metrics: Metric[] = [];
+
+    // Viewability sub-score: linear from 0 at 0% to 100 at (viewTarget+30), capped.
+    if (viewability != null) {
+      const s = clamp01to100(((viewability - 0) / (viewTarget + 30)) * 100);
+      const flag = viewability < viewTarget;
+      metrics.push({
+        key: "viewability",
+        label: "Viewability",
+        value: viewability,
+        score: round(s),
+        weight: 0.3,
+        assessment: flag ? `Ниже порога ${viewTarget}%` : "В норме",
+        flag,
+      });
+    }
+    // IVT sub-score: 100 at 0%, 0 at 10%+ (lower is better).
+    if (ivt != null) {
+      const s = clamp01to100(100 - (ivt / 10) * 100);
+      const flag = ivt > 3;
+      metrics.push({
+        key: "invalidTraffic",
+        label: "Invalid traffic (IVT)",
+        value: ivt,
+        score: round(s),
+        weight: 0.3,
+        assessment: ivt > 5 ? "Высокий фрод" : flag ? "Повышенный фрод" : "Приемлемо (<3%)",
+        flag,
+      });
+    }
+    // Completion (video only).
+    if (completion != null && isVideo) {
+      const s = clamp01to100((completion / 75) * 100);
+      const flag = completion < 50;
+      metrics.push({
+        key: "completion",
+        label: "Completion (VTR)",
+        value: completion,
+        score: round(s),
+        weight: 0.15,
+        assessment: flag ? "Низкий досмотр" : "В норме",
+        flag,
+      });
+    }
+    // Brand safety.
+    if (brandSafe != null) {
+      const s = clamp01to100(((brandSafe - 80) / 20) * 100); // 80%→0, 100%→100
+      const flag = brandSafe < 95;
+      metrics.push({
+        key: "brandSafety",
+        label: "Brand safety",
+        value: brandSafe,
+        score: round(s),
+        weight: 0.15,
+        assessment: brandSafe < 90 ? "Риск размещения рядом с небезопасным контентом" : flag ? "Ниже целевых 95%" : "В норме",
+        flag,
+      });
+    }
+    // On-target.
+    if (onTarget != null) {
+      const s = clamp01to100(((onTarget - 50) / 50) * 100); // 50%→0, 100%→100
+      const flag = onTarget < 70;
+      metrics.push({
+        key: "onTarget",
+        label: "On-target / in-geo",
+        value: onTarget,
+        score: round(s),
+        weight: 0.1,
+        assessment: flag ? "Много нецелевого трафика" : "В норме",
+        flag,
+      });
+    }
+
+    const wSum = metrics.reduce((s, m) => s + m.weight, 0);
+    const overall = wSum > 0 ? metrics.reduce((s, m) => s + (m.score ?? 0) * m.weight, 0) / wSum : 0;
+    const grade =
+      overall >= 90 ? "A" : overall >= 80 ? "B" : overall >= 70 ? "C" : overall >= 60 ? "D" : "F";
+
+    const flags = metrics.filter((m) => m.flag).map((m) => m.label);
+    // Biggest lever = flagged metric with the lowest weighted score contribution headroom.
+    const worst = [...metrics].sort((a, b) => (a.score ?? 100) - (b.score ?? 100))[0];
+
+    const payload = {
+      placement: input.placement ? String(input.placement) : null,
+      isVideo,
+      qualityScore: round(overall),
+      grade,
+      metrics,
+      flags: flags.length ? flags : [],
+      biggestLever: worst ? worst.label : null,
+      verdict:
+        grade === "A" || grade === "B"
+          ? "Качество доставки хорошее — можно масштабировать."
+          : grade === "C"
+            ? "Среднее качество — оптимизируй слабые метрики перед масштабом."
+            : "Низкое качество доставки — пересмотри площадку/таргет до увеличения бюджета.",
+      methodology:
+        `Weighted sub-scores: viewability 0.30, IVT 0.30, ${isVideo ? "completion 0.15, " : ""}brand-safety 0.15, on-target 0.10 (нормируются на сумму присутствующих весов). Пороги: viewability ≥${viewTarget}% (${isVideo ? "video" : "display"}), IVT <3%, brand-safe ≥95%, on-target ≥70%.`,
+      assumptions: [
+        "Пороги иллюстративные (MRC-style, RU практика); используйте свои стандарты при наличии.",
+        "Оценка по предоставленным метрикам; отсутствующие метрики не учитываются в весах.",
+      ],
+      disclaimer: "Скоринг на ВАШИХ данных доставки, не гарантия. Сверяйте с независимой верификацией (напр. Weborama/Adriver/MRC-партнёр).",
+    };
+
+    const summary =
+      `Качество доставки${input.placement ? ` «${input.placement}»` : ""}: ${round(overall)}/100 (${grade}). ` +
+      (flags.length ? `Проблемы: ${flags.join(", ")}.` : "Флагов нет.") +
+      (worst ? ` Главный рычаг: ${worst.label}.` : "");
+
+    return toContent(summary, payload);
+  },
+};
+
+export const MEDIA_TOOLS: ToolDef[] = [reachFrequency, channelOverlap, mediaFlowchart, mediaQualityScore];
