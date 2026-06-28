@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.33.0";
+const SERVER_VERSION = "2.34.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1091,6 +1091,29 @@ const PROMPTS = [
       `3) Покажи рекомендованную раскладку показов по креативам и статусы (scale / maintain / retire).\n` +
       `4) Назови прирост к равномерной ротации, кого вывести и сколько новых креативов подготовить.\n` +
       `5) Свяжи с creative_fatigue (динамика по дням) и creative_variants (генерация замен); дисклеймер про калибровку периода полураспада.`,
+  },
+  {
+    name: "utm_audit",
+    title: "UTM taxonomy QA audit",
+    description:
+      "Audit a batch of tagged URLs for UTM consistency (utm_taxonomy_qa): consistency score, missing params, casing/space/non-ASCII issues and near-duplicate value variants.",
+    arguments: [
+      { name: "urls", description: "Tagged URLs or UTM query strings separated by a newline or ';'", required: true },
+      { name: "allowedSources", description: "Optional allow-list of utm_source values (comma-separated)", required: false },
+      { name: "allowedMediums", description: "Optional allow-list of utm_medium values (comma-separated)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, специалист по аналитике и управлению таксономией кампаний RU/CIS.\n` +
+      `Проведи аудит UTM-разметки пачки ссылок.\n` +
+      `Ссылки:\n${a.urls}\n` +
+      (a.allowedSources ? `Допустимые source: ${a.allowedSources}.\n` : "") +
+      (a.allowedMediums ? `Допустимые medium: ${a.allowedMediums}.\n` : "") +
+      `\nШаги:\n` +
+      `1) Разбей ссылки в массив urls[] (по переносу строки или «;»).\n` +
+      `2) Вызови utm_taxonomy_qa(urls${a.allowedSources ? ", allowedSources" : ""}${a.allowedMediums ? ", allowedMediums" : ""}).\n` +
+      `3) Назови балл консистентности и грейд, разбери проблемы по типам (нет обязательных, регистр, пробелы, не-ASCII).\n` +
+      `4) Покажи кластеры разнобоя (один смысл — разные написания) и предложи канонические значения.\n` +
+      `5) Дай чек-лист исправлений и единый шаблон через utm_builder; дисклеймер про настройку аналитики.`,
   },
 ];
 

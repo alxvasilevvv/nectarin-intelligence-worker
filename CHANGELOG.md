@@ -3,6 +3,25 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.34.0] — 2026-06-28
+
+Fifth wave (2/3) — a batch UTM / taxonomy governance auditor (**55th tool**). Now **55
+tools / 32 guided prompts**.
+
+### Added
+- **`utm_taxonomy_qa`** (Premium group, now 8 tools) — parses a list of tagged URLs
+  (or raw UTM query strings), checks each for missing required params
+  (utm_source/medium/campaign by default), uppercase, spaces and non-ASCII/Cyrillic,
+  then aggregates a **0–100 consistency score** + A–F grade, **near-duplicate value
+  variants** per parameter (e.g. `facebook` vs `Facebook` vs `fb`), values outside an
+  optional source/medium allow-list, and concrete fixes. Complements `utm_builder`
+  (which builds ONE link) by auditing a whole campaign export. 54 → **55 tools**.
+- **`utm_audit`** guided prompt (**32 prompts** total).
+
+### Changed
+- `server.json` description + version, README (Tools badge 55, Premium now 8 tools),
+  USAGE (catalogue 55, prompts 32), OVERVIEW, test counts (55 tools / 32 prompts).
+
 ## [2.33.0] — 2026-06-28
 
 Fifth wave (1/3) — a creative rotation optimizer (**54th tool**). Now **54 tools / 31

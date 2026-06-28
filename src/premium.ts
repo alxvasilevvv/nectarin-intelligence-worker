@@ -801,6 +801,179 @@ const budgetPacingForecast: ToolDef = {
   },
 };
 
+/**
+ * utm_taxonomy_qa — batch UTM/taxonomy governance audit. Parses a list of tagged
+ * URLs (or raw query strings), checks each for missing required params, casing,
+ * spaces and non-ASCII, then aggregates a consistency score, near-duplicate value
+ * variants per parameter (e.g. "facebook" vs "Facebook" vs "fb"), values outside
+ * an allow-list, and concrete fixes. Complements utm_builder (which builds ONE
+ * link) by auditing a whole campaign export for consistency.
+ */
+function parseUtm(raw: string): { ok: boolean; params: Record<string, string> } {
+  const s = String(raw ?? "").trim();
+  if (!s) return { ok: false, params: {} };
+  const params: Record<string, string> = {};
+  try {
+    let qs = s;
+    if (/^https?:\/\//i.test(s)) qs = new URL(s).search;
+    qs = qs.replace(/^\?/, "");
+    if (qs) {
+      for (const part of qs.split("&")) {
+        const [k, v = ""] = part.split("=");
+        if (!k) continue;
+        const key = decodeURIComponent(k.trim());
+        if (/^utm_/i.test(key)) params[key.toLowerCase()] = decodeURIComponent(v.replace(/\+/g, " "));
+      }
+    }
+  } catch {
+    return { ok: false, params: {} };
+  }
+  return { ok: true, params };
+}
+
+const utmTaxonomyQa: ToolDef = {
+  name: "utm_taxonomy_qa",
+  description:
+    "Batch UTM / taxonomy governance auditor. Give it a list of tagged URLs (or raw UTM query strings) and it parses every link, checks each for missing required params (utm_source/medium/campaign by default), uppercase, spaces and non-ASCII/Cyrillic, then aggregates a 0–100 consistency score, near-duplicate value variants per parameter (e.g. 'facebook' vs 'Facebook' vs 'fb'), values outside an optional allow-list for source/medium, and concrete fixes. Complements utm_builder (which builds ONE link) by auditing a whole campaign export for consistency. Deterministic; no network call.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      urls: {
+        type: "array",
+        minItems: 1,
+        items: { type: "string" },
+        description: "Tagged URLs or raw UTM query strings to audit",
+      },
+      requiredParams: {
+        type: "array",
+        items: { type: "string" },
+        description: "Required UTM params (default ['utm_source','utm_medium','utm_campaign'])",
+      },
+      allowedSources: { type: "array", items: { type: "string" }, description: "Optional allow-list of valid utm_source values" },
+      allowedMediums: { type: "array", items: { type: "string" }, description: "Optional allow-list of valid utm_medium values" },
+    },
+    required: ["urls"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const urls: string[] = ((input.urls ?? []) as unknown[]).map((u) => String(u)).filter((u) => u.trim() !== "");
+    if (urls.length === 0) {
+      return { content: [{ type: "text", text: "Ошибка: передай хотя бы один URL/строку UTM в urls[]." }], isError: true };
+    }
+    const required = Array.isArray(input.requiredParams) && input.requiredParams.length
+      ? (input.requiredParams as string[]).map((p) => p.toLowerCase())
+      : ["utm_source", "utm_medium", "utm_campaign"];
+    const allowedSources = Array.isArray(input.allowedSources) ? (input.allowedSources as string[]).map((x) => x.toLowerCase()) : null;
+    const allowedMediums = Array.isArray(input.allowedMediums) ? (input.allowedMediums as string[]).map((x) => x.toLowerCase()) : null;
+
+    const norm = (v: string) => v.trim().toLowerCase().replace(/[\s_-]+/g, "");
+    const valuesByParam: Record<string, Map<string, Set<string>>> = {};
+    const issueCounts: Record<string, number> = {
+      missing_required: 0,
+      uppercase: 0,
+      spaces: 0,
+      non_ascii: 0,
+      unparseable: 0,
+      not_in_allowlist: 0,
+    };
+
+    const rows = urls.map((u, idx) => {
+      const { ok, params } = parseUtm(u);
+      const rowIssues: string[] = [];
+      if (!ok || Object.keys(params).length === 0) {
+        issueCounts.unparseable++;
+        rowIssues.push("не распарсилось / нет utm-параметров");
+        return { index: idx, url: u, params, issues: rowIssues };
+      }
+      for (const r of required) {
+        if (!params[r] || params[r].trim() === "") {
+          issueCounts.missing_required++;
+          rowIssues.push(`нет ${r}`);
+        }
+      }
+      for (const [k, v] of Object.entries(params)) {
+        if (/[A-ZА-Я]/.test(v)) {
+          issueCounts.uppercase++;
+          rowIssues.push(`${k}: верхний регистр`);
+        }
+        if (/\s/.test(v)) {
+          issueCounts.spaces++;
+          rowIssues.push(`${k}: пробелы`);
+        }
+        if (/[^\x00-\x7F]/.test(v)) {
+          issueCounts.non_ascii++;
+          rowIssues.push(`${k}: не-ASCII (кириллица)`);
+        }
+        if (!valuesByParam[k]) valuesByParam[k] = new Map();
+        const key = norm(v);
+        if (!valuesByParam[k].has(key)) valuesByParam[k].set(key, new Set());
+        valuesByParam[k].get(key)!.add(v);
+      }
+      if (allowedSources && params.utm_source && !allowedSources.includes(params.utm_source.toLowerCase())) {
+        issueCounts.not_in_allowlist++;
+        rowIssues.push(`utm_source «${params.utm_source}» вне allow-list`);
+      }
+      if (allowedMediums && params.utm_medium && !allowedMediums.includes(params.utm_medium.toLowerCase())) {
+        issueCounts.not_in_allowlist++;
+        rowIssues.push(`utm_medium «${params.utm_medium}» вне allow-list`);
+      }
+      return { index: idx, url: u, params, issues: rowIssues };
+    });
+
+    // Near-duplicate variants: same normalized key but >1 raw spelling.
+    const variants: Array<{ param: string; canonical: string; spellings: string[] }> = [];
+    for (const [param, map] of Object.entries(valuesByParam)) {
+      for (const [, spellingsSet] of map.entries()) {
+        if (spellingsSet.size > 1) {
+          const spellings = [...spellingsSet];
+          variants.push({ param, canonical: spellings[0].toLowerCase(), spellings });
+        }
+      }
+    }
+
+    const totalIssues = Object.values(issueCounts).reduce((s, x) => s + x, 0);
+    const cleanRows = rows.filter((r) => r.issues.length === 0).length;
+    // Score: start 100, −2 per issue, −5 per variant cluster, floored at 0.
+    const score = Math.max(0, 100 - totalIssues * 2 - variants.length * 5);
+
+    const recommendations: string[] = [];
+    if (issueCounts.uppercase || issueCounts.spaces || issueCounts.non_ascii)
+      recommendations.push("Приведи все значения к нижнему регистру, латинице и разделителю «_» (utm_builder).");
+    if (issueCounts.missing_required) recommendations.push("Заполни обязательные параметры на всех ссылках.");
+    if (variants.length) recommendations.push(`Унифицируй разнобой в значениях (${variants.length} кластеров), напр. ${variants.slice(0, 3).map((v) => v.spellings.join("/")).join("; ")}.`);
+    if (issueCounts.not_in_allowlist) recommendations.push("Приведи source/medium к утверждённому словарю.");
+    if (recommendations.length === 0) recommendations.push("Таксономия консистентна — поддерживай единый словарь и шаблон через utm_builder.");
+
+    const grade = score >= 90 ? "A" : score >= 75 ? "B" : score >= 60 ? "C" : score >= 40 ? "D" : "F";
+
+    const payload = {
+      urlsAudited: urls.length,
+      cleanUrls: cleanRows,
+      consistencyScore: score,
+      grade,
+      requiredParams: required,
+      issueCounts,
+      totalIssues,
+      variantClusters: variants,
+      rows: rows.map((r) => ({ index: r.index, params: r.params, issues: r.issues })),
+      recommendations,
+      methodology:
+        "Парсинг utm_* из URL/query → проверка обязательных параметров, регистра, пробелов, не-ASCII и allow-list; кластеры разнобоя — одинаковое нормализованное значение (lower, без -_ пробелов) с >1 написанием. Score = 100 − 2×проблема − 5×кластер.",
+      assumptions: [
+        "Аудит синтаксиса/консистентности тегирования, не корректности бизнес-смысла кампаний.",
+        "Allow-list проверяется только если передан.",
+      ],
+      disclaimer: "Проверка тегирования; на качество данных в аналитике влияет и настройка систем сбора.",
+    };
+
+    const summary =
+      `UTM-аудит ${urls.length} ссылок: консистентность ${score}/100 (${grade}), чистых ${cleanRows}, проблем ${totalIssues}, кластеров разнобоя ${variants.length}. ` +
+      (recommendations[0] ?? "");
+
+    return toContent(summary, payload);
+  },
+};
+
 export const PREMIUM_TOOLS: ToolDef[] = [
   creativeVariants,
   anomalyDetector,
@@ -809,4 +982,5 @@ export const PREMIUM_TOOLS: ToolDef[] = [
   pacingMonitor,
   responseCurve,
   budgetPacingForecast,
+  utmTaxonomyQa,
 ];

@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-54-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-55-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -161,6 +161,7 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 | `pacing_monitor` | Budget pacing vs. an even spend curve: expected spend, pace ratio, status (under/on-track/over), projected end spend, recommended daily spend to land on budget. |
 | `response_curve` | Channel saturation / diminishing-returns modeling. Fits `conversions = a·spend^b` to your current per-channel spend & conversions, then computes the conversion-maximizing budget split (closed form `share ∝ a^(1/(1-b))`) + projected conversions, per-channel marginal CPA, blended-CPA improvement and uplift vs. current. |
 | `budget_pacing_forecast` | **Trend-aware** end-of-flight forecast. Projects landing spend from the **recent daily run-rate** (not just a flat average), the over/under-spend variance %, the **days to exhaust** the budget, and the recommended daily rate (and % adjustment) to land on budget; optional CPA pace. Complements `pacing_monitor` (linear). |
+| `utm_taxonomy_qa` | **Batch UTM / taxonomy governance auditor.** Parses a list of tagged URLs (or raw query strings), checks each for missing required params, uppercase, spaces and non-ASCII, then aggregates a **0–100 consistency score** + grade, **near-duplicate value variants** per parameter (e.g. `facebook`/`Facebook`/`fb`), values outside an optional source/medium allow-list, and concrete fixes. Complements `utm_builder` (builds ONE link). |
 
 ### MMM group (v2.12+ — marketing mix modeling)
 | Tool | What it does |
@@ -309,7 +310,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 54 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 7 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 5 Media + 2 Brand + 1 Production + 1 Experimentation + 1 Competitive);
+`tools/list` returns all 55 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 5 Media + 2 Brand + 1 Production + 1 Experimentation + 1 Competitive);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -352,7 +353,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (54 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (55 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit
@@ -508,6 +509,7 @@ interface, so going real is a one-line wiring change — no upstream edits.
   **`competitive_wargame`** (competitive_response) to war-game a competitor move,
   **`pacing_forecast`** (budget_pacing_forecast) for a trend-aware pacing forecast,
   **`audience_dedup`** (audience_overlap) for measured audience deduplication,
-  **`creative_rotation_plan`** (creative_rotation) for fatigue-aware rotation, and
+  **`creative_rotation_plan`** (creative_rotation) for fatigue-aware rotation,
+  **`utm_audit`** (utm_taxonomy_qa) for batch UTM taxonomy QA, and
   **`exec_report`** (board_report) for a board-ready one-pager (audit + upside), and
   **`creative_fatigue_check`** (creative_fatigue) to spot burning-out creatives.
