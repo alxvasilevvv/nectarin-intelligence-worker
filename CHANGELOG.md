@@ -3,6 +3,26 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.27.0] — 2026-06-28
+
+Incrementality: a geo-holdout test designer & evaluator (48th tool) — first feature
+of the third wave (causal measurement / matched-market testing).
+
+### Added
+- **`geo_holdout`** (new **Experimentation** group) — two auto-detected modes.
+  *Design*: from expected baseline conversions in the test geos + a target lift,
+  returns the **minimum detectable lift (MDE)** = (z_{1−α/2}+z_power)·√(2/baseline),
+  the baseline volume required for a target lift, and a recommended test duration.
+  *Measure*: from observed test-geo conversions vs. a counterfactual (scaled
+  control), computes incremental conversions, lift %, a count-based (Poisson)
+  z-test, two-tailed p-value, significance, a CI and incremental CPA. Deterministic.
+  47 → **48 tools**.
+- **`geo_test`** guided prompt (**25 prompts** total).
+
+### Changed
+- `server.json` description + version, README (Tools badge 48, new Experimentation
+  group), USAGE (catalogue 48, prompts 25), test counts (48 tools / 25 prompts).
+
 ## [2.26.0] — 2026-06-28
 
 Media flighting: a weekly media flowchart / flighting planner (47th tool) — final

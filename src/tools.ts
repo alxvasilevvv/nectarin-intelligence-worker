@@ -28,6 +28,7 @@ import { INFLUENCE_TOOLS } from "./influence.js";
 import { MEDIA_TOOLS } from "./reach.js";
 import { BRAND_TOOLS } from "./brand.js";
 import { PRODUCTION_TOOLS } from "./production.js";
+import { EXPERIMENTATION_TOOLS } from "./geo.js";
 import type { Env } from "./index.js";
 
 export interface JsonSchema {
@@ -408,6 +409,7 @@ export const ALL_TOOLS: ToolDef[] = [
   ...MEDIA_TOOLS,
   ...BRAND_TOOLS,
   ...PRODUCTION_TOOLS,
+  ...EXPERIMENTATION_TOOLS,
 ];
 
 export const TOOLS_BY_NAME: Record<string, ToolDef> = Object.fromEntries(

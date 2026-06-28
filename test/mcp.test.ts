@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(47);
+    expect(json.toolCount).toBe(48);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(47);
+    expect(tools).toHaveLength(48);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -84,6 +84,7 @@ describe("tools/list", () => {
     expect(names).toContain("channel_overlap");
     expect(names).toContain("production_estimator");
     expect(names).toContain("media_flowchart");
+    expect(names).toContain("geo_holdout");
     expect(names).toContain("marketing_audit");
   });
 
@@ -179,8 +180,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(47);
-    expect(catalog.tools).toHaveLength(47);
+    expect(catalog.counts.tools).toBe(48);
+    expect(catalog.tools).toHaveLength(48);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -1250,6 +1251,43 @@ describe("premium tools (v2.1)", () => {
     expect(sc.flowchart[0].channels).toHaveLength(3);
   });
 
+  it("geo_holdout (measure) computes a significant incremental lift", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 87,
+      method: "tools/call",
+      params: {
+        name: "geo_holdout",
+        arguments: { testConversions: 1200, counterfactualConversions: 1000, testSpend: 500000, alpha: 0.05 },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.mode).toBe("measure");
+    expect(sc.incrementalConversions).toBe(200);
+    expect(sc.liftPct).toBeCloseTo(20, 0);
+    expect(sc.significant).toBe(true);
+    expect(sc.incrementalCpa).toBe(2500);
+  });
+
+  it("geo_holdout (design) returns MDE and required baseline for a target lift", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 88,
+      method: "tools/call",
+      params: {
+        name: "geo_holdout",
+        arguments: { baselineConversions: 5000, targetLiftPct: 10, weeklyBaselineConversions: 1000, alpha: 0.05, power: 0.8 },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.mode).toBe("design");
+    expect(sc.minimumDetectableLiftPct).toBeGreaterThan(0);
+    expect(sc.target.requiredBaselineConversions).toBeGreaterThan(0);
+    expect(sc.target.recommendedWeeks).toBeGreaterThan(0);
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -1331,7 +1369,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(47);
+    expect(parsed.result.tools.length).toBe(48);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -1414,7 +1452,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(47);
+    expect(json.result.tools).toHaveLength(48);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -1442,7 +1480,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(47);
+    expect(json.result.tools).toHaveLength(48);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -1452,10 +1490,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 24 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 25 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(24);
+    expect(json.result.prompts).toHaveLength(25);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -1476,6 +1514,7 @@ describe("prompts", () => {
     expect(names).toContain("omnichannel_reach");
     expect(names).toContain("production_budget");
     expect(names).toContain("flighting_plan");
+    expect(names).toContain("geo_test");
   });
 
   it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
@@ -1689,6 +1728,21 @@ describe("prompts", () => {
     const text = json.result.messages[0].content.text;
     expect(text).toContain("media_flowchart");
     expect(text).toContain("OLV:50; Соцсети:30; Поиск:20");
+  });
+
+  it("prompts/get geo_test (measure) embeds inputs and calls geo_holdout", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 81,
+      method: "prompts/get",
+      params: {
+        name: "geo_test",
+        arguments: { testConversions: "1200", counterfactualConversions: "1000", testSpend: "500000" },
+      },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("geo_holdout");
+    expect(text).toContain("1200");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {

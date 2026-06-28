@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-47-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-48-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -210,6 +210,11 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 |---|---|
 | `production_estimator` | **Creative production budget & timeline estimator.** From a list of deliverables (asset type × quantity × complexity) and a quality tier (economy/standard/premium), applies an illustrative RU rate card to give a per-deliverable cost & effort breakdown, subtotal, contingency and optional rush surcharge, a **total cost range (±20%)**, and a **critical-path timeline** (production is partly parallel). Heuristic & deterministic — confirm with vendor quotes. |
 
+### Experimentation group (v2.27+ — incrementality)
+| Tool | What it does |
+|---|---|
+| `geo_holdout` | **Geo-holdout incrementality test tool.** *Design*: from expected baseline conversions in the test geos + a target lift, returns the **minimum detectable lift (MDE)**, the baseline volume required, and a recommended test duration. *Measure*: from observed test-geo conversions vs. a counterfactual (scaled control), computes incremental conversions, lift %, a count-based (Poisson) **z-test**, p-value, significance and incremental CPA. Auto-detects mode. Deterministic. |
+
 ### Brand group (v2.23+ — brand lift)
 | Tool | What it does |
 |---|---|
@@ -294,7 +299,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 47 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 6 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 1 Creative Ops + 1 Influence + 3 Media + 1 Brand + 1 Production);
+`tools/list` returns all 48 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 6 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 1 Creative Ops + 1 Influence + 3 Media + 1 Brand + 1 Production + 1 Experimentation);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -337,7 +342,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (47 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (48 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit
@@ -486,6 +491,7 @@ interface, so going real is a one-line wiring change — no upstream edits.
   **`brand_lift_study`** (brand_lift) to measure or size a brand-lift study,
   **`omnichannel_reach`** (channel_overlap) for cross-channel deduplicated reach,
   **`production_budget`** (production_estimator) for a production budget & timeline,
-  **`flighting_plan`** (media_flowchart) for a weekly media flowchart, and
+  **`flighting_plan`** (media_flowchart) for a weekly media flowchart,
+  **`geo_test`** (geo_holdout) to design/measure a geo incrementality test, and
   **`exec_report`** (board_report) for a board-ready one-pager (audit + upside), and
   **`creative_fatigue_check`** (creative_fatigue) to spot burning-out creatives.

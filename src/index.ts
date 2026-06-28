@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.26.0";
+const SERVER_VERSION = "2.27.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -905,6 +905,42 @@ const PROMPTS = [
       `3) Покажи понедельную раскладку: бюджет, доля, накопительно; отметь on-air недели и пик.\n` +
       (a.channels ? `4) Дай понедельный сплит по каналам.\n` : `4) Предложи, какой паттерн уместнее под цель (запуск/удержание/сезон).\n`) +
       `5) Рекомендация по флайтингу + дисклеймер: плановая раскладка, учитывайте сезонность (seasonality_forecast) и аукцион.`,
+  },
+  {
+    name: "geo_test",
+    title: "Geo holdout incrementality: design or measure",
+    description:
+      "Design or measure a geo-holdout incrementality test (geo_holdout): MDE & required volume, or incremental conversions, lift and significance.",
+    arguments: [
+      { name: "baselineConversions", description: "DESIGN: expected baseline conversions in test geos over the window", required: false },
+      { name: "targetLiftPct", description: "DESIGN: target lift to detect, %", required: false },
+      { name: "weeklyBaselineConversions", description: "DESIGN: weekly baseline conversions (for duration)", required: false },
+      { name: "testConversions", description: "MEASURE: observed conversions in test geos", required: false },
+      { name: "counterfactualConversions", description: "MEASURE: expected conversions without campaign (scaled control)", required: false },
+      { name: "testSpend", description: "MEASURE: media spend in test geos (for iCPA)", required: false },
+      { name: "alpha", description: "Significance level (optional; default 0.05)", required: false },
+      { name: "power", description: "DESIGN: power (optional; default 0.8)", required: false },
+    ],
+    build: (a: Record<string, string>) => {
+      const measure = a.testConversions && a.counterfactualConversions;
+      return (
+        `Ты — NECTARIN Intelligence, аналитик инкрементальности RU/CIS (гео-холдаут).\n` +
+        (measure
+          ? `Режим: ЗАМЕР. Тест: ${a.testConversions} конв. Контрфакт (контроль): ${a.counterfactualConversions} конв.${a.testSpend ? ` Спенд в тесте: ${a.testSpend} ₽.` : ""}\n`
+          : `Режим: ДИЗАЙН. База: ${a.baselineConversions} конв.${a.targetLiftPct ? ` Целевой лифт: ${a.targetLiftPct}%.` : ""}${a.weeklyBaselineConversions ? ` Недельная база: ${a.weeklyBaselineConversions}.` : ""}\n`) +
+        (a.alpha ? `α: ${a.alpha}.\n` : `α: 0.05.\n`) +
+        `\nШаги:\n` +
+        (measure
+          ? `1) Вызови geo_holdout(testConversions, counterfactualConversions${a.testSpend ? ", testSpend" : ""}${a.alpha ? ", alpha" : ""}).\n` +
+            `2) Объясни инкремент, lift %, z, p-value и значимость.\n` +
+            `3) Дай инкрементальный CPA (если есть спенд) и доверительный интервал.\n` +
+            `4) Вывод: подтверждена ли инкрементальность; next-step по раскатке.`
+          : `1) Вызови geo_holdout(baselineConversions${a.targetLiftPct ? ", targetLiftPct" : ""}${a.weeklyBaselineConversions ? ", weeklyBaselineConversions" : ""}${a.alpha ? ", alpha" : ""}${a.power ? ", power" : ""}).\n` +
+            `2) Назови MDE (минимально детектируемый лифт) и хватает ли базы под цель.\n` +
+            `3) Дай нужный объём/длительность теста и советы по подбору контрольных гео.\n` +
+            `4) Предупреди: качество вывода зависит от matched-markets и отсутствия утечки.`)
+      );
+    },
   },
 ];
 
