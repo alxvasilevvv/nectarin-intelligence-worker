@@ -778,4 +778,164 @@ const audienceOverlap: ToolDef = {
   },
 };
 
-export const MEDIA_TOOLS: ToolDef[] = [reachFrequency, channelOverlap, mediaFlowchart, mediaQualityScore, audienceOverlap];
+// ── frequency_cap_optimizer ───────────────────────────────────────────────────
+
+/** E[min(X, c)] and E[max(X − c, 0)] for X ~ Poisson(lambda). */
+function poissonCapStats(lambda: number, c: number): { eMin: number; eMax: number } {
+  const maxI = Math.max(c + 1, Math.ceil(lambda * 4) + 20);
+  const pmf = poisson(lambda, maxI);
+  let eMin = 0;
+  let eMax = 0;
+  for (let i = 0; i < pmf.length; i++) {
+    eMin += Math.min(i, c) * pmf[i];
+    eMax += Math.max(i - c, 0) * pmf[i];
+  }
+  return { eMin, eMax };
+}
+
+/** Solve λ' such that E[min(Poisson(λ'), c)] = target (delivered impr./person). */
+function solveLambdaForDelivered(target: number, c: number): number | null {
+  if (target >= c) return null; // infeasible: can't deliver >c per person on this universe
+  let lo = target;
+  let hi = Math.max(target * 2, target + c);
+  // expand hi until E[min] exceeds target
+  for (let k = 0; k < 60 && poissonCapStats(hi, c).eMin < target; k++) hi *= 1.6;
+  for (let it = 0; it < 80; it++) {
+    const mid = (lo + hi) / 2;
+    const e = poissonCapStats(mid, c).eMin;
+    if (e < target) lo = mid;
+    else hi = mid;
+  }
+  return (lo + hi) / 2;
+}
+
+const frequencyCapOptimizer: ToolDef = {
+  name: "frequency_cap_optimizer",
+  description:
+    "Frequency-cap optimizer for OLV / display. From a fixed impression pool (impressions, or budget + CPM) and the target audience universe, it (A) DIAGNOSES how many impressions land on people already past each candidate cap at the natural average frequency (wasted over-cap impressions, Poisson model), and (B) OPTIMIZES: for each cap it re-solves the per-person delivery so the freed impressions are reallocated, returning the resulting NET (1+) reach, EFFECTIVE reach at ≥N exposures, average frequency and the reach uplift vs. no cap. Recommends the cap that maximises ≥N effective reach. Deterministic media math on YOUR plan inputs — a planning estimate, not a guarantee.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      audienceSize: { type: "number", exclusiveMinimum: 0, description: "Target audience universe (people)" },
+      budget: { type: "number", exclusiveMinimum: 0, description: "Media budget, RUB (use with cpm). Omit if you pass impressions." },
+      cpm: { type: "number", exclusiveMinimum: 0, description: "Cost per 1000 impressions, RUB (required with budget)" },
+      impressions: { type: "number", exclusiveMinimum: 0, description: "Gross impressions directly (alternative to budget+cpm)" },
+      effectiveFreq: { type: "number", minimum: 1, description: "Effective-frequency threshold N for ≥N exposures (default 3)" },
+      maxCap: { type: "number", minimum: 1, description: "Highest frequency cap to test (default 10)" },
+    },
+    required: ["audienceSize"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const universe = Number(input.audienceSize);
+    if (!(universe > 0)) {
+      return { content: [{ type: "text", text: "Ошибка: audienceSize должен быть > 0." }], isError: true };
+    }
+    let impressions: number | null = null;
+    if (typeof input.impressions === "number" && input.impressions > 0) {
+      impressions = input.impressions;
+    } else if (typeof input.budget === "number" && input.budget > 0 && typeof input.cpm === "number" && input.cpm > 0) {
+      impressions = (input.budget / input.cpm) * 1000;
+    }
+    if (impressions == null) {
+      return { content: [{ type: "text", text: "Ошибка: задай impressions, либо budget + cpm." }], isError: true };
+    }
+    const N = typeof input.effectiveFreq === "number" && input.effectiveFreq >= 1 ? Math.round(input.effectiveFreq) : 3;
+    const maxCap = typeof input.maxCap === "number" && input.maxCap >= N ? Math.round(input.maxCap) : Math.max(10, N + 5);
+
+    const lambda0 = impressions / universe; // natural average frequency, uncapped
+    const baseMaxI = Math.max(maxCap + 2, Math.ceil(lambda0 * 4) + 20);
+    const pmf0 = poisson(lambda0, baseMaxI);
+    const baselineNetReachPct = (1 - pmf0[0]) * 100;
+    let baselineEff = 0;
+    for (let i = N; i < pmf0.length; i++) baselineEff += pmf0[i];
+    const baselineEffReachPct = baselineEff * 100;
+
+    const caps: Array<Record<string, unknown>> = [];
+    let best: { cap: number; effPct: number } | null = null;
+    for (let c = N; c <= maxCap; c++) {
+      // (A) diagnostic: wasted over-cap impressions at the NATURAL lambda0 (no reallocation)
+      const { eMax } = poissonCapStats(lambda0, c);
+      const wastedImpr = universe * eMax;
+      const wastedPct = impressions > 0 ? (wastedImpr / impressions) * 100 : 0;
+
+      // (B) optimized: reallocate freed impressions → re-solve lambda' under the cap
+      const target = impressions / universe;
+      const lambdaPrime = solveLambdaForDelivered(target, c);
+      let netReachPct = baselineNetReachPct;
+      let effReachPct = baselineEffReachPct;
+      let avgFreq = lambda0;
+      let feasible = true;
+      if (lambdaPrime == null) {
+        feasible = false;
+      } else {
+        const maxI2 = Math.max(c + 2, Math.ceil(lambdaPrime * 4) + 20);
+        const pmf = poisson(lambdaPrime, maxI2);
+        netReachPct = (1 - pmf[0]) * 100;
+        let eff = 0;
+        for (let i = N; i < pmf.length; i++) eff += pmf[i];
+        effReachPct = eff * 100; // P(X' ≥ N); since N ≤ c, min(X',c) ≥ N ⇔ X' ≥ N
+        const reach = (netReachPct / 100) * universe;
+        avgFreq = reach > 0 ? impressions / reach : 0;
+      }
+
+      caps.push({
+        cap: c,
+        overCapWastedImpressions: round(wastedImpr),
+        overCapWastedPct: round(wastedPct, 1),
+        optimizedNetReachPct: round(netReachPct, 1),
+        optimizedEffectiveReachPct: round(effReachPct, 1),
+        optimizedEffectiveReachPeople: round((effReachPct / 100) * universe),
+        avgFrequencyAmongReached: round(avgFreq, 2),
+        effectiveReachUpliftPp: round(effReachPct - baselineEffReachPct, 1),
+        feasible,
+      });
+
+      if (feasible && (best == null || effReachPct > best.effPct)) best = { cap: c, effPct: effReachPct };
+    }
+
+    const recCap = best?.cap ?? N;
+    const recRow = caps.find((r) => r.cap === recCap)!;
+    const baseWastedRow = caps.find((r) => r.cap === recCap);
+
+    const payload = {
+      audienceSize: round(universe),
+      impressions: round(impressions),
+      naturalAvgFrequency: round(lambda0, 2),
+      effectiveFreqThreshold: N,
+      baseline: {
+        label: "no cap",
+        netReachPct: round(baselineNetReachPct, 1),
+        effectiveReachPct: round(baselineEffReachPct, 1),
+        effectiveReachPeople: round((baselineEffReachPct / 100) * universe),
+        avgFrequency: round(lambda0, 2),
+      },
+      caps,
+      recommendedCap: recCap,
+      recommendation: recRow,
+      verdict:
+        `При средней частоте ${round(lambda0, 1)} оптимальная отсечка — ${recCap} показов/чел.: эффективный охват ≥${N} растёт до ${recRow.optimizedEffectiveReachPct}% ` +
+        `(+${recRow.effectiveReachUpliftPp} п.п. к плану без капа), переаллокировав ~${ru(round((baseWastedRow?.overCapWastedImpressions as number) ?? 0))} «лишних» показов. ` +
+        `Чем ниже кап (до N=${N}), тем выше доля достигших ≥${N}; кап выше — если важен «вес»/несколько креативов.`,
+      methodology:
+        "Контактная модель — Пуассон с λ=impressions/universe. (A) Диагностика: переизбыток над капом = U·E[max(X−c,0)]. " +
+        "(B) Оптимизация: при переаллокации решаем λ′ из U·E[min(Poisson(λ′),c)] = impressions (все показы доставлены под капом); " +
+        "net reach = U·(1−p₀(λ′)); эффективный ≥N = U·P(X′≥N) (т.к. N≤c).",
+      assumptions: [
+        "Случайная (пуассоновская) доставка контактов; реальные системы частоты дают иные хвосты.",
+        "Переаллокация идеальна (освобождённые показы достаются недокупленным) — на практике зависит от таргетинга и инвентаря.",
+        "Универсум и impressions заданы корректно; один период планирования.",
+      ],
+      disclaimer: "Плановая оценка на ВАШИХ вводных, не гарантия. Сверяйте с настройками частоты в DSP/площадке и пост-кампейн данными.",
+    };
+
+    const summary =
+      `Частотная отсечка: средняя частота ${round(lambda0, 1)}, рекомендуемый кап ${recCap}/чел. ` +
+      `Эффективный охват ≥${N}: ${round(baselineEffReachPct, 0)}% → ${recRow.optimizedEffectiveReachPct}% (+${recRow.effectiveReachUpliftPp} п.п.). ` +
+      `Переизбыток над капом ~${round((baseWastedRow?.overCapWastedPct as number) ?? 0, 0)}% показов.`;
+
+    return toContent(summary, payload);
+  },
+};
+
+export const MEDIA_TOOLS: ToolDef[] = [reachFrequency, channelOverlap, mediaFlowchart, mediaQualityScore, audienceOverlap, frequencyCapOptimizer];

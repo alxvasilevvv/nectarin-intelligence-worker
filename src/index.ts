@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.39.0";
+const SERVER_VERSION = "2.40.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1233,6 +1233,33 @@ const PROMPTS = [
       `3) Покажи месячный/годовой отток, средний срок жизни и кривую выживаемости.\n` +
       `4) Назови выручку под риском за горизонт и LTV на клиента.\n` +
       `5) Если задана инициатива — посчитай прирост LTV и ROI удержания; дай вывод и дисклеймер про калибровку по когортам.`,
+  },
+  {
+    name: "frequency_cap_plan",
+    title: "Frequency-cap optimization",
+    description:
+      "Find the optimal frequency cap for an OLV/display plan (frequency_cap_optimizer): wasted over-cap impressions, optimized net/effective reach and the recommended cap.",
+    arguments: [
+      { name: "audienceSize", description: "Target audience universe (people)", required: true },
+      { name: "impressions", description: "Gross impressions (or use budget+cpm instead)", required: false },
+      { name: "budget", description: "Media budget in ₽ (with cpm)", required: false },
+      { name: "cpm", description: "CPM in ₽ (with budget)", required: false },
+      { name: "effectiveFreq", description: "Effective-frequency threshold N (default 3)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, медиапланёр по охвату и частоте (OLV/display) RU/CIS.\n` +
+      `Подбери оптимальную частотную отсечку.\n` +
+      `Аудитория: ${a.audienceSize} чел.\n` +
+      (a.impressions ? `Показы: ${a.impressions}.\n` : "") +
+      (a.budget ? `Бюджет: ${a.budget} ₽.\n` : "") +
+      (a.cpm ? `CPM: ${a.cpm} ₽.\n` : "") +
+      (a.effectiveFreq ? `Порог эффективной частоты N: ${a.effectiveFreq}.\n` : "") +
+      `\nШаги:\n` +
+      `1) Вызови frequency_cap_optimizer(audienceSize${a.impressions ? ", impressions" : ", budget, cpm"}${a.effectiveFreq ? ", effectiveFreq" : ""}).\n` +
+      `2) Покажи среднюю частоту и долю «лишних» показов над капом.\n` +
+      `3) Сравни по капам net (1+) и эффективный (≥N) охват и прирост к плану без капа.\n` +
+      `4) Назови рекомендуемый кап и сколько показов переаллоцируется.\n` +
+      `5) Свяжи с reach_frequency (полная кривая частоты) и дай вывод; дисклеймер про настройки частоты в DSP и пост-кампейн данные.`,
   },
 ];
 

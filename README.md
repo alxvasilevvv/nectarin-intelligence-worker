@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-60-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-61-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -209,6 +209,7 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 | `media_flowchart` | **Media flighting / flowchart planner.** Distributes a total budget across N weeks by a flighting pattern (even / front_loaded / back_loaded / burst / pulse), returning the per-week budget, share and cumulative spend, plus a **per-channel split each week** when channel shares are given. Reports the peak week and on-air weeks. Deterministic. |
 | `media_quality_score` | **Media delivery quality scorer.** From a placement's OWN delivered metrics (viewability %, IVT/bot %, video completion %, brand-safe %, on-target %), computes a weighted **0–100 quality score** + A–F grade, scores each metric vs. RU/MRC-style thresholds, flags problems and names the biggest lever. Complements `supplier_quality` (a benchmark lookup) — this scores YOUR actual delivery. Deterministic. |
 | `audience_overlap` | **Audience overlap / dedup analyzer from MEASURED pairwise overlaps** (DMP / panel / cross-device) — unlike `channel_overlap` (which assumes independence). Computes **deduplicated reach** (inclusion–exclusion), the **duplication rate**, each segment's **incremental (leave-one-out)** unique contribution & redundancy, a duplication matrix, and the most additive vs. most redundant segment — to cap frequency or reallocate. Exact for 2 segments, clamped 2nd-order estimate for ≥3. |
+| `frequency_cap_optimizer` | **Frequency-cap optimizer.** From a fixed impression pool (impressions, or budget + CPM) and the audience universe, (A) **diagnoses** how many impressions land on people already past each candidate cap at the natural average frequency (over-cap waste, Poisson), and (B) **optimizes**: for each cap re-solves delivery so freed impressions are reallocated, returning the resulting **net (1+) reach**, **effective reach at ≥N**, average frequency and the reach **uplift** vs. no cap. Recommends the cap that maximises ≥N effective reach. Deterministic. |
 
 ### Production group (v2.25+ — Производство)
 | Tool | What it does |
@@ -328,7 +329,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 60 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 5 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 1 Retention/CRM);
+`tools/list` returns all 61 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 1 Retention/CRM);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -371,7 +372,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (60 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (61 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit

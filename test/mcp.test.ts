@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(60);
+    expect(json.toolCount).toBe(61);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(60);
+    expect(tools).toHaveLength(61);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -97,6 +97,7 @@ describe("tools/list", () => {
     expect(names).toContain("retail_media_planner");
     expect(names).toContain("share_of_search");
     expect(names).toContain("churn_predictor");
+    expect(names).toContain("frequency_cap_optimizer");
     expect(names).toContain("marketing_audit");
   });
 
@@ -192,8 +193,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(60);
-    expect(catalog.tools).toHaveLength(60);
+    expect(catalog.counts.tools).toBe(61);
+    expect(catalog.tools).toHaveLength(61);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -1728,6 +1729,30 @@ describe("premium tools (v2.1)", () => {
     expect(sc.monthlyChurnPct).toBeCloseTo(6.4, 0);
   });
 
+  it("frequency_cap_optimizer recommends a cap and quantifies over-cap waste", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 109,
+      method: "tools/call",
+      params: {
+        name: "frequency_cap_optimizer",
+        arguments: { audienceSize: 1000000, impressions: 8000000, effectiveFreq: 3, maxCap: 10 },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    expect(sc.naturalAvgFrequency).toBeCloseTo(8, 0);
+    expect(sc.caps.length).toBeGreaterThan(0);
+    // A recommended cap exists and lies within the tested range.
+    expect(sc.recommendedCap).toBeGreaterThanOrEqual(3);
+    expect(sc.recommendedCap).toBeLessThanOrEqual(10);
+    // Optimizing should not reduce effective reach below the baseline.
+    expect(sc.recommendation.optimizedEffectiveReachPct).toBeGreaterThanOrEqual(sc.baseline.effectiveReachPct);
+    // At a heavy avg frequency of 8, a low cap wastes a large share of impressions.
+    const capAt3 = sc.caps.find((c) => c.cap === 3);
+    expect(capAt3.overCapWastedPct).toBeGreaterThan(0);
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -1809,7 +1834,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(60);
+    expect(parsed.result.tools.length).toBe(61);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -1892,7 +1917,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(60);
+    expect(json.result.tools).toHaveLength(61);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -1920,7 +1945,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(60);
+    expect(json.result.tools).toHaveLength(61);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -1930,10 +1955,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 37 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 38 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(37);
+    expect(json.result.prompts).toHaveLength(38);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -1967,6 +1992,7 @@ describe("prompts", () => {
     expect(names).toContain("retail_media_plan");
     expect(names).toContain("share_of_search_check");
     expect(names).toContain("churn_analysis");
+    expect(names).toContain("frequency_cap_plan");
   });
 
   it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
@@ -2379,6 +2405,22 @@ describe("prompts", () => {
     expect(text).toContain("churn_predictor");
     expect(text).toContain("10000");
     expect(text).toContain("1.5:3000000");
+  });
+
+  it("prompts/get frequency_cap_plan embeds inputs and calls frequency_cap_optimizer", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 105,
+      method: "prompts/get",
+      params: {
+        name: "frequency_cap_plan",
+        arguments: { audienceSize: "1000000", impressions: "8000000", effectiveFreq: "3" },
+      },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("frequency_cap_optimizer");
+    expect(text).toContain("1000000");
+    expect(text).toContain("8000000");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {

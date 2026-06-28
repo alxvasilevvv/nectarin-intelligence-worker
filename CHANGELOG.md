@@ -3,6 +3,27 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.40.0] — 2026-06-28
+
+Seventh wave (2/4) — an OLV/display frequency-cap optimizer (**61st tool**).
+NECTARIN Intelligence now ships **61 tools / 38 guided prompts**.
+
+### Added
+- **`frequency_cap_optimizer`** (Media group, now 6 tools) — from a fixed impression
+  pool (impressions, or budget + CPM) and the audience universe it (A) **diagnoses**
+  the over-cap waste at the natural average frequency for each candidate cap (Poisson:
+  `U·E[max(X−c,0)]`), and (B) **optimizes** by re-solving per-person delivery so freed
+  impressions are reallocated (`U·E[min(Poisson(λ′),c)] = impressions`), returning the
+  resulting net (1+) reach, effective reach at ≥N, average frequency and the effective-
+  reach **uplift** vs. no cap. Recommends the cap maximising ≥N effective reach.
+  60 → **61 tools**.
+- **`frequency_cap_plan`** guided prompt (**38 prompts** total).
+
+### Changed
+- `tools/list` now advertises **61 tools**; the Media group grows to 6. Catalog
+  resource, `/version` `toolCount`, README/USAGE/OVERVIEW counts and the test suite
+  updated accordingly.
+
 ## [2.39.0] — 2026-06-28
 
 Seventh wave (1/4) — a churn & retention-economics tool (**60th tool**).
