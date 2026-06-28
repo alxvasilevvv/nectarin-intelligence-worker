@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.43.0";
+const SERVER_VERSION = "2.44.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1332,6 +1332,35 @@ const PROMPTS = [
       `3) Покажи сегменты с размером, долей выручки и средним чеком.\n` +
       `4) Назови, сколько выручки держат Champions и сколько под риском (At Risk/Can't Lose).\n` +
       `5) Дай приоритезированный план действий по сегментам; дисклеймер: подтверждай реактивацию тестами.`,
+  },
+  {
+    name: "email_campaign_plan",
+    title: "Email / newsletter economics",
+    description:
+      "Plan email/CRM newsletter economics & cadence (email_campaign_planner): per-send revenue & RPE, monthly/annual revenue, list attrition and ROI.",
+    arguments: [
+      { name: "listSize", description: "Active subscribers", required: true },
+      { name: "openRatePct", description: "Open rate % of delivered", required: true },
+      { name: "clickRatePct", description: "Click rate % of delivered (or use clickToOpenPct)", required: false },
+      { name: "conversionRatePct", description: "Conversion rate (orders/clicks) %", required: true },
+      { name: "aov", description: "Average order value ₽", required: true },
+      { name: "sendsPerMonth", description: "Cadence — sends per month (optional, default 4)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, CRM/email-маркетолог (рассылки и жизненный цикл) RU/CIS.\n` +
+      `Посчитай экономику рассылок и частоту.\n` +
+      `Список: ${a.listSize} подписчиков.\n` +
+      `Open rate: ${a.openRatePct}%.\n` +
+      (a.clickRatePct ? `Click rate: ${a.clickRatePct}%.\n` : "") +
+      `Конверсия (заказы/клики): ${a.conversionRatePct}%.\n` +
+      `Средний чек: ${a.aov} ₽.\n` +
+      (a.sendsPerMonth ? `Рассылок в месяц: ${a.sendsPerMonth}.\n` : "") +
+      `\nШаги:\n` +
+      `1) Вызови email_campaign_planner(listSize, openRatePct, ${a.clickRatePct ? "clickRatePct, " : "clickToOpenPct, "}conversionRatePct, aov${a.sendsPerMonth ? ", sendsPerMonth" : ""}).\n` +
+      `2) Покажи воронку рассылки (delivered→opens→clicks→orders) и RPE (выручка на письмо).\n` +
+      `3) Назови выручку/мес и /год, заказы и отписки.\n` +
+      `4) Оцени полужизнь списка и риск усталости; дай рекомендации по частоте и сегментации.\n` +
+      `5) Если заданы затраты — посчитай прибыль и ROI; дисклеймер про сверку с фактикой ESP.`,
   },
 ];
 

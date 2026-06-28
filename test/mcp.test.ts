@@ -23,7 +23,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(64);
+    expect(json.toolCount).toBe(65);
     expect(json.commit).toBeDefined();
   });
 });
@@ -34,7 +34,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(64);
+    expect(tools).toHaveLength(65);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -102,6 +102,7 @@ describe("tools/list", () => {
     expect(names).toContain("marketing_audit");
     expect(names).toContain("landing_cro_audit");
     expect(names).toContain("rfm_segmenter");
+    expect(names).toContain("email_campaign_planner");
   });
 
   it("annotations: pure tools are read-only/idempotent; LLM & funnel tools are flagged", async () => {
@@ -196,8 +197,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(64);
-    expect(catalog.tools).toHaveLength(64);
+    expect(catalog.counts.tools).toBe(65);
+    expect(catalog.tools).toHaveLength(65);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -1896,6 +1897,52 @@ describe("premium tools (v2.1)", () => {
     expect(json.result.isError).toBe(true);
   });
 
+  it("email_campaign_planner computes RPE, monthly revenue and list half-life", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 116,
+      method: "tools/call",
+      params: {
+        name: "email_campaign_planner",
+        arguments: {
+          listSize: 100000,
+          openRatePct: 25,
+          clickRatePct: 3,
+          conversionRatePct: 4,
+          aov: 3000,
+          sendsPerMonth: 4,
+          unsubscribeRatePct: 0.3,
+          costPerEmail: 0.2,
+          marginPct: 40,
+        },
+      },
+    });
+    expect(json.result.isError).toBeUndefined();
+    const sc = json.result.structuredContent;
+    // delivered=98000, clicks=2940, orders≈117.6, revenue≈352800
+    expect(sc.perSend.delivered).toBe(98000);
+    expect(sc.perSend.revenue).toBeGreaterThan(300000);
+    expect(sc.perSend.revenuePerEmail).toBeGreaterThan(0);
+    expect(sc.monthly.revenue).toBeCloseTo(sc.perSend.revenue * 4, -2);
+    expect(sc.monthly.roiPct).toBeGreaterThan(0);
+    expect(sc.listHealth.estListHalfLifeMonths).toBeGreaterThan(0);
+  });
+
+  it("email_campaign_planner derives click rate from click-to-open", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 117,
+      method: "tools/call",
+      params: {
+        name: "email_campaign_planner",
+        arguments: { listSize: 50000, openRatePct: 20, clickToOpenPct: 15, conversionRatePct: 5, aov: 2000 },
+      },
+    });
+    const sc = json.result.structuredContent;
+    // CTR = open(0.2) × CTOR(0.15) = 0.03 → 3%
+    expect(sc.rates.clickRatePct).toBeCloseTo(3, 1);
+  });
+
   it("response_curve splits evenly and warns when no channel has conversions", async () => {
     const { json } = await rpc({
       jsonrpc: "2.0",
@@ -1977,7 +2024,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(64);
+    expect(parsed.result.tools.length).toBe(65);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -2060,7 +2107,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(64);
+    expect(json.result.tools).toHaveLength(65);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -2088,7 +2135,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(64);
+    expect(json.result.tools).toHaveLength(65);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -2098,10 +2145,10 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 41 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 42 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(41);
+    expect(json.result.prompts).toHaveLength(42);
     expect(names).toContain("full_strategy");
     expect(names).toContain("creative_lab");
     expect(names).toContain("growth_monitor");
@@ -2139,6 +2186,7 @@ describe("prompts", () => {
     expect(names).toContain("creative_test_readout");
     expect(names).toContain("landing_cro_audit_run");
     expect(names).toContain("rfm_segmentation");
+    expect(names).toContain("email_campaign_plan");
   });
 
   it("prompts/get quarter_plan embeds the inputs and calls gtm_calendar", async () => {
@@ -2613,6 +2661,21 @@ describe("prompts", () => {
     const text = json.result.messages[0].content.text;
     expect(text).toContain("rfm_segmenter");
     expect(text).toContain("12:8:120000");
+  });
+
+  it("prompts/get email_campaign_plan embeds inputs and calls email_campaign_planner", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 109,
+      method: "prompts/get",
+      params: {
+        name: "email_campaign_plan",
+        arguments: { listSize: "100000", openRatePct: "25", clickRatePct: "3", conversionRatePct: "4", aov: "3000" },
+      },
+    });
+    const text = json.result.messages[0].content.text;
+    expect(text).toContain("email_campaign_planner");
+    expect(text).toContain("100000");
   });
 
   it("prompts/get mmm_planning embeds the series and calls mmm_optimize", async () => {

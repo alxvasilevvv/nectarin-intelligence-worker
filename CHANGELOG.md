@@ -3,6 +3,27 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.44.0] — 2026-06-28
+
+Eighth wave (2/3) — email / CRM newsletter economics (**65th tool**).
+NECTARIN Intelligence now ships **65 tools / 42 guided prompts**.
+
+### Added
+- **`email_campaign_planner`** (new **Email / Lifecycle** group) — from list size,
+  deliverability, open & click rates (CTR or click-to-open), conversion and AOV it
+  computes per-send delivered→opens→clicks→orders→revenue and the key
+  **revenue-per-email (RPE)**; with `sendsPerMonth` it projects monthly & annual
+  revenue, orders and list attrition from unsubscribes (compounded monthly unsub rate),
+  a **list half-life** and a **fatigue warning**; with `costPerEmail` /
+  `platformMonthlyCost` (and `marginPct`) it returns profit and **ROI**.
+  64 → **65 tools**.
+- **`email_campaign_plan`** guided prompt (**42 prompts** total).
+
+### Changed
+- `tools/list` now advertises **65 tools** with a new Email/Lifecycle group. Catalog
+  resource, `/version` `toolCount`, README/USAGE/OVERVIEW counts and the test suite
+  updated accordingly.
+
 ## [2.43.0] — 2026-06-28
 
 Eighth wave (1/3) — RFM customer segmentation (**64th tool**).

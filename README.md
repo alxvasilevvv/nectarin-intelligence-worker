@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-64-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-65-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -246,6 +246,11 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 | `churn_predictor` | **Churn & retention economics.** Resolves a monthly churn rate from a direct %, a cohort (`customersStart`→`customersRetained` over N months) or a monthly retention %, then computes **annualised churn**, **average lifetime** (1/churn), a survival curve to the horizon, **customers & revenue retained vs. lost**, and **LTV** (`ARPU/churn`, optionally discounted). Given a retention initiative (`reduceChurnByPp` + `programCost`) it sizes the **LTV uplift** per customer, the total uplift and the **ROI of retention**. Deterministic. |
 | `rfm_segmenter` | **RFM customer segmentation.** From customers with `recencyDays` + `frequency` + `monetary`, scores each on 1–5 quintiles (recency inverted), combines R with the F/M average into the classic named segments (**Champions, Loyal, Potential Loyalist, At Risk, Can't Lose Them, Hibernating, Lost, …**), sizes every segment (customers, share %, total & avg monetary, avg recency/frequency) and attaches a concrete **CRM action**. Surfaces **Champions revenue** and **revenue at risk**. Deterministic. |
 
+### Email / Lifecycle group (v2.44+ — рассылки)
+| Tool | What it does |
+|---|---|
+| `email_campaign_planner` | **Email / CRM newsletter economics & cadence.** From list size, deliverability, open & click rates (CTR or click-to-open), conversion and AOV → per-send delivered→opens→clicks→orders→revenue and the key **revenue-per-email (RPE)**; with `sendsPerMonth` → **monthly & annual** revenue, orders and list attrition from unsubscribes, a **list half-life** and a **fatigue warning**; with `costPerEmail` / `platformMonthlyCost` → profit and **ROI**. Deterministic. |
+
 ### Brand group (v2.23+ — brand lift)
 | Tool | What it does |
 |---|---|
@@ -332,7 +337,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 64 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 2 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 2 Retention/CRM);
+`tools/list` returns all 65 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 2 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 2 Retention/CRM + 1 Email/Lifecycle);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -375,7 +380,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (64 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (65 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit
