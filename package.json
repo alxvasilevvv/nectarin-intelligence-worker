@@ -1,6 +1,6 @@
 {
   "name": "nectarin-intelligence-worker",
-  "version": "2.59.0",
+  "version": "2.60.0",
   "private": true,
   "description": "NECTARIN Intelligence — remote MCP server (RU/CIS AI marketing agent) on Cloudflare Workers.",
   "type": "module",

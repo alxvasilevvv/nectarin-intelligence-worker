@@ -26,11 +26,17 @@ UNYLY_PARTNER_ID="nectarin"
 UNYLY_ATTRIBUTION="1"
 # Marketplace base for federated external MCPs (mcp_federation connect links).
 UNYLY_MARKETPLACE_URL="https://unyly.org/ru/mcp"
-# federation_invoke runtime proxy (fail-closed). Per server KEY from mcp_federation,
-# the Unyly gateway brokers an endpoint (and token) once the owner connects it.
-# In production prefer `wrangler secret put FED_<KEY>_TOKEN` for tokens.
-# Example for the "keyword_data" server:
-# FED_KEYWORD_DATA_URL="https://gateway.unyly.org/mcp/keyword-data"
+# ── Federation gateway (federation_invoke runtime proxy, fail-closed) ──
+# Self-issued in Unyly dashboard (Gateway → POST /api/gateway-tokens).
+# When UNYLY_GATEWAY_TOKEN is set, federation_invoke calls
+#   https://gateway.unyly.org/mcp/<slug>
+# with Bearer auth — one token for ALL federated servers, zero per-server URL config.
+# Health check: GET https://gateway.unyly.org/mcp/ping
+# In production: `npx wrangler secret put UNYLY_GATEWAY_TOKEN`
+# UNYLY_GATEWAY_URL="https://gateway.unyly.org"
+# UNYLY_GATEWAY_TOKEN="..."
+# Per-server overrides (backward compatible — win over gateway default):
+# FED_KEYWORD_DATA_URL="https://custom.example/mcp"
 # FED_KEYWORD_DATA_TOKEN="..."
 
 # ── Optional, for when callLLM() is wired to a real model (production: use

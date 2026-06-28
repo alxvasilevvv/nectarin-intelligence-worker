@@ -38,6 +38,10 @@ with **mock/synthetic RU data** plus **KV real-data layering**, and a
 > bridge decomposing the change into volume/efficiency/AOV drivers), `conjoint_analysis` (part-worth
 > utilities → attribute importance, share-of-preference logit & willingness-to-pay) and `tam_sam_som`
 > (top-down/bottom-up market-sizing funnel with a reality check & CAGR projection).
+> v2.60 wires the **live Unyly federation gateway**: set `UNYLY_GATEWAY_TOKEN` (self-issued in the
+> Unyly dashboard) and `federation_invoke` proxies any registered server at
+> `gateway.unyly.org/mcp/<slug>` — one token, no per-server URL config. Per-server `FED_<KEY>_URL`
+> overrides still work.
 > **97 tools / 72 prompts.**
 
 > **New in 2.51 — skills & growth science:** an extensible **playbook layer**
@@ -338,8 +342,18 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 ### Federation group (v2.52+ — hub for external MCPs via Unyly)
 | Tool | What it does |
 |---|---|
-| `mcp_federation` | **Marketplace router.** NECTARIN is the hub; complementary specialist MCPs (live keyword/SERP data, web analytics, ad-platform pulls, creative generation, social listening, CRM, marketplace data, localization) plug in around it — always through Unyly. No args ⇒ catalogue; `capability`/`goal`/`role` ⇒ recommendations; `server` ⇒ details. Each returns a **tracked Unyly connect link** + the native NECTARIN tools it pairs with. Discovery + routing + links only (runtime proxy brokered by the Unyly gateway). |
-| `federation_invoke` | **Runtime proxy (team+).** Calls a tool on a federated external MCP *through* NECTARIN: pick a `server` key + external `tool` + `arguments`; NECTARIN proxies one JSON-RPC `tools/call` and returns the upstream result. **Fail-closed** — only reaches the network when the owner connected the server via Unyly (gateway brokers `FED_<KEY>_URL`/`FED_<KEY>_TOKEN`); otherwise returns a tracked Unyly connect link with no network call. Only known registry keys (no arbitrary URLs ⇒ no SSRF). |
+| `mcp_federation` | **Marketplace router.** NECTARIN is the hub; complementary specialist MCPs (live keyword/SERP data, web analytics, ad-platform pulls, creative generation, social listening, CRM, marketplace data, localization) plug in around it — always through Unyly. No args ⇒ catalogue; `capability`/`goal`/`role` ⇒ recommendations; `server` ⇒ details. Each entry includes a **tracked Unyly connect link**, the live **`gatewayUrl`** (`gateway.unyly.org/mcp/<slug>`) and the native NECTARIN tools it pairs with. |
+| `federation_invoke` | **Runtime proxy (team+).** Calls a tool on a federated external MCP *through* NECTARIN: pick a `server` key + external `tool` + `arguments`; NECTARIN proxies one JSON-RPC `tools/call` and returns the upstream result. **Fail-closed** — reaches the network when `UNYLY_GATEWAY_TOKEN` is set (one token → `gateway.unyly.org/mcp/<slug>` for all servers) or when per-server `FED_<KEY>_URL` is set (override). Without either, returns a tracked Unyly connect link with no network call. Only known registry keys (no arbitrary URLs ⇒ no SSRF). |
+
+#### Federation gateway setup (self-serve)
+
+1. Issue a gateway token in the [Unyly dashboard](https://unyly.org) (Gateway → POST `/api/gateway-tokens`).
+2. Set it as a Worker secret: `npx wrangler secret put UNYLY_GATEWAY_TOKEN`.
+3. Optionally override the base URL via `UNYLY_GATEWAY_URL` (default `https://gateway.unyly.org`).
+4. Call `federation_invoke(server="keyword_data", tool="...", arguments={...})` — NECTARIN routes to `https://gateway.unyly.org/mcp/keyword-data` with Bearer auth.
+5. Health check: `GET https://gateway.unyly.org/mcp/ping`.
+
+Per-server `FED_<KEY>_URL`/`FED_<KEY>_TOKEN` overrides still work and take precedence over the gateway default.
 
 ### Expansion group (v2.54+ — wider profession coverage)
 | Tool | What it does |

@@ -94,6 +94,12 @@ export interface Env {
   UNYLY_ATTRIBUTION?: string;
   /** Unyly marketplace base for federated MCP listings (default https://unyly.org/ru/mcp). */
   UNYLY_MARKETPLACE_URL?: string;
+  /** Unyly federation gateway base (default https://gateway.unyly.org). */
+  UNYLY_GATEWAY_URL?: string;
+  /** Self-issued gateway token — one token proxies all federated MCPs via /mcp/<slug>. */
+  UNYLY_GATEWAY_TOKEN?: string;
+  /** Alias for UNYLY_GATEWAY_TOKEN. */
+  FED_GATEWAY_TOKEN?: string;
   /**
    * KV namespace binding. Two uses (both optional / graceful):
    *   • callLLM() narrative response cache (cache:llm:<hash>).
@@ -111,7 +117,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.59.0";
+const SERVER_VERSION = "2.60.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.

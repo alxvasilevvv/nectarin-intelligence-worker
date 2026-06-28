@@ -93,6 +93,10 @@
   выдаёт каждому его персональный набор. Установка и доступ — через **Unyly**.
 - **54 готовых сценария + скилы.** Нажал prompt или вызвал `marketing_skill` — Claude сам вызывает нужные инструменты в
   правильном порядке (медиаплан, brand lift, гео-тест, флайтинг, доля голоса и т.д.).
+- **Федерация MCP через Unyly.** NECTARIN — хаб; внешние специализированные MCP (keyword data,
+  web analytics, ad platforms, creative gen…) подключаются через `mcp_federation` и вызываются
+  через `federation_invoke`. При `UNYLY_GATEWAY_TOKEN` — один токен, маршрут
+  `gateway.unyly.org/mcp/<slug>`, без ручной настройки URL на каждый сервер.
 
 ---
 

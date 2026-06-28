@@ -3599,16 +3599,88 @@ describe("MCP federation (Phase C)", () => {
   });
 
   it("federation_invoke is fail-closed when the server isn't configured (no network)", async () => {
-    const { json } = await rpc({
-      jsonrpc: "2.0",
-      id: 823,
-      method: "tools/call",
-      params: { name: "federation_invoke", arguments: { server: "keyword_data", tool: "search_volume", arguments: { kw: "кредит" } } },
-    });
-    const sc = json.result.structuredContent;
-    expect(sc.configured).toBe(false);
-    expect(sc.connectViaUnyly).toContain("unyly.org");
-    expect(json.result.isError).toBeFalsy();
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const { json } = await rpc({
+        jsonrpc: "2.0",
+        id: 823,
+        method: "tools/call",
+        params: { name: "federation_invoke", arguments: { server: "keyword_data", tool: "search_volume", arguments: { kw: "кредит" } } },
+      });
+      const sc = json.result.structuredContent;
+      expect(sc.configured).toBe(false);
+      expect(sc.connectViaUnyly).toContain("unyly.org");
+      expect(sc.gatewayUrl).toBe("https://gateway.unyly.org/mcp/keyword-data");
+      expect(json.result.isError).toBeFalsy();
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("federation_invoke uses Unyly gateway when UNYLY_GATEWAY_TOKEN is set", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: "ok" }], structuredContent: { volume: 999 } } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const { json } = await rpc(
+        {
+          jsonrpc: "2.0",
+          id: 826,
+          method: "tools/call",
+          params: { name: "federation_invoke", arguments: { server: "keyword_data", tool: "search_volume", arguments: { kw: "кредит" } } },
+        },
+        devEnv({ UNYLY_GATEWAY_TOKEN: "gw-secret" } as any)
+      );
+      const sc = json.result.structuredContent;
+      expect(sc.configured).toBe(true);
+      expect(sc.via).toBe("gateway");
+      expect(sc.ok).toBe(true);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, opts] = fetchMock.mock.calls[0] as any;
+      expect(url).toBe("https://gateway.unyly.org/mcp/keyword-data");
+      expect(opts.headers.authorization).toBe("Bearer gw-secret");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("federation_invoke per-server FED_<KEY>_URL override wins over gateway token", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: "ok" }] } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const { json } = await rpc(
+        {
+          jsonrpc: "2.0",
+          id: 827,
+          method: "tools/call",
+          params: { name: "federation_invoke", arguments: { server: "keyword_data", tool: "search_volume" } },
+        },
+        devEnv({
+          UNYLY_GATEWAY_TOKEN: "gw-secret",
+          FED_KEYWORD_DATA_URL: "https://kw.example.test/mcp",
+          FED_KEYWORD_DATA_TOKEN: "override-token",
+        } as any)
+      );
+      const sc = json.result.structuredContent;
+      expect(sc.via).toBe("override");
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, opts] = fetchMock.mock.calls[0] as any;
+      expect(url).toBe("https://kw.example.test/mcp");
+      expect(opts.headers.authorization).toBe("Bearer override-token");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("federation_invoke proxies a JSON-RPC tools/call when configured", async () => {
@@ -3631,6 +3703,7 @@ describe("MCP federation (Phase C)", () => {
       );
       const sc = json.result.structuredContent;
       expect(sc.configured).toBe(true);
+      expect(sc.via).toBe("override");
       expect(sc.ok).toBe(true);
       expect(sc.upstreamResult.structuredContent.volume).toBe(12345);
       expect(fetchMock).toHaveBeenCalledTimes(1);

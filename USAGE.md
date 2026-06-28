@@ -194,6 +194,12 @@ stays on JSON, so existing clients are unaffected.
 |---|---|
 | `connect_via_unyly` | Tracked **Unyly install link** (UTM by source/role/plan) + manual MCP endpoint + role onboarding + access tiers (free/pro/team/agency). All install/access/metering flows through Unyly (Unyly Connect = OAuth 2.1). |
 
+### Federation (2) — external MCPs via Unyly gateway
+| Tool | What it does |
+|---|---|
+| `mcp_federation` | Catalogue of complementary external MCPs (keyword data, web analytics, ad platforms, creative gen, social listening, CRM, marketplace, localization). Each entry includes a tracked Unyly connect link and the live `gatewayUrl` (`gateway.unyly.org/mcp/<slug>`). |
+| `federation_invoke` | Runtime proxy of one JSON-RPC `tools/call` to a federated server. Set `UNYLY_GATEWAY_TOKEN` (self-issued in Unyly dashboard) → one token routes all servers through `gateway.unyly.org/mcp/<slug>`. Per-server `FED_<KEY>_URL` overrides still work. Fail-closed without config. Health: `GET …/mcp/ping`. |
+
 ### Roles / Adoption (1) — one connector for every marketer
 | Tool | What it does |
 |---|---|

@@ -66,6 +66,8 @@ UNYLY_LISTING_URL = "https://unyly.org/ru/mcp/nectarin-intelligence-worker"
 UNYLY_PARTNER_ID = "nectarin"
 # Marketplace base for federated external MCPs (mcp_federation connect links).
 UNYLY_MARKETPLACE_URL = "https://unyly.org/ru/mcp"
+# Unyly federation gateway base (runtime proxy via federation_invoke when token is set).
+UNYLY_GATEWAY_URL = "https://gateway.unyly.org"
 # "1" appends a tracked "Сделано в NECTARIN · подключить через Unyly" footer to
 # successful tool outputs (viral distribution loop). Off by default in code.
 UNYLY_ATTRIBUTION = "1"

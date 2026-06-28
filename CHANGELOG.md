@@ -3,6 +3,27 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.60.0] — 2026-06-29
+
+Twenty-third wave — **live Unyly federation gateway** (Phase C gateway integration of
+`ROADMAP.md`). **97 tools / 72 prompts.**
+
+### Added
+- **Unyly gateway integration** for `federation_invoke`: when `UNYLY_GATEWAY_TOKEN` (or
+  `FED_GATEWAY_TOKEN`) is set, NECTARIN proxies federated MCP calls to
+  `https://gateway.unyly.org/mcp/<slug>` with a single Bearer token — zero per-server
+  URL configuration. Per-server `FED_<KEY>_URL`/`FED_<KEY>_TOKEN` overrides still win.
+- `mcp_federation` catalogue entries now include `gatewayUrl` for each server slug.
+- Env vars `UNYLY_GATEWAY_URL` (default `https://gateway.unyly.org`) and
+  `UNYLY_GATEWAY_TOKEN` in `Env`, `wrangler.toml` and `.dev.vars.example`.
+
+### Changed
+- `federation_invoke` URL resolution priority: (1) per-server override, (2) gateway
+  token + slug, (3) fail-closed with connect link (no network). Gateway errors surface
+  `gatewayPing` hint (`GET …/mcp/ping`).
+- Docs (README/USAGE/OVERVIEW/ROADMAP) updated for self-serve gateway flow. Tests: +2
+  (gateway token path + override precedence). 261 pass.
+
 ## [2.59.0] — 2026-06-29
 
 Twenty-second wave — **market & revenue science (revenue bridge, conjoint, market sizing)** (Phase D of

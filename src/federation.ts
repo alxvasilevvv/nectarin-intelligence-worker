@@ -9,11 +9,10 @@
  * tools it pairs with, and returns a tracked Unyly connect link for each — so every
  * install and every request flows through unyly.org (the metering & billing point).
  *
- * What this DOES (now): discovery, capability/goal/role routing, and tracked Unyly
- * connect links — deterministic, no PII, no network call.
- * What it does NOT do (yet): runtime proxying of an external MCP's tool calls — that
- * requires the Unyly gateway contract (endpoint + auth brokering) and is the documented
- * next step. Until then NECTARIN recommends + links; Unyly Connect brokers access.
+ * What this DOES: discovery, capability/goal/role routing, tracked Unyly connect links,
+ * and (when `UNYLY_GATEWAY_TOKEN` is set) runtime proxying via the live Unyly gateway
+ * at `https://gateway.unyly.org/mcp/<slug>` — one token, zero per-server URL config.
+ * Per-server `FED_<KEY>_URL` overrides still work for backward compatibility.
  */
 
 import type { ToolDef, ToolResult } from "./tools.js";
@@ -33,6 +32,41 @@ function toContent(summary: string, payload: unknown): ToolResult {
 }
 
 const DEFAULT_MARKETPLACE = "https://unyly.org/ru/mcp";
+const DEFAULT_GATEWAY_URL = "https://gateway.unyly.org";
+
+function gatewayBase(env: Env | undefined): string {
+  return (env?.UNYLY_GATEWAY_URL?.trim() || DEFAULT_GATEWAY_URL).replace(/\/+$/, "");
+}
+
+function gatewayToken(env: Env | undefined): string {
+  const rec = env as unknown as Record<string, string | undefined> | undefined;
+  return (rec?.UNYLY_GATEWAY_TOKEN ?? rec?.FED_GATEWAY_TOKEN ?? "").trim();
+}
+
+function gatewayUrlForSlug(env: Env | undefined, slug: string): string | null {
+  const token = gatewayToken(env);
+  if (!token || !slug) return null;
+  return `${gatewayBase(env)}/mcp/${slug}`;
+}
+
+/** Resolve federated endpoint: per-server override wins, else Unyly gateway when token set. */
+function resolveFedEndpoint(
+  env: Env | undefined,
+  s: FederatedServer
+): { url: string; token: string; via: "override" | "gateway" } | null {
+  const envRec = env as unknown as Record<string, string | undefined>;
+  const overrideUrl = (envRec[`FED_${s.key.toUpperCase()}_URL`] ?? "").trim();
+  if (overrideUrl) {
+    return {
+      url: overrideUrl,
+      token: (envRec[`FED_${s.key.toUpperCase()}_TOKEN`] ?? "").trim(),
+      via: "override",
+    };
+  }
+  const gwUrl = gatewayUrlForSlug(env, s.slug);
+  if (gwUrl) return { url: gwUrl, token: gatewayToken(env), via: "gateway" };
+  return null;
+}
 
 /** Build a tracked Unyly connect link for a federated server (traffic attribution). */
 function trackedConnectUrl(marketplace: string, slug: string, partnerId: string, source: string): string {
@@ -191,6 +225,7 @@ const mcpFederation: ToolDef = {
     const source = typeof input?.source === "string" && input.source.trim() ? input.source.trim() : "mcp_federation";
 
     const link = (s: FederatedServer) => trackedConnectUrl(marketplace, s.slug, partnerId, source);
+    const gw = gatewayBase(env);
     const view = (s: FederatedServer) => ({
       server: s.key,
       name: s.name,
@@ -200,13 +235,15 @@ const mcpFederation: ToolDef = {
       capabilities: s.capabilities,
       pairsWith: s.pairsWith,
       roles: s.roles,
+      gatewayUrl: `${gw}/mcp/${s.slug}`,
       connectViaUnyly: link(s),
     });
 
     const governance = {
       principle: "NECTARIN — хаб; внешние MCP подключаются вокруг него и ТОЛЬКО через Unyly.",
       why: "Через Unyly Connect (OAuth 2.1) проходит каждый запрос — это единая точка доступа, изоляции, измерения трафика и тарификации потребления.",
-      runtime: "Сейчас: discovery + маршрутизация + трекнутые ссылки. Прокси-вызовы внешних MCP в рантайме брокерит шлюз Unyly (следующий шаг).",
+      runtime:
+        "Discovery + маршрутизация + трекнутые ссылки. Рантайм-прокси через шлюз Unyly (`UNYLY_GATEWAY_TOKEN` → `gateway.unyly.org/mcp/<slug>`) или per-server `FED_<KEY>_URL`.",
     };
 
     // 1) Specific server.
@@ -268,11 +305,11 @@ const mcpFederation: ToolDef = {
 };
 
 /**
- * Runtime proxy to an external federated MCP — fail-CLOSED. It only calls out when the
- * owner has wired the server through Unyly by setting env `FED_<KEY>_URL` (+ optional
- * `FED_<KEY>_TOKEN`, ideally a `wrangler secret`). The user only picks a server KEY from
- * the known registry (no arbitrary URL ⇒ no SSRF). Without config it returns a tracked
- * Unyly connect link and does NO network call — so the default deploy is inert.
+ * Runtime proxy to an external federated MCP — fail-CLOSED. Calls out when either:
+ *   1) `FED_<KEY>_URL` (+ optional `FED_<KEY>_TOKEN`) is set for that server, OR
+ *   2) `UNYLY_GATEWAY_TOKEN` (or `FED_GATEWAY_TOKEN`) is set → `{gateway}/mcp/{slug}`.
+ * The user only picks a server KEY from the known registry (no arbitrary URL ⇒ no SSRF).
+ * Without config it returns a tracked Unyly connect link and does NO network call.
  */
 async function callExternalMcp(
   url: string,
@@ -315,7 +352,7 @@ async function callExternalMcp(
 const federationInvoke: ToolDef = {
   name: "federation_invoke",
   description:
-    "FEDERATION runtime — call a tool on a federated external MCP server THROUGH NECTARIN (the hub). Fail-closed: it only reaches out when the owner has connected that server via Unyly (the gateway brokers the endpoint + token into env/secrets). You pick a `server` from the mcp_federation catalogue and the external `tool` name + `arguments`; NECTARIN proxies a single JSON-RPC tools/call and returns the result. If the server isn't connected yet, it returns a tracked Unyly connect link and makes NO network call. No arbitrary URLs (only known registry keys) — so traffic always flows through Unyly-brokered endpoints.",
+    "FEDERATION runtime — call a tool on a federated external MCP server THROUGH NECTARIN (the hub). Fail-closed: reaches out when `UNYLY_GATEWAY_TOKEN` is set (calls `gateway.unyly.org/mcp/<slug>` with one token for all servers) or when per-server `FED_<KEY>_URL` is set (override). You pick a `server` from the mcp_federation catalogue and the external `tool` name + `arguments`; NECTARIN proxies a single JSON-RPC tools/call and returns the result. If neither gateway token nor per-server URL is configured, it returns a tracked Unyly connect link and makes NO network call. No arbitrary URLs (only known registry keys) — traffic flows through Unyly-brokered endpoints.",
   inputSchema: {
     type: "object",
     properties: {
@@ -339,11 +376,9 @@ const federationInvoke: ToolDef = {
       };
     }
     const connect = trackedConnectUrl(marketplace, s.slug, partnerId, "federation_invoke");
-    const envRec = env as unknown as Record<string, string | undefined>;
-    const url = (envRec[`FED_${s.key.toUpperCase()}_URL`] ?? "").trim();
-    const token = (envRec[`FED_${s.key.toUpperCase()}_TOKEN`] ?? "").trim();
+    const endpoint = resolveFedEndpoint(env, s);
 
-    if (!url) {
+    if (!endpoint) {
       return toContent(
         `«${s.name}» ещё не подключён. Подключите через Unyly: ${connect}`,
         {
@@ -351,16 +386,19 @@ const federationInvoke: ToolDef = {
           server: s.key,
           configured: false,
           connectViaUnyly: connect,
-          note: "Рантайм-вызов внешнего MCP включается после подключения через Unyly: шлюз брокерит endpoint+токен в env (FED_<KEY>_URL / FED_<KEY>_TOKEN).",
+          gatewayUrl: `${gatewayBase(env)}/mcp/${s.slug}`,
+          note:
+            "Рантайм-вызов включается при UNYLY_GATEWAY_TOKEN (один токен → gateway.unyly.org/mcp/<slug>) или per-server FED_<KEY>_URL. Health: GET …/mcp/ping.",
         }
       );
     }
+    const { url, token, via } = endpoint;
 
     const toolName = typeof input?.tool === "string" ? input.tool.trim() : "";
     if (!toolName) {
       return {
         content: [{ type: "text", text: `Укажите параметр tool — имя инструмента сервера «${s.name}».` }],
-        structuredContent: { tool: "federation_invoke", server: s.key, configured: true, error: "missing_tool" },
+        structuredContent: { tool: "federation_invoke", server: s.key, configured: true, via, error: "missing_tool" },
         isError: true,
       };
     }
@@ -368,9 +406,18 @@ const federationInvoke: ToolDef = {
 
     const out = await callExternalMcp(url, token, toolName, args);
     if (!out.ok) {
+      const pingUrl = `${gatewayBase(env)}/mcp/ping`;
       return {
         content: [{ type: "text", text: `Ошибка вызова ${s.name}.${toolName}: ${out.error}` }],
-        structuredContent: { tool: "federation_invoke", server: s.key, configured: true, ok: false, error: out.error },
+        structuredContent: {
+          tool: "federation_invoke",
+          server: s.key,
+          configured: true,
+          via,
+          ok: false,
+          error: out.error,
+          ...(via === "gateway" ? { gatewayPing: pingUrl, hint: `Check gateway health: GET ${pingUrl}` } : {}),
+        },
         isError: true,
       };
     }
@@ -379,6 +426,7 @@ const federationInvoke: ToolDef = {
       server: s.key,
       toolCalled: toolName,
       configured: true,
+      via,
       ok: true,
       upstreamResult: out.result,
     });
