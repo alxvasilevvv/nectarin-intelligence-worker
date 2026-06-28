@@ -366,4 +366,129 @@ const sovTracker: ToolDef = {
   },
 };
 
-export const BRAND_TOOLS: ToolDef[] = [brandLift, sovTracker];
+// ── share_of_search ───────────────────────────────────────────────────────────
+
+interface SearchCompetitorIn {
+  name: string;
+  volume: number;
+}
+
+const shareOfSearch: ToolDef = {
+  name: "share_of_search",
+  description:
+    "Share of Search tracker — branded search demand as a LEADING indicator of market share (Les Binet). From the brand's branded-search volume + competitors' volumes (or a totalCategoryVolume, or sosPct directly), computes Share of Search (SoS %), the brand's rank, and — given the current market share (SOM) — the SoS↔share GAP (SoS above share ⇒ likely to gain; below ⇒ at risk). Optionally takes a previous SoS to report the trend, and projects next-period market share as the share partially converging toward SoS. Deterministic demand-sensing heuristic on YOUR numbers — directional, not a guarantee, and distinct from sov_tracker (which tracks share of media SPEND).",
+  inputSchema: {
+    type: "object",
+    properties: {
+      brandVolume: { type: "number", minimum: 0, description: "Brand branded-search volume (any consistent unit)" },
+      competitors: {
+        type: "array",
+        description: "Competitor search volumes (with brandVolume → total & SoS)",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string", description: "Competitor name" },
+            volume: { type: "number", minimum: 0, description: "Competitor branded-search volume (same unit)" },
+          },
+          required: ["name", "volume"],
+          additionalProperties: false,
+        },
+      },
+      totalCategoryVolume: { type: "number", exclusiveMinimum: 0, description: "Alt: total category search volume (with brandVolume → SoS)" },
+      sosPct: { type: "number", minimum: 0, maximum: 100, description: "Alt: provide Share of Search directly, %" },
+      marketSharePct: { type: "number", minimum: 0, maximum: 100, description: "Brand current market share (SOM), % — enables the SoS↔share gap" },
+      previousSosPct: { type: "number", minimum: 0, maximum: 100, description: "Optional: prior-period SoS % to report the trend" },
+      gapConvergenceCoef: { type: "number", exclusiveMinimum: 0, maximum: 1, description: "Share of the SoS↔share gap that closes next period (default 0.5)" },
+    },
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const coef = typeof input.gapConvergenceCoef === "number" && input.gapConvergenceCoef > 0 && input.gapConvergenceCoef <= 1 ? input.gapConvergenceCoef : 0.5;
+    const competitors = (input.competitors ?? []) as SearchCompetitorIn[];
+    const brandVolume = typeof input.brandVolume === "number" && input.brandVolume >= 0 ? input.brandVolume : null;
+
+    // Resolve SoS% (and rank when volumes are available).
+    let sos: number | null = null;
+    let totalVolume: number | null = null;
+    let rank: number | null = null;
+    let fieldSize: number | null = null;
+    if (typeof input.sosPct === "number") {
+      sos = clamp(input.sosPct, 0, 100);
+    } else if (brandVolume != null && competitors.length) {
+      const compVol = competitors.reduce((s, c) => s + Math.max(0, c.volume), 0);
+      const tv = brandVolume + compVol;
+      totalVolume = tv;
+      sos = tv > 0 ? (brandVolume / tv) * 100 : 0;
+      const all = [brandVolume, ...competitors.map((c) => Math.max(0, c.volume))];
+      fieldSize = all.length;
+      rank = all.filter((v) => v > brandVolume).length + 1;
+    } else if (brandVolume != null && typeof input.totalCategoryVolume === "number" && input.totalCategoryVolume > 0) {
+      totalVolume = input.totalCategoryVolume;
+      sos = (brandVolume / input.totalCategoryVolume) * 100;
+    }
+
+    if (sos == null) {
+      return {
+        content: [
+          { type: "text", text: "Ошибка: задай sosPct, либо brandVolume + (competitors[] или totalCategoryVolume)." },
+        ],
+        isError: true,
+      };
+    }
+
+    const som = typeof input.marketSharePct === "number" ? clamp(input.marketSharePct, 0, 100) : null;
+    const gap = som != null ? sos - som : null;
+    const projectedShare = som != null ? clamp(som + (gap ?? 0) * coef, 0, 100) : null;
+
+    const prevSos = typeof input.previousSosPct === "number" ? clamp(input.previousSosPct, 0, 100) : null;
+    const sosTrendPp = prevSos != null ? sos - prevSos : null;
+
+    let stance: string;
+    if (gap == null) stance = "no_share_reference";
+    else if (gap > 1) stance = "demand_ahead_of_share"; // poised to grow
+    else if (gap < -1) stance = "share_ahead_of_demand"; // at risk
+    else stance = "balanced";
+
+    const verdict =
+      gap == null
+        ? `Доля в поиске ${round(sos, 1)}%${rank != null ? `, место ${rank} из ${fieldSize}` : ""}. Добавь marketSharePct, чтобы оценить опережение спроса над долей рынка.`
+        : stance === "demand_ahead_of_share"
+          ? `SoS ${round(sos, 1)}% выше доли рынка ${round(som as number, 1)}% на ${round(gap, 1)} п.п. — спрос опережает долю, потенциал роста (прогноз доли ~${round(projectedShare as number, 1)}%).`
+          : stance === "share_ahead_of_demand"
+            ? `SoS ${round(sos, 1)}% НИЖЕ доли рынка ${round(som as number, 1)}% на ${round(Math.abs(gap), 1)} п.п. — спрос отстаёт, риск снижения доли (прогноз ~${round(projectedShare as number, 1)}%).`
+            : `SoS ${round(sos, 1)}% ≈ доле рынка ${round(som as number, 1)}% — спрос и доля сбалансированы.`;
+
+    const payload = {
+      sosPct: round(sos, 1),
+      rank,
+      fieldSize,
+      totalCategoryVolume: totalVolume != null ? round(totalVolume) : null,
+      marketSharePct: som != null ? round(som, 1) : null,
+      sosShareGapPp: gap != null ? round(gap, 1) : null,
+      previousSosPct: prevSos != null ? round(prevSos, 1) : null,
+      sosTrendPp: sosTrendPp != null ? round(sosTrendPp, 1) : null,
+      gapConvergenceCoef: coef,
+      projectedMarketSharePct: projectedShare != null ? round(projectedShare, 1) : null,
+      stance,
+      verdict,
+      methodology:
+        "SoS = brandVolume/(brandVolume+competitors) (или задан). Gap = SoS − доля рынка. Прогноз доли = доля + Gap×coef (доля подтягивается к SoS; coef по умолчанию 0.5). Тренд = SoS − предыдущий SoS.",
+      assumptions: [
+        "Share of Search — опережающий индикатор доли рынка (Les Binet): изменения SoS обычно предшествуют изменениям доли.",
+        "Связь SoS→доля усреднённая и зависит от категории, дистрибуции, цены и качества продукта.",
+        "Меряйте брендовый спрос консистентно (один источник: Wordstat/Яндекс, один период, без сезонных артефактов).",
+      ],
+      disclaimer: "Директивная оценка, не гарантия. Используйте как ранний сигнал, а не как точный прогноз доли.",
+    };
+
+    const summary =
+      `Share of Search ${round(sos, 1)}%${rank != null ? ` (место ${rank}/${fieldSize})` : ""}` +
+      (sosTrendPp != null ? `, тренд ${sosTrendPp >= 0 ? "+" : ""}${round(sosTrendPp, 1)} п.п.` : "") +
+      (gap != null ? `; разрыв с долей рынка ${gap >= 0 ? "+" : ""}${round(gap, 1)} п.п.` : "") +
+      `. ${verdict}`;
+
+    return toContent(summary, payload);
+  },
+};
+
+export const BRAND_TOOLS: ToolDef[] = [brandLift, sovTracker, shareOfSearch];

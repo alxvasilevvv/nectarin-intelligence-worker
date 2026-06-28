@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-58-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-59-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -242,6 +242,7 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 |---|---|
 | `brand_lift` | **Brand-lift study calculator.** *Measure*: from a control vs. exposed survey cell (n + positive answers for ad recall / awareness / consideration / intent) computes both rates, the absolute (pp) & relative lift, a pooled **two-proportion z-test** (z, two-tailed p-value, significance at α) and a confidence interval for the lift. *Design*: from a base rate + target lift (absolute pp or relative %), α and power, returns the **required sample size per cell** (and total). Auto-detects mode. Deterministic. |
 | `sov_tracker` | **Share of Voice + ESOV growth tracker.** From brand spend + competitor spends (or a given SOV) and the brand's current market share, computes **SOV**, **ESOV** (excess share of voice = SOV − share) and the predicted annual market-share growth (Binet & Field: ~0.5pp per 10pp ESOV). Also solves the SOV/spend required to hit a target share growth. Deterministic brand-growth heuristic. |
+| `share_of_search` | **Share of Search demand tracker** — branded search as a *leading indicator* of market share (Les Binet). From the brand's branded-search volume + competitors' volumes (or a total category volume, or SoS directly), computes **SoS %**, the brand's **rank**, and — given current market share — the **SoS↔share gap** (demand ahead of share ⇒ poised to gain; behind ⇒ at risk). Optional previous SoS gives the **trend**; projects next-period share as it partially converges toward SoS. Distinct from `sov_tracker` (share of *spend*). Deterministic. |
 
 > **Funnel logic & safety.** All Growth figures are synthetic/illustrative and
 > anchored to the same mock RU/CIS benchmarks (`src/data.ts`) — internally
@@ -322,7 +323,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 58 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 5 Media + 2 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media);
+`tools/list` returns all 59 tools (11 Intelligence + 6 Growth & Automation + 10 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 1 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 5 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -365,7 +366,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (58 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (59 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit

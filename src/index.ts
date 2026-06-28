@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.37.0";
+const SERVER_VERSION = "2.38.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1183,6 +1183,31 @@ const PROMPTS = [
       `3) Покажи по площадкам ROAS, ДРР, прибыль на заказ и приоритет; кто прибыльный, кто нет.\n` +
       `4) Назови итоги портфеля: заказы, выручка, ДРР, ROAS, прибыль после комиссии; кто выше целевого ДРР.\n` +
       `5) Дай рекомендации по ставкам/ассортименту; дисклеймер про выкуп, возвраты и реальную выдачу маркетплейса.`,
+  },
+  {
+    name: "share_of_search_check",
+    title: "Share of Search vs market share",
+    description:
+      "Track branded search demand as a leading indicator of market share (share_of_search): SoS %, rank, the SoS↔share gap, trend and a projected share.",
+    arguments: [
+      { name: "competitors", description: "Brands as 'name:volume' separated by ',' or ';' — include YOUR brand, e.g. 'Наш бренд:120000, Конкурент A:90000, Конкурент B:60000'", required: true },
+      { name: "brand", description: "Which name in the list is your brand", required: true },
+      { name: "marketSharePct", description: "Your current market share %, to compute the SoS↔share gap (optional)", required: false },
+      { name: "previousSosPct", description: "Prior-period SoS % for the trend (optional)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, аналитик брендового спроса (Share of Search) RU/CIS.\n` +
+      `Оцени долю бренда в поиске как опережающий индикатор доли рынка.\n` +
+      `Бренды (name:volume): ${a.competitors}\n` +
+      `Наш бренд: ${a.brand}.\n` +
+      (a.marketSharePct ? `Текущая доля рынка: ${a.marketSharePct}%.\n` : "") +
+      (a.previousSosPct ? `Предыдущий SoS: ${a.previousSosPct}%.\n` : "") +
+      `\nШаги:\n` +
+      `1) Распарси список, выдели brandVolume для «${a.brand}» и competitors[] (остальные).\n` +
+      `2) Вызови share_of_search(brandVolume, competitors${a.marketSharePct ? ", marketSharePct" : ""}${a.previousSosPct ? ", previousSosPct" : ""}).\n` +
+      `3) Покажи SoS %, место в категории и тренд к прошлому периоду.\n` +
+      `4) Объясни разрыв SoS↔доля рынка: опережает ли спрос долю (потенциал роста) или отстаёт (риск); назови прогноз доли.\n` +
+      `5) Свяжи с sov_tracker (доля голоса/медиадавление) и дай вывод; дисклеймер: SoS — ранний сигнал, не точный прогноз.`,
   },
 ];
 

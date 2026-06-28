@@ -3,6 +3,28 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.38.0] — 2026-06-28
+
+Sixth wave complete (3/3) — a Share-of-Search demand tracker (**59th tool**).
+NECTARIN Intelligence now ships **59 tools / 36 guided prompts**.
+
+### Added
+- **`share_of_search`** (Brand group, now 3 tools) — tracks branded-search demand as a
+  **leading indicator of market share** (Les Binet). From the brand's branded-search
+  volume + competitors' volumes (or a total category volume, or SoS directly), computes
+  **Share of Search (SoS %)**, the brand's **rank**, and — given current market share —
+  the **SoS↔share gap** (SoS above share ⇒ poised to gain; below ⇒ at risk). An optional
+  previous SoS yields the **trend**, and next-period market share is projected as it
+  partially converges toward SoS. Explicitly distinct from `sov_tracker` (which tracks
+  share of media **spend**, not demand). 58 → **59 tools**.
+- **`share_of_search_check`** guided prompt (**36 prompts** total) — parse `name:volume`
+  rows, pick the brand → `share_of_search` → SoS %, rank, gap, trend and projected share.
+
+### Changed
+- `tools/list` now advertises **59 tools**; the Brand group grows to 3
+  (`brand_lift`, `sov_tracker`, `share_of_search`). Catalog resource, `/version`
+  `toolCount`, README/USAGE/OVERVIEW counts and the test suite updated accordingly.
+
 ## [2.37.0] — 2026-06-28
 
 Sixth wave (2/3) — a marketplace / retail-media planner (**58th tool**).
