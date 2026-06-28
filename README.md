@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-94-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-97-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -34,7 +34,11 @@ with **mock/synthetic RU data** plus **KV real-data layering**, and a
 > v2.58 adds a Foresight & Strategy group — `demand_forecast` (Holt linear-trend forecast + optional
 > multiplicative seasonality + confidence band), `customer_journey_map` (lifecycle → channels/content/KPI
 > with conversion & gap analysis) and `competitive_positioning_map` (2-axis perceptual map + white-space).
-> **94 tools / 69 prompts.**
+> v2.59 adds a Market & Revenue Science group — `marketing_roi_waterfall` (period-over-period revenue/ROAS
+> bridge decomposing the change into volume/efficiency/AOV drivers), `conjoint_analysis` (part-worth
+> utilities → attribute importance, share-of-preference logit & willingness-to-pay) and `tam_sam_som`
+> (top-down/bottom-up market-sizing funnel with a reality check & CAGR projection).
+> **97 tools / 72 prompts.**
 
 > **New in 2.51 — skills & growth science:** an extensible **playbook layer**
 > (`marketing_skill`) chains tools into 10 repeatable end-to-end workflows (cut CAC,
@@ -162,7 +166,7 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
 
 ---
 
-## Tools (94 total)
+## Tools (97 total)
 
 ### Intelligence group (inform + orchestrate)
 | Tool | What it does |
@@ -372,6 +376,13 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 | `customer_journey_map` | **Lifecycle map & gap audit.** Maps the funnel (awareness → consideration → purchase → retention → advocacy) to channels, content and a primary KPI per stage; with stage volumes computes stage-to-stage conversion and the biggest drop-off; flags coverage **gaps** (a stage with no channels or no content). Call with no args for the best-practice template. |
 | `competitive_positioning_map` | **2-axis perceptual map (pro+).** Places ≥2 competitors on a plane (e.g. price × value), splits at the mean of each axis into four quadrants, assigns each player a quadrant + value-for-money index, finds the empty quadrants (**white-space**) and — if one entry is flagged `isYou` — reports your quadrant and nearest rival by normalized distance. |
 
+### Market & Revenue Science group (v2.59+ — revenue bridge, conjoint & market sizing)
+| Tool | What it does |
+|---|---|
+| `marketing_roi_waterfall` | **Revenue/ROAS bridge (pro+).** Decomposes period-over-period ΔRevenue into three exact, reconciling drivers via sequential factor substitution: Revenue = Spend × Efficiency (conv/₽) × AOV (₽/conv). Returns a waterfall (start → spend → efficiency → AOV → end), each driver's signed ₽ contribution & share, and the ROAS delta. Explains **why** revenue moved (more budget? cheaper conversions? bigger basket?). Distinct from `unit_economics` (single-period) and `scenario_planner` (forward what-ifs). |
+| `conjoint_analysis` | **Part-worth conjoint (lite, pro+).** From attribute level utilities computes attribute **importance** (utility-range share), the **optimal bundle** (max-utility level per attribute), **share-of-preference** across supplied profiles via a logit/BTL model, and — with a numeric price attribute — the **willingness-to-pay** (₽) per attribute. Trades off features × price; distinct from `pricing_psm` (Van Westendorp, price only). |
+| `tam_sam_som` | **Market-sizing funnel.** TAM → SAM → SOM top-down (TAM × SAM share × SOM share) or bottom-up (population × penetration × obtainable share × ARPU) → sizes in customers & revenue, the SOM-as-%-of-TAM **reality check**, and an optional multi-year SOM projection at a CAGR. Light, deterministic. |
+
 ### Roles / Adoption group (v2.46+ — one connector for every marketer)
 | Tool | What it does |
 |---|---|
@@ -493,7 +504,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 94 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 2 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 2 Retention/CRM + 1 Email/Lifecycle + 1 Partnerships + 1 Roles/Adoption + 1 SEO + 1 Social/SMM + 1 PR + 1 Events + 1 Mobile/ASO + 1 Content + 1 Distribution + 1 Skills + 2 Growth Lab + 2 Federation + 3 Expansion + 4 B2B & CX + 3 Ops & Autonomy + 2 Marketing Ops & Leadership + 3 Foresight & Strategy);
+`tools/list` returns all 97 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 2 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 2 Retention/CRM + 1 Email/Lifecycle + 1 Partnerships + 1 Roles/Adoption + 1 SEO + 1 Social/SMM + 1 PR + 1 Events + 1 Mobile/ASO + 1 Content + 1 Distribution + 1 Skills + 2 Growth Lab + 2 Federation + 3 Expansion + 4 B2B & CX + 3 Ops & Autonomy + 2 Marketing Ops & Leadership + 3 Foresight & Strategy + 3 Market & Revenue Science);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -536,7 +547,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (94 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (97 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit

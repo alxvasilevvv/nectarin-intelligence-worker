@@ -46,6 +46,7 @@ import { B2BCX_TOOLS } from "./b2bcx.js";
 import { AUTONOMY_TOOLS } from "./autonomy.js";
 import { LEADERSHIP_TOOLS } from "./leadership.js";
 import { FORESIGHT_TOOLS } from "./foresight.js";
+import { MARKETS_TOOLS } from "./markets.js";
 import type { Env } from "./index.js";
 
 export interface JsonSchema {
@@ -444,6 +445,7 @@ export const ALL_TOOLS: ToolDef[] = [
   ...AUTONOMY_TOOLS,
   ...LEADERSHIP_TOOLS,
   ...FORESIGHT_TOOLS,
+  ...MARKETS_TOOLS,
 ];
 
 export const TOOLS_BY_NAME: Record<string, ToolDef> = Object.fromEntries(

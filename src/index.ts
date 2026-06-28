@@ -111,7 +111,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.58.0";
+const SERVER_VERSION = "2.59.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1870,6 +1870,62 @@ const PROMPTS = [
       `Игроки: ${a.competitors}. Оси: ${a.xAxis ?? "Цена"} × ${a.yAxis ?? "Ценность"}.\n` +
       `\nРазбери строку в массив competitors [{name, x, y, isYou?}] (имя с «*» ⇒ isYou=true) и вызови competitive_positioning_map(competitors=[...]${a.xAxis ? `, xAxis="${a.xAxis}"` : ""}${a.yAxis ? `, yAxis="${a.yAxis}"` : ""}).\n` +
       `Покажи квадранты по каждому игроку, value-for-money индекс, свободные квадранты (white-space) и ваше положение + ближайшего конкурента.`,
+  },
+  {
+    name: "roi_waterfall",
+    title: "Explain revenue change (ROI waterfall)",
+    description:
+      "Decompose period-over-period revenue/ROAS change into volume, efficiency and AOV drivers as a waterfall (marketing_roi_waterfall).",
+    arguments: [
+      { name: "before", description: "Baseline period as 'spend,conversions,revenue' (₽), e.g. '1000000,500,3000000'", required: true },
+      { name: "after", description: "Comparison period as 'spend,conversions,revenue' (₽), e.g. '1200000,640,4100000'", required: true },
+      { name: "labelBefore", description: "Optional baseline label, e.g. 'Q1'", required: false },
+      { name: "labelAfter", description: "Optional comparison label, e.g. 'Q2'", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, маркетинг-аналитик (P&L-разбор).\n` +
+      `${a.labelBefore ?? "Период 1"}: ${a.before}. ${a.labelAfter ?? "Период 2"}: ${a.after}.\n` +
+      `\nРазбери каждую строку в {spend, conversions, revenue} и вызови marketing_roi_waterfall(before={...}, after={...}${a.labelBefore ? `, labelBefore="${a.labelBefore}"` : ""}${a.labelAfter ? `, labelAfter="${a.labelAfter}"` : ""}).\n` +
+      `Покажи водопад выручки (старт→бюджет→эффективность→AOV→итог), знак и долю каждого драйвера, изменение ROAS и главный драйвер.`,
+  },
+  {
+    name: "conjoint",
+    title: "Run a conjoint (feature/price trade-off)",
+    description:
+      "From part-worth utilities compute attribute importance, optimal bundle, share-of-preference and willingness-to-pay (conjoint_analysis).",
+    arguments: [
+      { name: "attributes", description: "Attributes as 'name:level=utility,level=utility; …', e.g. 'Цена:999=1.2,1499=0.2,1999=-0.9; Доставка:1д=0.8,3д=0'", required: true },
+      { name: "profiles", description: "Optional bundles as 'name|Attr=level,Attr=level; …' for share-of-preference", required: false },
+      { name: "priceAttribute", description: "Optional name of the numeric price attribute (enables WTP), e.g. 'Цена'", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, продуктовый/прайсинг-маркетолог.\n` +
+      `Атрибуты: ${a.attributes}.${a.profiles ? ` Профили: ${a.profiles}.` : ""}\n` +
+      `\nРазбери в attributes=[{name, levels:[{label, utility}]}]${a.profiles ? " и profiles=[{name, choices:{...}}]" : ""} и вызови conjoint_analysis(attributes=[...]${a.profiles ? ", profiles=[...]" : ""}${a.priceAttribute ? `, priceAttribute="${a.priceAttribute}"` : ""}).\n` +
+      `Покажи важность атрибутов (%), оптимальный набор, долю предпочтения по профилям (логит)${a.priceAttribute ? " и WTP (₽) по атрибутам" : ""}.`,
+  },
+  {
+    name: "market_sizing",
+    title: "Size the market (TAM-SAM-SOM)",
+    description:
+      "Build a TAM→SAM→SOM funnel top-down or bottom-up with a reality check and optional CAGR projection (tam_sam_som).",
+    arguments: [
+      { name: "tam", description: "TOP-DOWN: total market size (₽). Omit if using bottom-up.", required: false },
+      { name: "samSharePct", description: "TOP-DOWN: SAM as % of TAM", required: false },
+      { name: "somSharePct", description: "TOP-DOWN: SOM as % of SAM", required: false },
+      { name: "population", description: "BOTTOM-UP: total potential customers. Omit if using top-down.", required: false },
+      { name: "penetrationPct", description: "BOTTOM-UP: % of population that is serviceable (→ SAM)", required: false },
+      { name: "obtainableSharePct", description: "BOTTOM-UP: realistic % of SAM captured (→ SOM)", required: false },
+      { name: "arpu", description: "Annual revenue per customer, ₽ (required for bottom-up)", required: false },
+      { name: "cagrPct", description: "Optional market CAGR % for the SOM projection", required: false },
+      { name: "years", description: "Optional projection horizon in years (needs cagrPct)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, стратег по выходу на рынок.\n` +
+      (a.tam ? `Сверху-вниз: TAM=${a.tam}, SAM=${a.samSharePct ?? "?"}% TAM, SOM=${a.somSharePct ?? "?"}% SAM.\n` : "") +
+      (a.population ? `Снизу-вверх: население=${a.population}, проникновение=${a.penetrationPct ?? "?"}%, достижимая доля=${a.obtainableSharePct ?? "?"}%, ARPU=${a.arpu ?? "?"}.\n` : "") +
+      `\nВызови tam_sam_som(${a.tam ? `tam=${a.tam}, samSharePct=${a.samSharePct}, somSharePct=${a.somSharePct}` : `population=${a.population}, penetrationPct=${a.penetrationPct}, obtainableSharePct=${a.obtainableSharePct}, arpu=${a.arpu}`}${a.cagrPct ? `, cagrPct=${a.cagrPct}` : ""}${a.years ? `, years=${a.years}` : ""}).\n` +
+      `Покажи TAM/SAM/SOM (₽ и клиенты), SOM как % TAM, reality-check и проекцию SOM при наличии CAGR.`,
   },
 ];
 

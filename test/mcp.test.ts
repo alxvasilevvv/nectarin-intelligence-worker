@@ -24,7 +24,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(94);
+    expect(json.toolCount).toBe(97);
     expect(json.commit).toBeDefined();
   });
 });
@@ -35,7 +35,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(94);
+    expect(tools).toHaveLength(97);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -76,6 +76,9 @@ describe("tools/list", () => {
     expect(names).toContain("demand_forecast");
     expect(names).toContain("customer_journey_map");
     expect(names).toContain("competitive_positioning_map");
+    expect(names).toContain("marketing_roi_waterfall");
+    expect(names).toContain("conjoint_analysis");
+    expect(names).toContain("tam_sam_som");
     expect(names).toContain("compliance_check");
     expect(names).toContain("ab_test_planner");
     expect(names).toContain("unit_economics");
@@ -227,8 +230,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(94);
-    expect(catalog.tools).toHaveLength(94);
+    expect(catalog.counts.tools).toBe(97);
+    expect(catalog.tools).toHaveLength(97);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -2344,7 +2347,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(94);
+    expect(parsed.result.tools.length).toBe(97);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -2427,7 +2430,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(94);
+    expect(json.result.tools).toHaveLength(97);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -2455,7 +2458,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(94);
+    expect(json.result.tools).toHaveLength(97);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -2465,10 +2468,13 @@ describe("auth", () => {
 });
 
 describe("prompts", () => {
-  it("prompts/list returns all 69 guided prompts incl. the new ones", async () => {
+  it("prompts/list returns all 72 guided prompts incl. the new ones", async () => {
     const { json } = await rpc({ jsonrpc: "2.0", id: 60, method: "prompts/list" });
     const names = json.result.prompts.map((p: any) => p.name);
-    expect(json.result.prompts).toHaveLength(69);
+    expect(json.result.prompts).toHaveLength(72);
+    expect(names).toContain("roi_waterfall");
+    expect(names).toContain("conjoint");
+    expect(names).toContain("market_sizing");
     expect(names).toContain("maturity_check");
     expect(names).toContain("pricing_research");
     expect(names).toContain("abm_targets");
@@ -3305,6 +3311,9 @@ describe("Plan gating (monetization seam)", () => {
     expect(requiredPlan("demand_forecast")).toBe("pro");
     expect(requiredPlan("competitive_positioning_map")).toBe("pro");
     expect(requiredPlan("customer_journey_map")).toBeNull();
+    expect(requiredPlan("marketing_roi_waterfall")).toBe("pro");
+    expect(requiredPlan("conjoint_analysis")).toBe("pro");
+    expect(requiredPlan("tam_sam_som")).toBeNull();
   });
 
   it("planAllows: free blocked from pro tool, team allowed, owner always", () => {
@@ -4282,5 +4291,142 @@ describe("Foresight & Strategy tools (v2.58)", () => {
     });
     // 2 valid players remain after dropping the unnamed one ⇒ still succeeds
     expect(json.result.structuredContent.players).toHaveLength(2);
+  });
+});
+
+describe("Market & Revenue Science tools (v2.59)", () => {
+  it("marketing_roi_waterfall decomposes revenue change into reconciling drivers", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 900,
+      method: "tools/call",
+      params: {
+        name: "marketing_roi_waterfall",
+        arguments: {
+          before: { spend: 1000000, conversions: 500, revenue: 3000000 },
+          after: { spend: 1200000, conversions: 640, revenue: 4100000 },
+          labelBefore: "Q1",
+          labelAfter: "Q2",
+        },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.deltaRevenue).toBe(1100000);
+    // three drivers, sum of contributions reconciles exactly to ΔRevenue
+    expect(sc.drivers).toHaveLength(3);
+    const sum = sc.drivers.reduce((a: number, d: any) => a + d.contribution, 0);
+    expect(sum).toBeCloseTo(1100000, 2);
+    // waterfall ends exactly at the after-period revenue
+    expect(sc.waterfall[sc.waterfall.length - 1].cumulative).toBe(4100000);
+    expect(sc.roas.before).toBeCloseTo(3, 4);
+    expect(sc.topDriver.driver).toBeDefined();
+  });
+
+  it("marketing_roi_waterfall errors on a non-positive metric", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 901,
+      method: "tools/call",
+      params: {
+        name: "marketing_roi_waterfall",
+        // spend=0 is caught by the handler (nested-object bounds aren't schema-validated) ⇒ tool isError
+        arguments: { before: { spend: 0, conversions: 10, revenue: 100 }, after: { spend: 10, conversions: 10, revenue: 100 } },
+      },
+    });
+    expect(json.result.isError).toBe(true);
+  });
+
+  it("conjoint_analysis computes importance, optimal bundle, share-of-preference and WTP", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 902,
+      method: "tools/call",
+      params: {
+        name: "conjoint_analysis",
+        arguments: {
+          attributes: [
+            { name: "Цена", levels: [{ label: "999", utility: 1.2 }, { label: "1499", utility: 0.2 }, { label: "1999", utility: -0.9 }] },
+            { name: "Доставка", levels: [{ label: "1 день", utility: 0.8 }, { label: "3 дня", utility: 0 }] },
+          ],
+          profiles: [
+            { name: "A", choices: { "Цена": "999", "Доставка": "3 дня" } },
+            { name: "B", choices: { "Цена": "1499", "Доставка": "1 день" } },
+          ],
+          priceAttribute: "Цена",
+        },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.importance).toHaveLength(2);
+    // importance percentages sum to ~100
+    const impSum = sc.importance.reduce((a: number, x: any) => a + x.importancePct, 0);
+    expect(impSum).toBeCloseTo(100, 0);
+    expect(sc.optimalBundle).toHaveLength(2);
+    // share-of-preference across 2 profiles sums to ~100
+    expect(sc.shareOfPreference).toHaveLength(2);
+    const shareSum = sc.shareOfPreference.reduce((a: number, x: any) => a + x.sharePct, 0);
+    expect(shareSum).toBeCloseTo(100, 0);
+    // WTP present with a positive marginal utility of money
+    expect(sc.willingnessToPay).not.toBeNull();
+    expect(sc.willingnessToPay.utilityPerRub).toBeGreaterThan(0);
+  });
+
+  it("conjoint_analysis errors when no valid attribute is supplied", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 903,
+      method: "tools/call",
+      // empty attributes array ⇒ handler-level validation ⇒ tool isError result
+      params: { name: "conjoint_analysis", arguments: { attributes: [{ name: "X", levels: [] }] } },
+    });
+    expect(json.result.isError).toBe(true);
+  });
+
+  it("tam_sam_som builds a bottom-up funnel in customers and revenue", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 904,
+      method: "tools/call",
+      params: {
+        name: "tam_sam_som",
+        arguments: { population: 1000000, penetrationPct: 20, obtainableSharePct: 5, arpu: 12000 },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.method).toBe("bottom_up");
+    expect(sc.sam.customers).toBe(200000);
+    expect(sc.som.customers).toBe(10000);
+    // revenue = customers × arpu
+    expect(sc.som.value).toBe(10000 * 12000);
+    expect(sc.som.ofTamPct).toBe(1);
+  });
+
+  it("tam_sam_som builds a top-down funnel with a CAGR projection", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 905,
+      method: "tools/call",
+      params: {
+        name: "tam_sam_som",
+        arguments: { tam: 10000000000, samSharePct: 30, somSharePct: 10, cagrPct: 15, years: 3 },
+      },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.method).toBe("top_down");
+    expect(sc.sam.value).toBe(3000000000);
+    expect(sc.som.value).toBe(300000000);
+    expect(sc.projection).toHaveLength(3);
+    expect(sc.projection[2].som).toBeCloseTo(300000000 * Math.pow(1.15, 3), 0);
+  });
+
+  it("tam_sam_som errors when neither tam nor population is supplied", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 906,
+      method: "tools/call",
+      // no tam and no population ⇒ handler-level validation ⇒ tool isError result
+      params: { name: "tam_sam_som", arguments: { samSharePct: 10 } },
+    });
+    expect(json.result.isError).toBe(true);
   });
 });

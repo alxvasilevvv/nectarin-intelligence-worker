@@ -3,6 +3,32 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.59.0] — 2026-06-29
+
+Twenty-second wave — **market & revenue science (revenue bridge, conjoint, market sizing)** (Phase D of
+`ROADMAP.md`). **97 tools / 72 prompts.**
+
+### Added
+- **`marketing_roi_waterfall`** (new **Market & Revenue Science** group, pro+) — period-over-period
+  revenue/ROAS **bridge**. Decomposes ΔRevenue into three exact, reconciling drivers via sequential
+  factor substitution: Revenue = Spend × Efficiency (conv/₽) × AOV (₽/conv). Returns a waterfall
+  (start → spend → efficiency → AOV → end), each driver's signed ₽ contribution & share, and the ROAS
+  delta — explaining **why** revenue moved. Distinct from `unit_economics` (single-period) and
+  `scenario_planner` (forward what-ifs).
+- **`conjoint_analysis`** (Market & Revenue Science, pro+) — part-worth **conjoint** (lite). From
+  attribute level utilities computes attribute **importance** (utility-range share), the **optimal
+  bundle**, **share-of-preference** across profiles via a logit/BTL model and — with a numeric price
+  attribute — **willingness-to-pay** (₽) per attribute. Trades off features × price; distinct from
+  `pricing_psm` (Van Westendorp, price only).
+- **`tam_sam_som`** (Market & Revenue Science) — market-sizing funnel. TAM → SAM → SOM top-down
+  (TAM × shares) or bottom-up (population × penetration × obtainable share × ARPU) → sizes in
+  customers & revenue, the SOM-as-%-of-TAM reality check, and an optional multi-year SOM projection
+  at a CAGR. Light, open tier.
+- Guided prompts **`roi_waterfall`**, **`conjoint`**, **`market_sizing`** (**72 prompts**).
+
+### Changed
+- `tools/list`/catalog/`/version` advertise **97 tools**. Docs + tests updated. 259 pass.
+
 ## [2.58.0] — 2026-06-29
 
 Twenty-first wave — **foresight & strategy (forecasting, journey mapping, positioning)** (Phase D of
