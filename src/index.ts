@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.21.0";
+const SERVER_VERSION = "2.22.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -762,6 +762,33 @@ const PROMPTS = [
       `3) Разбери топ по value-скору: охват, CPM/CPV, eCPA. Назови фрод-флаги (накрутка/мёртвая аудитория).\n` +
       `4) Дай рекомендованный микс под бюджет: список, суммарный охват, blended CPA/CPM.\n` +
       `5) Next-step по сделкам и обязательно: подтвердить тестовым размещением, пересечение аудиторий не вычтено.`,
+  },
+  {
+    name: "olv_plan",
+    title: "OLV / media reach & frequency plan",
+    description:
+      "Plan online-video/display reach & frequency (reach_frequency): net reach, average frequency, effective reach at ≥N exposures, and frequency-cap waste.",
+    arguments: [
+      { name: "audienceSize", description: "Target audience universe (people)", required: true },
+      { name: "budget", description: "Media budget, RUB (use with cpm)", required: false },
+      { name: "cpm", description: "Cost per 1000 impressions, RUB", required: false },
+      { name: "impressions", description: "Gross impressions directly (instead of budget+cpm)", required: false },
+      { name: "effectiveFreq", description: "Effective-frequency threshold N (optional; default 3)", required: false },
+      { name: "frequencyCap", description: "Frequency cap per person (optional)", required: false },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, медиапланер OLV/медийной рекламы RU/CIS.\n` +
+      `Посчитай охват и частоту по плану.\n` +
+      `Аудитория (universe): ${a.audienceSize} чел.\n` +
+      (a.impressions ? `Показы: ${a.impressions}.\n` : `Бюджет: ${a.budget} ₽, CPM: ${a.cpm} ₽.\n`) +
+      (a.effectiveFreq ? `Эффективная частота: ${a.effectiveFreq}+.\n` : `Эффективная частота: 3+.\n`) +
+      (a.frequencyCap ? `Frequency cap: ${a.frequencyCap}.\n` : ``) +
+      `\nШаги:\n` +
+      `1) Вызови reach_frequency(audienceSize${a.impressions ? ", impressions" : ", budget, cpm"}${a.effectiveFreq ? ", effectiveFreq" : ""}${a.frequencyCap ? ", frequencyCap" : ""}).\n` +
+      `2) Объясни: gross показы, GRP, чистый охват (% и люди), средняя частота.\n` +
+      `3) Дай эффективный охват ≥N и что он значит для запоминаемости.\n` +
+      (a.frequencyCap ? `4) Покажи потери показов сверх cap и потенциальный прирост охвата.\n` : `4) Оцени, не идёт ли переконтакт; нужен ли frequency cap.\n`) +
+      `5) Рекомендация по бюджету/частоте + дисклеймер: плановая оценка (Пуассон), сверяйте с post-buy.`,
   },
 ];
 

@@ -3,6 +3,25 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.22.0] — 2026-06-28
+
+OLV/display media science: a reach & frequency planner (43rd tool) — second feature
+of the site-aligned wave (Nectarin is award-winning in OLV-performance).
+
+### Added
+- **`reach_frequency`** (new **Media** group) — from a budget + CPM (or impressions
+  directly) and the target audience universe, computes gross impressions, GRPs,
+  **net reach** (people & %), average frequency among reached, the full contact
+  distribution and **effective reach at ≥N exposures** using a Poisson exposure
+  model. With a `frequencyCap` it estimates impressions wasted above the cap and the
+  potential reach gain from reallocating them, plus cost-per-reached-person and an
+  under-/over-frequency verdict. Deterministic media math. 42 → **43 tools**.
+- **`olv_plan`** guided prompt (**20 prompts** total).
+
+### Changed
+- `server.json` description + version, README (Tools badge 43, new Media group),
+  USAGE (catalogue 43, prompts 20), test counts (43 tools / 20 prompts).
+
 ## [2.21.0] — 2026-06-28
 
 Маркетинг влияния: an influencer/KOL roster evaluator & mix optimizer (42nd tool).
