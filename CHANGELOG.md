@@ -3,6 +3,24 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.24.0] — 2026-06-28
+
+Omnichannel measurement: a cross-channel deduplicated reach estimator (45th tool) —
+first feature of the second wave (омниканальность на данных).
+
+### Added
+- **`channel_overlap`** (Media group, now 2 tools) — given a shared audience
+  universe and ≥2 channels' individual reach (reachPct or reachPeople), computes the
+  combined **net deduplicated reach** under the independence (Sainsbury) model, the
+  gross summed reach, the duplication/overlap (people & %), and each channel's
+  **incremental unique reach** (leave-one-out). Flags the most additive and most
+  duplicated channels. Deterministic planning estimate. 44 → **45 tools**.
+- **`omnichannel_reach`** guided prompt (**22 prompts** total).
+
+### Changed
+- `server.json` description + version, README (Tools badge 45, Media group now 2
+  tools), USAGE (catalogue 45, prompts 22), test counts (45 tools / 22 prompts).
+
 ## [2.23.0] — 2026-06-28
 
 Branding measurement: a brand-lift study calculator (44th tool) — third feature of

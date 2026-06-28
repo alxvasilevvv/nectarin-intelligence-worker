@@ -191,4 +191,113 @@ const reachFrequency: ToolDef = {
   },
 };
 
-export const MEDIA_TOOLS: ToolDef[] = [reachFrequency];
+// ── channel_overlap ──────────────────────────────────────────────────────────
+
+interface ChannelReachIn {
+  name: string;
+  reachPct?: number;
+  reachPeople?: number;
+}
+
+const channelOverlap: ToolDef = {
+  name: "channel_overlap",
+  description:
+    "Omnichannel deduplicated reach estimator. Given a shared audience universe and ≥2 channels' individual reach (reachPct of universe, or reachPeople), computes the combined NET deduplicated reach under the independence (Sainsbury) model, the gross summed reach, the duplication/overlap (people & %), and each channel's incremental UNIQUE reach (leave-one-out) — i.e. how much net reach it adds on top of the others. Flags the most additive and most duplicated channels. Deterministic planning estimate (assumes random duplication) — pair with reach_frequency for single-channel R&F.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      audienceSize: { type: "number", exclusiveMinimum: 0, description: "Shared target audience universe (people)" },
+      channels: {
+        type: "array",
+        minItems: 2,
+        description: "Channels with their individual reach within the universe",
+        items: {
+          type: "object",
+          properties: {
+            name: { type: "string", description: "Channel name (TV / OLV / display / social / search / OOH …)" },
+            reachPct: { type: "number", minimum: 0, maximum: 100, description: "Channel reach as % of the universe" },
+            reachPeople: { type: "number", minimum: 0, description: "Channel reach in people (alt to reachPct)" },
+          },
+          required: ["name"],
+          additionalProperties: false,
+        },
+      },
+    },
+    required: ["audienceSize", "channels"],
+    additionalProperties: false,
+  },
+  async handler(input) {
+    const universe = Number(input.audienceSize);
+    const chans = (input.channels ?? []) as ChannelReachIn[];
+    if (!(universe > 0) || chans.length < 2) {
+      return {
+        content: [{ type: "text", text: "Ошибка: нужны audienceSize > 0 и ≥2 канала с reachPct или reachPeople." }],
+        isError: true,
+      };
+    }
+
+    const fr = chans.map((c) => {
+      let r = 0;
+      if (typeof c.reachPct === "number") r = c.reachPct / 100;
+      else if (typeof c.reachPeople === "number") r = c.reachPeople / universe;
+      return { name: String(c.name ?? ""), r: Math.max(0, Math.min(1, r)) };
+    });
+
+    const prodAll = fr.reduce((acc, c) => acc * (1 - c.r), 1);
+    const combinedFraction = 1 - prodAll;
+    const combinedPeople = universe * combinedFraction;
+    const grossPeople = fr.reduce((s, c) => s + c.r * universe, 0);
+    const duplicationPeople = grossPeople - combinedPeople;
+
+    const channels = fr.map((c) => {
+      // Leave-one-out: net reach of all others, so incremental = combined − others.
+      const prodOthers = fr.reduce((acc, o) => (o === c ? acc : acc * (1 - o.r)), 1);
+      const othersFraction = 1 - prodOthers;
+      const incrementalFraction = Math.max(0, combinedFraction - othersFraction);
+      const reachPeople = c.r * universe;
+      const incrementalPeople = universe * incrementalFraction;
+      return {
+        name: c.name,
+        reachPct: round(c.r * 100, 1),
+        reachPeople: round(reachPeople),
+        incrementalUniquePeople: round(incrementalPeople),
+        incrementalUniquePct: round(incrementalFraction * 100, 1),
+        duplicatedPeople: round(Math.max(0, reachPeople - incrementalPeople)),
+      };
+    });
+
+    const mostAdditive = [...channels].sort((a, b) => b.incrementalUniquePeople - a.incrementalUniquePeople)[0];
+    const mostDuplicated = [...channels].sort((a, b) => b.duplicatedPeople - a.duplicatedPeople)[0];
+
+    const payload = {
+      audienceSize: round(universe),
+      combinedReach: { people: round(combinedPeople), pct: round(combinedFraction * 100, 1) },
+      grossSummedReach: round(grossPeople),
+      duplication: {
+        people: round(duplicationPeople),
+        pctOfGross: grossPeople > 0 ? round((duplicationPeople / grossPeople) * 100, 1) : 0,
+      },
+      channels,
+      mostAdditiveChannel: mostAdditive ? { name: mostAdditive.name, incrementalUniquePeople: mostAdditive.incrementalUniquePeople } : null,
+      mostDuplicatedChannel: mostDuplicated ? { name: mostDuplicated.name, duplicatedPeople: mostDuplicated.duplicatedPeople } : null,
+      methodology:
+        "Independence (Sainsbury) model: combined reach = 1−Π(1−rᵢ). Incremental unique reach (leave-one-out) = combined − reach(all others). Duplication = Σrᵢ·U − combined.",
+      assumptions: [
+        "Случайная (независимая) дупликация между каналами — реальные пересечения по аудиториям могут отличаться.",
+        "Все каналы покрывают одну и ту же вселенную (universe); таргетинги считаются сопоставимыми.",
+        "Если есть фактические парные пересечения из исследований — модель даст лишь оценку сверху по уникальности.",
+      ],
+      disclaimer: "Плановая оценка дедупликации, не гарантия. Сверяйте с кросс-медиа исследованием (напр. установочным).",
+    };
+
+    const summary =
+      `Омниканальный охват ${chans.length} каналов на вселенную ${ru(round(universe))}: ` +
+      `дедуплицированный ${round(combinedFraction * 100, 1)}% (${ru(round(combinedPeople))} чел.), ` +
+      `пересечение ${ru(round(duplicationPeople))} чел. (${payload.duplication.pctOfGross}% от суммы). ` +
+      (mostAdditive ? `Больше всего уникума даёт «${mostAdditive.name}».` : "");
+
+    return toContent(summary, payload);
+  },
+};
+
+export const MEDIA_TOOLS: ToolDef[] = [reachFrequency, channelOverlap];

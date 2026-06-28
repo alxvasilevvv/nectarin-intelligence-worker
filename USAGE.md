@@ -37,7 +37,7 @@ stays on JSON, so existing clients are unaffected.
 
 ---
 
-## 2. Tool catalogue (44)
+## 2. Tool catalogue (45)
 
 ### Intelligence (11)
 | Tool | What it does |
@@ -125,22 +125,23 @@ stays on JSON, so existing clients are unaffected.
 |---|---|
 | `influencer_planner` | Evaluates an influencer/KOL roster: per-creator reach, CPM/CPV/CPE, estimated target reach & conversions, eCPA, value score and **fraud flags** (ER vs. typical band for the follower tier). With a `budget`, greedily builds the best mix and reports blended reach/conversions/CPA/CPM. |
 
-### Media (1) — OLV / display reach & frequency
+### Media (2) — OLV / display reach & frequency, cross-channel
 | Tool | What it does |
 |---|---|
 | `reach_frequency` | From budget+CPM (or impressions) and the audience universe, gives gross impressions, GRPs, **net reach** (people & %), average frequency, contact distribution and **effective reach at ≥N exposures** (Poisson). Optional `frequencyCap` estimates over-cap waste and reallocatable reach; returns cost-per-reached-person + verdict. |
+| `channel_overlap` | From a shared universe + ≥2 channels' reach, gives the combined **deduplicated net reach** (Sainsbury), gross summed reach, duplication (people & %) and each channel's **incremental unique reach** (leave-one-out); flags most additive / most duplicated. |
 
 ### Brand (1) — brand lift
 | Tool | What it does |
 |---|---|
 | `brand_lift` | *Measure*: control vs exposed survey cells → rates, absolute (pp) & relative lift, pooled **two-proportion z-test** (z, p-value, significance) and a lift CI. *Design*: base rate + target lift + α + power → **required sample per cell** and total. Auto-detects mode. |
 
-Built‑in **prompts** (21): `build_media_plan`, `full_strategy`, `competitor_teardown`,
+Built‑in **prompts** (22): `build_media_plan`, `full_strategy`, `competitor_teardown`,
 `sell_nectarin_services`, `automate_my_marketing`, `creative_lab`, `growth_monitor`,
 `launch_flight`, `performance_review`, `saturation_reallocation`, `mmm_planning`,
 `quarter_plan`, `account_audit`, `scenario_review`, `promo_review`, `exec_report`,
 `creative_fatigue_check`, `price_optimization`, `influencer_plan`, `olv_plan`,
-`brand_lift_study`.
+`brand_lift_study`, `omnichannel_reach`.
 **Resources:** `nectarin://methodology`, `nectarin://glossary`, `nectarin://catalog`
 (live JSON catalog of all tools + annotations + prompts). `tools/list` also
 returns a `title` and behavioral `annotations` (read-only / idempotent / open-world) per tool.

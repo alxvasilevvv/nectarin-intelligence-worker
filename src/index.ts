@@ -101,7 +101,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.23.0";
+const SERVER_VERSION = "2.24.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -826,6 +826,31 @@ const PROMPTS = [
             `4) Предупреди: реальная мощность зависит от фактической базы и эффекта.`)
       );
     },
+  },
+  {
+    name: "omnichannel_reach",
+    title: "Omnichannel deduplicated reach",
+    description:
+      "Estimate combined deduplicated cross-channel reach (channel_overlap): net reach, duplication, and each channel's incremental unique contribution.",
+    arguments: [
+      { name: "audienceSize", description: "Shared audience universe (people)", required: true },
+      {
+        name: "channels",
+        description: "Channels as 'name:reach%' separated by ';', e.g. 'TV:45; OLV:30; Соцсети:25; Поиск:15'",
+        required: true,
+      },
+    ],
+    build: (a: Record<string, string>) =>
+      `Ты — NECTARIN Intelligence, кросс-медиа планер RU/CIS (омниканальность на данных).\n` +
+      `Оцени совокупный дедуплицированный охват.\n` +
+      `Вселенная: ${a.audienceSize} чел.\n` +
+      `Каналы (name:reach%): ${a.channels}\n` +
+      `\nШаги:\n` +
+      `1) Распарси каналы в массив {name, reachPct}.\n` +
+      `2) Вызови channel_overlap(audienceSize, channels).\n` +
+      `3) Объясни: суммарный (с дублями) vs дедуплицированный охват, размер пересечения.\n` +
+      `4) Покажи инкрементальный уникальный вклад каждого канала; назови самый аддитивный и самый дублирующий.\n` +
+      `5) Рекомендация по миксу + дисклеймер: модель независимой дупликации (Sainsbury), сверяйте с кросс-медиа исследованием.`,
   },
 ];
 
