@@ -26,6 +26,12 @@ UNYLY_PARTNER_ID="nectarin"
 UNYLY_ATTRIBUTION="1"
 # Marketplace base for federated external MCPs (mcp_federation connect links).
 UNYLY_MARKETPLACE_URL="https://unyly.org/ru/mcp"
+# federation_invoke runtime proxy (fail-closed). Per server KEY from mcp_federation,
+# the Unyly gateway brokers an endpoint (and token) once the owner connects it.
+# In production prefer `wrangler secret put FED_<KEY>_TOKEN` for tokens.
+# Example for the "keyword_data" server:
+# FED_KEYWORD_DATA_URL="https://gateway.unyly.org/mcp/keyword-data"
+# FED_KEYWORD_DATA_TOKEN="..."
 
 # ── Optional, for when callLLM() is wired to a real model (production: use
 #    `wrangler secret put LLM_API_KEY` instead of putting it here) ──

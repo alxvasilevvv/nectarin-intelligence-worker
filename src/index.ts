@@ -111,7 +111,7 @@ export interface Env {
 }
 
 const SERVER_NAME = "nectarin-intelligence";
-const SERVER_VERSION = "2.52.0";
+const SERVER_VERSION = "2.53.0";
 const PROTOCOL_VERSION = "2025-06-18"; // MCP protocol revision advertised on initialize.
 
 // JSON-RPC error codes.
@@ -1907,6 +1907,7 @@ const ATTRIBUTION_SKIP = new Set([
   "request_nectarin_proposal",
   "book_consultation",
   "mcp_federation",
+  "federation_invoke",
 ]);
 
 function isTruthyEnv(v: string | undefined): boolean {

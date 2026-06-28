@@ -4,7 +4,7 @@
 &nbsp;
 ![MCP](https://img.shields.io/badge/MCP-Streamable%20HTTP-5865f2?style=for-the-badge)
 ![Cloudflare Workers](https://img.shields.io/badge/Cloudflare-Workers-f38020?style=for-the-badge&logo=cloudflare&logoColor=white)
-![Tools](https://img.shields.io/badge/Tools-78-22c55e?style=for-the-badge)
+![Tools](https://img.shields.io/badge/Tools-79-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
 > (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
@@ -22,7 +22,8 @@ with **mock/synthetic RU data** plus **KV real-data layering**, and a
 > discovers complementary servers (live keyword data, web analytics, ad-platform pulls,
 > creative generation, social listening, CRM, marketplace data, localization), routes by
 > capability/goal/role, and returns **tracked Unyly connect links** so all installs &
-> consumption flow through unyly.org. **78 tools / 55 prompts.**
+> consumption flow through unyly.org. `federation_invoke` proxies an external MCP tool call at
+> runtime (fail-closed until the server is connected via Unyly). **79 tools / 55 prompts.**
 
 > **New in 2.51 — skills & growth science:** an extensible **playbook layer**
 > (`marketing_skill`) chains tools into 10 repeatable end-to-end workflows (cut CAC,
@@ -150,7 +151,7 @@ Go live with `npx wrangler deploy` using your own Cloudflare token.
 
 ---
 
-## Tools (78 total)
+## Tools (79 total)
 
 ### Intelligence group (inform + orchestrate)
 | Tool | What it does |
@@ -323,6 +324,7 @@ lead, and a unit-economics analyst. All math is deterministic and auditable.
 | Tool | What it does |
 |---|---|
 | `mcp_federation` | **Marketplace router.** NECTARIN is the hub; complementary specialist MCPs (live keyword/SERP data, web analytics, ad-platform pulls, creative generation, social listening, CRM, marketplace data, localization) plug in around it — always through Unyly. No args ⇒ catalogue; `capability`/`goal`/`role` ⇒ recommendations; `server` ⇒ details. Each returns a **tracked Unyly connect link** + the native NECTARIN tools it pairs with. Discovery + routing + links only (runtime proxy brokered by the Unyly gateway). |
+| `federation_invoke` | **Runtime proxy (team+).** Calls a tool on a federated external MCP *through* NECTARIN: pick a `server` key + external `tool` + `arguments`; NECTARIN proxies one JSON-RPC `tools/call` and returns the upstream result. **Fail-closed** — only reaches the network when the owner connected the server via Unyly (gateway brokers `FED_<KEY>_URL`/`FED_<KEY>_TOKEN`); otherwise returns a tracked Unyly connect link with no network call. Only known registry keys (no arbitrary URLs ⇒ no SSRF). |
 
 ### Roles / Adoption group (v2.46+ — one connector for every marketer)
 | Tool | What it does |
@@ -445,7 +447,7 @@ curl -s "$HOST/mcp" \
 ```
 
 `initialize` returns `serverInfo`, `protocolVersion`, and `capabilities`;
-`tools/list` returns all 78 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 2 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 2 Retention/CRM + 1 Email/Lifecycle + 1 Partnerships + 1 Roles/Adoption + 1 SEO + 1 Social/SMM + 1 PR + 1 Events + 1 Mobile/ASO + 1 Content + 1 Distribution + 1 Skills + 2 Growth Lab + 1 Federation);
+`tools/list` returns all 79 tools (11 Intelligence + 6 Growth & Automation + 11 Premium Analytics + 8 Premium + 1 MMM + 2 Planning + 2 Pricing & Promo + 2 Audit + 1 Executive + 2 Creative Ops + 1 Influence + 6 Media + 3 Brand + 1 Production + 2 Experimentation + 1 Competitive + 1 Search & SEM + 1 Retail Media + 2 Retention/CRM + 1 Email/Lifecycle + 1 Partnerships + 1 Roles/Adoption + 1 SEO + 1 Social/SMM + 1 PR + 1 Events + 1 Mobile/ASO + 1 Content + 1 Distribution + 1 Skills + 2 Growth Lab + 2 Federation);
 `media_plan` returns the split, forecast totals, per-channel detail, and a
 STOP-GATE flag for regulated categories.
 
@@ -488,7 +490,7 @@ npm run dry                      # wrangler deploy --dry-run --outdir dist (no C
 ### Tests
 
 `npm test` runs the vitest suite against the Worker's `fetch()` handler directly:
-initialize handshake, `tools/list` (78 tools), happy-path `tools/call`
+initialize handshake, `tools/list` (79 tools), happy-path `tools/call`
 (`ru_benchmarks`, `media_plan`, `roi_calculator`, `lead_qualify`,
 `budget_optimizer`, `strategy_orchestrate`), invalid params (`-32602`), unknown
 tool/method (`-32601`), the auth 401 path (`DEV_BYPASS` off, no token), plus unit

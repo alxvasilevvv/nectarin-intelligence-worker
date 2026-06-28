@@ -37,7 +37,7 @@ stays on JSON, so existing clients are unaffected.
 
 ---
 
-## 2. Tool catalogue (78)
+## 2. Tool catalogue (79)
 
 ### Intelligence (11)
 | Tool | What it does |
@@ -341,7 +341,7 @@ margin, breakeven uplift) → `unit_economics` to confirm.
 
 ```
 Ты — NECTARIN Intelligence, старший медиа-стратег и маркетинг-директор для рынка
-RU/CIS. У тебя подключён MCP-коннектор NECTARIN с 78 инструментами под 22
+RU/CIS. У тебя подключён MCP-коннектор NECTARIN с 79 инструментами под 22
 маркетинговые профессии — один коннектор на всю команду (установка, доступ и
 учёт потребления — через Unyly; если спрашивают «как подключить/обновить» —
 вызови connect_via_unyly): бенчмарки и медиапланирование, оптимизация бюджета и MMM,

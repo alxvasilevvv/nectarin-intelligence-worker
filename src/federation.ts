@@ -267,4 +267,122 @@ const mcpFederation: ToolDef = {
   },
 };
 
-export const FEDERATION_TOOLS: ToolDef[] = [mcpFederation];
+/**
+ * Runtime proxy to an external federated MCP — fail-CLOSED. It only calls out when the
+ * owner has wired the server through Unyly by setting env `FED_<KEY>_URL` (+ optional
+ * `FED_<KEY>_TOKEN`, ideally a `wrangler secret`). The user only picks a server KEY from
+ * the known registry (no arbitrary URL ⇒ no SSRF). Without config it returns a tracked
+ * Unyly connect link and does NO network call — so the default deploy is inert.
+ */
+async function callExternalMcp(
+  url: string,
+  token: string,
+  toolName: string,
+  args: Record<string, unknown>,
+  timeoutMs = 8000
+): Promise<{ ok: boolean; result?: unknown; error?: string }> {
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        ...(token ? { authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "tools/call",
+        params: { name: toolName, arguments: args },
+      }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) return { ok: false, error: `upstream_http_${res.status}` };
+    const body = (await res.json()) as { result?: unknown; error?: { message?: string } };
+    if (body && body.error) {
+      return { ok: false, error: typeof body.error.message === "string" ? body.error.message : "upstream_error" };
+    }
+    return { ok: true, result: body?.result };
+  } catch (e) {
+    const name = (e as { name?: string })?.name;
+    return { ok: false, error: name === "AbortError" ? "timeout" : "network_error" };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+const federationInvoke: ToolDef = {
+  name: "federation_invoke",
+  description:
+    "FEDERATION runtime — call a tool on a federated external MCP server THROUGH NECTARIN (the hub). Fail-closed: it only reaches out when the owner has connected that server via Unyly (the gateway brokers the endpoint + token into env/secrets). You pick a `server` from the mcp_federation catalogue and the external `tool` name + `arguments`; NECTARIN proxies a single JSON-RPC tools/call and returns the result. If the server isn't connected yet, it returns a tracked Unyly connect link and makes NO network call. No arbitrary URLs (only known registry keys) — so traffic always flows through Unyly-brokered endpoints.",
+  inputSchema: {
+    type: "object",
+    properties: {
+      server: { type: "string", description: "Federated server key from mcp_federation, e.g. 'keyword_data'" },
+      tool: { type: "string", description: "Tool name to call on that external MCP server" },
+      arguments: { type: "object", description: "Arguments object to pass to the external tool", additionalProperties: true },
+    },
+    required: ["server"],
+    additionalProperties: false,
+  },
+  async handler(input, env) {
+    const marketplace = (env?.UNYLY_MARKETPLACE_URL && env.UNYLY_MARKETPLACE_URL.trim()) || DEFAULT_MARKETPLACE;
+    const partnerId = env?.UNYLY_PARTNER_ID || "nectarin";
+    const serverKey = typeof input?.server === "string" ? input.server.trim().toLowerCase() : "";
+    const s = SERVERS.find((x) => x.key === serverKey);
+    if (!s) {
+      return {
+        content: [{ type: "text", text: `Сервер «${serverKey}» не найден. Доступно: ${SERVERS.map((x) => x.key).join(", ")}.` }],
+        structuredContent: { tool: "federation_invoke", matched: false, available: SERVERS.map((x) => x.key) },
+        isError: true,
+      };
+    }
+    const connect = trackedConnectUrl(marketplace, s.slug, partnerId, "federation_invoke");
+    const envRec = env as unknown as Record<string, string | undefined>;
+    const url = (envRec[`FED_${s.key.toUpperCase()}_URL`] ?? "").trim();
+    const token = (envRec[`FED_${s.key.toUpperCase()}_TOKEN`] ?? "").trim();
+
+    if (!url) {
+      return toContent(
+        `«${s.name}» ещё не подключён. Подключите через Unyly: ${connect}`,
+        {
+          tool: "federation_invoke",
+          server: s.key,
+          configured: false,
+          connectViaUnyly: connect,
+          note: "Рантайм-вызов внешнего MCP включается после подключения через Unyly: шлюз брокерит endpoint+токен в env (FED_<KEY>_URL / FED_<KEY>_TOKEN).",
+        }
+      );
+    }
+
+    const toolName = typeof input?.tool === "string" ? input.tool.trim() : "";
+    if (!toolName) {
+      return {
+        content: [{ type: "text", text: `Укажите параметр tool — имя инструмента сервера «${s.name}».` }],
+        structuredContent: { tool: "federation_invoke", server: s.key, configured: true, error: "missing_tool" },
+        isError: true,
+      };
+    }
+    const args = isRecord(input?.arguments) ? (input.arguments as Record<string, unknown>) : {};
+
+    const out = await callExternalMcp(url, token, toolName, args);
+    if (!out.ok) {
+      return {
+        content: [{ type: "text", text: `Ошибка вызова ${s.name}.${toolName}: ${out.error}` }],
+        structuredContent: { tool: "federation_invoke", server: s.key, configured: true, ok: false, error: out.error },
+        isError: true,
+      };
+    }
+    return toContent(`${s.name}.${toolName} → ответ получен через федерацию (Unyly-брокеринг).`, {
+      tool: "federation_invoke",
+      server: s.key,
+      toolCalled: toolName,
+      configured: true,
+      ok: true,
+      upstreamResult: out.result,
+    });
+  },
+};
+
+export const FEDERATION_TOOLS: ToolDef[] = [mcpFederation, federationInvoke];

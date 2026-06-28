@@ -3,6 +3,26 @@
 All notable changes to NECTARIN Intelligence (Cloudflare Workers MCP server).
 Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 
+## [2.53.0] — 2026-06-29
+
+Sixteenth wave — **MCP federation runtime** (Phase C-runtime of `ROADMAP.md`): NECTARIN can now
+actually *call* a federated external MCP through itself — but fail-closed. **79 tools / 55 prompts.**
+
+### Added
+- **`federation_invoke`** (Federation group) — runtime proxy of a single JSON-RPC `tools/call`
+  to a federated external MCP server. You pick a `server` key from the `mcp_federation`
+  catalogue plus the external `tool` + `arguments`; NECTARIN proxies the call and returns the
+  upstream result. **Fail-closed:** it only reaches the network when the owner has connected the
+  server through Unyly (the gateway brokers `FED_<KEY>_URL` (+ optional `FED_<KEY>_TOKEN` secret)
+  into env). Without config it makes **no** network call and returns a tracked Unyly connect link.
+  No arbitrary URLs — only known registry keys ⇒ no SSRF; traffic always flows through
+  Unyly-brokered endpoints. 8s timeout, upstream errors surface as `isError`.
+
+### Changed
+- `federation_invoke` gated to **team+** (advanced/infra capability) and excluded from the Unyly
+  attribution footer. `tools/list`/catalog/`/version` advertise **79 tools**. Docs + tests
+  updated (+4 federation tests incl. mocked-fetch proxy & upstream-error). 209 pass.
+
 ## [2.52.0] — 2026-06-29
 
 Fifteenth wave — **MCP federation through Unyly** (Phase C of `ROADMAP.md`): NECTARIN

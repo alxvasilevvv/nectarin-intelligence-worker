@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { rpc, get, devEnv, authEnv } from "./helpers.js";
 import { normalizePlan, planAllows, requiredPlan, monthlyQuota, unylyUpgradeUrl } from "../src/plan.js";
 
@@ -24,7 +24,7 @@ describe("MCP handshake & discovery", () => {
     expect(status).toBe(200);
     expect(json.name).toBe("nectarin-intelligence");
     expect(typeof json.version).toBe("string");
-    expect(json.toolCount).toBe(78);
+    expect(json.toolCount).toBe(79);
     expect(json.commit).toBeDefined();
   });
 });
@@ -35,7 +35,7 @@ describe("tools/list", () => {
     expect(status).toBe(200);
     const tools = json.result.tools;
     expect(Array.isArray(tools)).toBe(true);
-    expect(tools).toHaveLength(78);
+    expect(tools).toHaveLength(79);
     for (const t of tools) {
       expect(typeof t.name).toBe("string");
       expect(typeof t.description).toBe("string");
@@ -60,6 +60,7 @@ describe("tools/list", () => {
     expect(names).toContain("cohort_retention_curve");
     expect(names).toContain("viral_loop");
     expect(names).toContain("mcp_federation");
+    expect(names).toContain("federation_invoke");
     expect(names).toContain("compliance_check");
     expect(names).toContain("ab_test_planner");
     expect(names).toContain("unit_economics");
@@ -211,8 +212,8 @@ describe("resources", () => {
     const c = json.result.contents[0];
     expect(c.mimeType).toBe("application/json");
     const catalog = JSON.parse(c.text);
-    expect(catalog.counts.tools).toBe(78);
-    expect(catalog.tools).toHaveLength(78);
+    expect(catalog.counts.tools).toBe(79);
+    expect(catalog.tools).toHaveLength(79);
     // Catalog entries carry the same annotations as tools/list.
     const ru = catalog.tools.find((t: any) => t.name === "ru_benchmarks");
     expect(ru.annotations.readOnlyHint).toBe(true);
@@ -2328,7 +2329,7 @@ describe("infrastructure: KV data + SSE", () => {
     // The SSE data line must carry the tools/list result.
     const dataLine = body.split("\n").find((l) => l.startsWith("data: "))!;
     const parsed = JSON.parse(dataLine.slice("data: ".length));
-    expect(parsed.result.tools.length).toBe(78);
+    expect(parsed.result.tools.length).toBe(79);
   });
 
   it("still returns JSON for the common Accept (application/json + event-stream)", async () => {
@@ -2411,7 +2412,7 @@ describe("auth", () => {
       devEnv()
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(78);
+    expect(json.result.tools).toHaveLength(79);
   });
 
   it("shared token: 401 without a bearer (even if DEV_BYPASS=1)", async () => {
@@ -2439,7 +2440,7 @@ describe("auth", () => {
       { authorization: "Bearer s3cret-token" }
     );
     expect(status).toBe(200);
-    expect(json.result.tools).toHaveLength(78);
+    expect(json.result.tools).toHaveLength(79);
   });
 
   it("/version reports authMode shared-token when configured", async () => {
@@ -3420,5 +3421,72 @@ describe("MCP federation (Phase C)", () => {
     expect(sc.server.server).toBe("keyword_data");
     expect(sc.server.connectViaUnyly).toContain("utm_source=deck");
     expect(sc.server.pairsWith).toContain("seo_opportunity");
+  });
+
+  it("federation_invoke is fail-closed when the server isn't configured (no network)", async () => {
+    const { json } = await rpc({
+      jsonrpc: "2.0",
+      id: 823,
+      method: "tools/call",
+      params: { name: "federation_invoke", arguments: { server: "keyword_data", tool: "search_volume", arguments: { kw: "кредит" } } },
+    });
+    const sc = json.result.structuredContent;
+    expect(sc.configured).toBe(false);
+    expect(sc.connectViaUnyly).toContain("unyly.org");
+    expect(json.result.isError).toBeFalsy();
+  });
+
+  it("federation_invoke proxies a JSON-RPC tools/call when configured", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ jsonrpc: "2.0", id: 1, result: { content: [{ type: "text", text: "ok" }], structuredContent: { volume: 12345 } } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    try {
+      const { json } = await rpc(
+        {
+          jsonrpc: "2.0",
+          id: 824,
+          method: "tools/call",
+          params: { name: "federation_invoke", arguments: { server: "keyword_data", tool: "search_volume", arguments: { kw: "кредит" } } },
+        },
+        devEnv({ FED_KEYWORD_DATA_URL: "https://kw.example.test/mcp", FED_KEYWORD_DATA_TOKEN: "secret" } as any)
+      );
+      const sc = json.result.structuredContent;
+      expect(sc.configured).toBe(true);
+      expect(sc.ok).toBe(true);
+      expect(sc.upstreamResult.structuredContent.volume).toBe(12345);
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      const [url, opts] = fetchMock.mock.calls[0] as any;
+      expect(url).toBe("https://kw.example.test/mcp");
+      expect(opts.headers.authorization).toBe("Bearer secret");
+      const sentBody = JSON.parse(opts.body);
+      expect(sentBody.method).toBe("tools/call");
+      expect(sentBody.params.name).toBe("search_volume");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("federation_invoke surfaces an upstream error as isError", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("boom", { status: 502 })));
+    try {
+      const { json } = await rpc(
+        {
+          jsonrpc: "2.0",
+          id: 825,
+          method: "tools/call",
+          params: { name: "federation_invoke", arguments: { server: "keyword_data", tool: "search_volume" } },
+        },
+        devEnv({ FED_KEYWORD_DATA_URL: "https://kw.example.test/mcp" } as any)
+      );
+      expect(json.result.isError).toBe(true);
+      expect(json.result.structuredContent.ok).toBe(false);
+      expect(json.result.structuredContent.error).toContain("upstream_http_502");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
