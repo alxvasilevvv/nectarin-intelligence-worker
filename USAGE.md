@@ -18,6 +18,16 @@ opt‑in SSE transport.
 Settings → Connectors → **Add custom connector** → paste the `/mcp` URL above.
 No token required (dev‑bypass).
 
+### ChatGPT — Custom Connector
+ChatGPT → **Settings → Connectors** (enable **developer mode** if the option is hidden)
+→ **Add / New connection** → paste the `/mcp` URL above.
+- Server running **open** (dev‑bypass — the default): pick **No authentication**.
+- Server behind **OAuth** (see [Production auth](#production-auth-oauth-21)): ChatGPT
+  registers itself via **Dynamic Client Registration** and runs the OAuth flow — just
+  click **Authorize** (no manual client id/secret).
+
+Once added, NECTARIN's tools show up in the composer (and deep‑research).
+
 ### Claude Code / CLI
 ```bash
 claude mcp add --transport http nectarin https://nectarin-intelligence.alxvasilevv.workers.dev/mcp
@@ -34,6 +44,32 @@ curl -s -H 'content-type: application/json' \
 Add `?stream=1` to the endpoint, **or** send `Accept: text/event-stream` (without
 `application/json`). The common `Accept: application/json, text/event-stream`
 stays on JSON, so existing clients are unaffected.
+
+### Production auth (OAuth 2.1)
+The default config is **open** (`DEV_BYPASS="1"`) — fine for this mock/synthetic demo.
+For a **secured or corporate** deployment, put it behind OAuth so only authorized users
+(and the ChatGPT / Claude connectors, via DCR + PKCE) can call tools:
+
+```toml
+# wrangler.toml → [vars]
+DEV_BYPASS     = "0"
+OAUTH_ISSUER   = "https://auth.unyly.com/"
+OAUTH_AUDIENCE = "https://nectarin-intelligence.<subdomain>.workers.dev/mcp"
+# OAUTH_JWKS_URL is derived from the issuer when left blank
+```
+
+**Unyly Connect** fronts the full OAuth surface (dynamic registration, authorize,
+token, rotation, per‑tenant scopes / rate limits). This Worker only *validates* the
+bearer token — signature + issuer + audience + expiry — via `jose` against the JWKS.
+
+Dependency‑free alternative — a shared secret (works for Claude Code / config / curl,
+but **not** the Claude/ChatGPT web Connectors UI, which has no static‑token field):
+```bash
+npx wrangler secret put MCP_SHARED_TOKEN
+```
+
+> Ship any real deployment with OAuth on (`DEV_BYPASS="0"`). The open default exists
+> only because the demo data is synthetic.
 
 ---
 

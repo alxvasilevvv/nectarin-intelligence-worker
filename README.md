@@ -7,8 +7,10 @@
 ![Tools](https://img.shields.io/badge/Tools-102-22c55e?style=for-the-badge)
 
 > **Install with Unyly** opens the live listing
-> (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`). You can also add it manually as a
-> custom connector with the `/mcp` URL (see [Add to Claude](#add-to-claude-custom-connector)).
+> (`https://unyly.org/ru/mcp/nectarin-intelligence-worker`) — one‑click connect for
+> **Cursor, VS Code, Claude Code, Claude Desktop, claude.ai and ChatGPT**. You can also
+> add it manually as a custom connector with the `/mcp` URL — works in **Claude** and
+> **ChatGPT** (Settings → Connectors). See [USAGE.md](USAGE.md#1-connect).
 
 A **production** remote [Model Context Protocol](https://modelcontextprotocol.io)
 server for **NECTARIN Intelligence** — an orchestrator-worker AI marketing agent
